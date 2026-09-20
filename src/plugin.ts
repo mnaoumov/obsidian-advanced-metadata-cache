@@ -6,6 +6,7 @@ import { PluginEventSourceImpl } from 'obsidian-dev-utils/obsidian/plugin/plugin
 
 import { BacklinksModuleComponent } from './modules/backlinks/backlinks-module-component.ts';
 import { ModulesComponent } from './modules/modules-component.ts';
+import { NameIndexComponent } from './modules/names/name-index-component.ts';
 import { PluginSettingsComponent } from './plugin-settings-component.ts';
 import { PluginSettingsTab } from './plugin-settings-tab.ts';
 
@@ -45,6 +46,13 @@ export class Plugin extends PluginBase {
               }),
             getIsEnabled: (settings): boolean => settings.isBacklinksModuleEnabled,
             moduleId: 'backlinks'
+          },
+          {
+            // The index component IS the module: unlike `backlinks` it registers no command, so a
+            // wrapper component would own nothing but the child below.
+            createComponent: (): NameIndexComponent => new NameIndexComponent(this.app),
+            getIsEnabled: (settings): boolean => settings.isNamesModuleEnabled,
+            moduleId: 'names'
           }
         ],
         pluginSettingsComponent

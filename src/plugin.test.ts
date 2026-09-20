@@ -25,6 +25,7 @@ import { PluginSettings } from './plugin-settings.ts';
 const hoisted = vi.hoisted(() => ({
   backlinksModuleComponentConstructor: vi.fn(),
   modulesComponentConstructor: vi.fn(),
+  nameIndexComponentConstructor: vi.fn(),
   pluginSettingsComponentConstructor: vi.fn(),
   pluginSettingsTabConstructor: vi.fn()
 }));
@@ -66,6 +67,15 @@ vi.mock('./modules/backlinks/backlinks-module-component.ts', () => ({
     public constructor(params: unknown) {
       super();
       hoisted.backlinksModuleComponentConstructor(params);
+    }
+  }
+}));
+
+vi.mock('./modules/names/name-index-component.ts', () => ({
+  NameIndexComponent: class extends Component {
+    public constructor(app: unknown) {
+      super();
+      hoisted.nameIndexComponentConstructor(app);
     }
   }
 }));
@@ -129,9 +139,9 @@ describe('Plugin', () => {
     expect(castTo<SettingTabsHolder>(plugin).settingTabs__).toHaveLength(1);
   });
 
-  it('should declare the backlinks module', async () => {
+  it('should declare every module', async () => {
     await createLoadedPlugin(createApp());
-    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks']);
+    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names']);
   });
 
   it('should gate the backlinks module on its own setting', async () => {
@@ -148,6 +158,23 @@ describe('Plugin', () => {
     await createLoadedPlugin(createApp());
     getModuleDefinitions()[0]?.createComponent();
     expect(hoisted.backlinksModuleComponentConstructor).toHaveBeenCalledOnce();
+  });
+
+  it('should gate the names module on its own setting, and leave it off by default', async () => {
+    await createLoadedPlugin(createApp());
+    const settings = new PluginSettings();
+    const moduleDefinition = getModuleDefinitions()[1];
+
+    expect(moduleDefinition?.getIsEnabled(settings)).toBe(false);
+    settings.isNamesModuleEnabled = true;
+    expect(moduleDefinition?.getIsEnabled(settings)).toBe(true);
+  });
+
+  it('should build the names module on demand, handing it the app', async () => {
+    const app = createApp();
+    await createLoadedPlugin(app);
+    getModuleDefinitions()[1]?.createComponent();
+    expect(hoisted.nameIndexComponentConstructor).toHaveBeenCalledWith(app);
   });
 
   it('should register the open demo vault command via its command handler', async () => {

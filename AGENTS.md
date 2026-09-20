@@ -21,6 +21,26 @@ Adding a module means adding its folder, its toggle to `PluginSettings`, its row
 many modules there are. The `backlinks` module defaults **on**, because it is the behavior this plugin
 inherited wholesale from Backlink Cache; a module added later defaults **off**.
 
+## The `names` module: the patch goes in BEFORE the index is built
+
+`NameIndexComponent.onLayoutReady` installs `MetadataCacheGetLinkSuggestionsPatchComponent` and only then
+builds the index, and the order is deliberate: while the index is empty the patch falls through to
+Obsidian's own `getLinkSuggestions`, so there is no window in which a caller is handed a half-built
+answer. The patch reads `isBuilt` on every call to decide.
+
+The cost is that the presence of the patch says nothing about whether the index is ready — which is what
+`safe()` and `getPathsByNameSafe()` are for, and what the README tells consumers to use when they may be
+asked early. A test that waits for `originalFn` to appear and then measures is measuring Obsidian; the
+tripwire suite in this module was written that way once and reported a speedup of exactly 1.0.
+
+What is memoized is the per-file half: a file's display path, its alias entries and its names, keyed by
+path and dropped when that path changes. The flat array is rebuilt by walking `vault.getFiles()`, which
+costs a map lookup per file and is what keeps the answer in the same order as Obsidian's own.
+
+Measured against the generated performance vault: the built-in call is ~23 ms at 20k files and ~108 ms at
+90k, linear in vault size, and the `[[` autocomplete pays it on **every** open because
+`FileSuggestManager.close()` nulls its memo. The indexed answer is ~0.005 ms.
+
 ## Invariant: a self-link is never indexed as a re-resolution source
 
 `BacklinkCacheComponent.refreshBacklinks` records a self-link as a **backlink** (so the panel shows it)

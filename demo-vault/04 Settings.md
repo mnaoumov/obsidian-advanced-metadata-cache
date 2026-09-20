@@ -4,6 +4,8 @@ Open **Settings -> Community plugins -> Advanced Metadata Cache** to configure t
 
 - `isBacklinksModuleEnabled`
   - when on, the **Backlinks** module maintains the backlink index and answers `app.metadataCache.getBacklinksForFile()` from it. When off, the module is unloaded outright - its index, its listeners and its **Refresh backlink panels** command all go with it, and Obsidian's own implementation answers again. Every index this plugin maintains is a module of its own, so switching one off leaves the others running.
+- `isNamesModuleEnabled`
+  - when on, the **Names** module indexes what every note is called - its name and its `aliases` - and answers `app.metadataCache.getLinkSuggestions()` from that index, which is what the `[[` autocomplete asks on every open. Off by default, like every module added after the one this plugin was created for. [05 Name index](<./05 Name index.md>) demonstrates it.
 - `shouldAutomaticallyRefreshBacklinkPanels`
   - when on, open **Backlinks** panes refresh automatically as the cache updates, so they always reflect the latest links. When off, refresh them yourself with the **Advanced Metadata Cache: Refresh backlink panels** command.
 - `shouldShowProgressBarOnLoad`

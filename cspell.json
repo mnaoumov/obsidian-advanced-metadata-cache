@@ -36,8 +36,12 @@
     "subkey",
     "tsbuildinfo",
     "undercounts",
+    "unkeyed",
+    "unranked",
     "unvalidated",
-    "wdio"
+    "wdio",
+    "Wikilink",
+    "Wikilinks"
   ],
   "ignoreWords": [],
   "import": [],
