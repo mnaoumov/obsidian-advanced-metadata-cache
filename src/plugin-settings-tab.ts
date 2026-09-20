@@ -23,6 +23,21 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         }
       }),
       this.settingEx({
+        desc: 'Whether to index what every note is called - its name and its `aliases` - and answer `app.metadataCache.getLinkSuggestions()` from that index. That is what the `[[` autocomplete asks on every open, and the built-in implementation answers it by rescanning the whole vault each time. When off, the built-in implementation answers instead and nothing is indexed.',
+        name: 'Names module',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            this.bind({
+              onChanged: () => {
+                this.refresh();
+              },
+              propertyName: 'isNamesModuleEnabled',
+              valueComponent: toggle
+            });
+          });
+        }
+      }),
+      this.settingEx({
         desc: 'Whether to refresh the backlink panels automatically when a note is saved.',
         name: 'Should automatically refresh backlink panels',
         render: (setting) => {

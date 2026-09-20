@@ -24,7 +24,7 @@ interface Harness {
   readonly definitions: SettingDefinitionItem[];
   readonly propertyNames: string[];
   readonly tab: PluginSettingsTab;
-  triggerModuleToggleChange(): Promise<void>;
+  triggerModuleToggleChange(propertyName: string): Promise<void>;
 }
 
 type ModuleToggleChangeHandler = (isEnabledNow: boolean, wasEnabled: boolean) => Promisable<void>;
@@ -41,6 +41,7 @@ function checkIsVisible(definition: SettingDefinitionItem | undefined): boolean 
 function createHarness(isBacklinksModuleEnabled: boolean): Harness {
   const settings = {
     isBacklinksModuleEnabled,
+    isNamesModuleEnabled: false,
     shouldAutomaticallyRefreshBacklinkPanels: false,
     shouldShowProgressBarOnLoad: true
   };
@@ -53,6 +54,7 @@ function createHarness(isBacklinksModuleEnabled: boolean): Harness {
       inputValues: settings,
       validationMessages: {
         isBacklinksModuleEnabled: '',
+        isNamesModuleEnabled: '',
         shouldAutomaticallyRefreshBacklinkPanels: '',
         shouldShowProgressBarOnLoad: ''
       }
@@ -75,12 +77,12 @@ function createHarness(isBacklinksModuleEnabled: boolean): Harness {
   tab.containerEl = activeWindow.createDiv();
 
   const propertyNames: string[] = [];
-  let moduleToggleChangeHandler: ModuleToggleChangeHandler | undefined;
+  const moduleToggleChangeHandlers = new Map<string, ModuleToggleChangeHandler | undefined>();
 
   vi.spyOn(tab, 'bind').mockImplementation((params) => {
     propertyNames.push(params.propertyName);
-    if (params.propertyName === 'isBacklinksModuleEnabled') {
-      moduleToggleChangeHandler = castTo<ModuleToggleChangeHandler | undefined>(params.onChanged);
+    if (params.onChanged) {
+      moduleToggleChangeHandlers.set(params.propertyName, castTo<ModuleToggleChangeHandler | undefined>(params.onChanged));
     }
     return params.valueComponent;
   });
@@ -96,23 +98,25 @@ function createHarness(isBacklinksModuleEnabled: boolean): Harness {
     definitions,
     propertyNames,
     tab,
-    triggerModuleToggleChange: async (): Promise<void> => {
-      await moduleToggleChangeHandler?.(false, true);
+    triggerModuleToggleChange: async (propertyName: string): Promise<void> => {
+      await moduleToggleChangeHandlers.get(propertyName)?.(false, true);
     }
   };
 }
 
 describe('PluginSettingsTab', () => {
-  it('should display three toggle settings bound to the correct properties', () => {
+  it('should display a toggle setting per module plus the backlinks options, bound to the correct properties', () => {
     const harness = createHarness(true);
 
     expect(harness.definitions.map((definition) => 'name' in definition ? definition.name : '')).toStrictEqual([
       'Backlinks module',
+      'Names module',
       'Should automatically refresh backlink panels',
       'Should show progress bar on load'
     ]);
     expect(harness.propertyNames).toStrictEqual([
       'isBacklinksModuleEnabled',
+      'isNamesModuleEnabled',
       'shouldAutomaticallyRefreshBacklinkPanels',
       'shouldShowProgressBarOnLoad'
     ]);
@@ -121,20 +125,29 @@ describe('PluginSettingsTab', () => {
   it('should show the backlinks settings while the module is on', () => {
     const harness = createHarness(true);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true]);
   });
 
-  it('should hide the backlinks settings while the module is off', () => {
+  it('should hide the backlinks settings while the module is off, leaving every module toggle visible', () => {
     const harness = createHarness(false);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, false, false]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, false, false]);
   });
 
-  it('should re-render the tab when the module toggle changes, so the hidden rows follow it', async () => {
+  it('should re-render the tab when the backlinks module toggle changes, so the hidden rows follow it', async () => {
     const harness = createHarness(true);
     const refreshSpy = vi.spyOn(harness.tab, 'refresh').mockImplementation(() => undefined);
 
-    await harness.triggerModuleToggleChange();
+    await harness.triggerModuleToggleChange('isBacklinksModuleEnabled');
+
+    expect(refreshSpy).toHaveBeenCalledOnce();
+  });
+
+  it('should re-render the tab when the names module toggle changes', async () => {
+    const harness = createHarness(true);
+    const refreshSpy = vi.spyOn(harness.tab, 'refresh').mockImplementation(() => undefined);
+
+    await harness.triggerModuleToggleChange('isNamesModuleEnabled');
 
     expect(refreshSpy).toHaveBeenCalledOnce();
   });
