@@ -38,12 +38,14 @@ function checkIsVisible(definition: SettingDefinitionItem | undefined): boolean 
   return typeof visible === 'function' ? visible() : visible !== false;
 }
 
-function createHarness(isBacklinksModuleEnabled: boolean): Harness {
+function createHarness(isBacklinksModuleEnabled: boolean, isTitlesModuleEnabled = false): Harness {
   const settings = {
     isBacklinksModuleEnabled,
     isNamesModuleEnabled: false,
+    isTitlesModuleEnabled,
     shouldAutomaticallyRefreshBacklinkPanels: false,
-    shouldShowProgressBarOnLoad: true
+    shouldShowProgressBarOnLoad: true,
+    titlePropertyNames: ['title']
   };
 
   const pluginSettingsComponent = strictProxy<PluginSettingsComponentBase<PluginSettings>>({
@@ -55,8 +57,10 @@ function createHarness(isBacklinksModuleEnabled: boolean): Harness {
       validationMessages: {
         isBacklinksModuleEnabled: '',
         isNamesModuleEnabled: '',
+        isTitlesModuleEnabled: '',
         shouldAutomaticallyRefreshBacklinkPanels: '',
-        shouldShowProgressBarOnLoad: ''
+        shouldShowProgressBarOnLoad: '',
+        titlePropertyNames: ''
       }
     }
   });
@@ -111,27 +115,31 @@ describe('PluginSettingsTab', () => {
     expect(harness.definitions.map((definition) => 'name' in definition ? definition.name : '')).toStrictEqual([
       'Backlinks module',
       'Names module',
+      'Titles module',
+      'Title properties',
       'Should automatically refresh backlink panels',
       'Should show progress bar on load'
     ]);
     expect(harness.propertyNames).toStrictEqual([
       'isBacklinksModuleEnabled',
       'isNamesModuleEnabled',
+      'isTitlesModuleEnabled',
+      'titlePropertyNames',
       'shouldAutomaticallyRefreshBacklinkPanels',
       'shouldShowProgressBarOnLoad'
     ]);
   });
 
-  it('should show the backlinks settings while the module is on', () => {
-    const harness = createHarness(true);
+  it('should show the options belonging to a module that is on', () => {
+    const harness = createHarness(true, true);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true]);
   });
 
-  it('should hide the backlinks settings while the module is off, leaving every module toggle visible', () => {
+  it('should hide the options belonging to a module that is off, leaving every module toggle visible', () => {
     const harness = createHarness(false);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, false, false]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, false, false, false]);
   });
 
   it('should re-render the tab when the backlinks module toggle changes, so the hidden rows follow it', async () => {
@@ -148,6 +156,15 @@ describe('PluginSettingsTab', () => {
     const refreshSpy = vi.spyOn(harness.tab, 'refresh').mockImplementation(() => undefined);
 
     await harness.triggerModuleToggleChange('isNamesModuleEnabled');
+
+    expect(refreshSpy).toHaveBeenCalledOnce();
+  });
+
+  it('should re-render the tab when the titles module toggle changes', async () => {
+    const harness = createHarness(true);
+    const refreshSpy = vi.spyOn(harness.tab, 'refresh').mockImplementation(() => undefined);
+
+    await harness.triggerModuleToggleChange('isTitlesModuleEnabled');
 
     expect(refreshSpy).toHaveBeenCalledOnce();
   });

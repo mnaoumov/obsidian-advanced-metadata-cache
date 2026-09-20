@@ -41,6 +41,45 @@ Measured against the generated performance vault: the built-in call is ~23 ms at
 90k, linear in vault size, and the `[[` autocomplete pays it on **every** open because
 `FileSuggestManager.close()` nulls its memo. The indexed answer is ~0.005 ms.
 
+## The `titles` module: the one place two modules touch, and why it is not a memo
+
+`TitleIndex` is built by `Plugin.onloadImpl` rather than by either module that uses it, because both
+`names` and `titles` read it and each is switched on independently of the other. It gates itself on
+`isTitlesModuleEnabled`, so both callers get the same answer whatever the other module is doing, and
+`TitleIndexComponent` owns only the invalidation — plus a `clear()` at **both** of its edges, since
+nothing invalidates the index while the module is off and a `title` changed in that window has no event
+left to replay.
+
+`NameIndex` does **not** read through that memo. It calls the exported `readTitles` with the frontmatter
+it has already fetched for `aliases`. Both components listen to `changed`, in whichever order the two
+modules happened to be switched on, so a name index reading the memo could be handed a title the memo
+had not dropped yet — and that order is a user's toggle history, not something a test can pin. There is
+no ordering to get right if there is nothing to invalidate. The memo exists for the published API, whose
+callers ask repeatedly about the same note.
+
+**A title becomes a NAME, never a `LinkSuggestion` entry.** `getSuggestions()` replaces
+`metadataCache.getLinkSuggestions()` and its contract is that it returns the array Obsidian would; the
+README, the demo vault and `get-link-suggestions-on-off-tripwire` all rest on that. The reverse map is
+this plugin's own answer to a question the built-in flat array cannot answer at all, so widening it
+costs no parity. If the `[[` autocomplete should ever offer titles, that is a separate, user-visible
+feature with its own setting — not a widening of this one.
+
+## Two kinds of public surface, and which one a new module takes
+
+`backlinks` and `names` answer by **replacing a core method**, so a consumer calls
+`app.metadataCache.…` and never learns the plugin is installed. Their widened signatures are declared in
+the root `types.d.ts`, and there is nothing to version-negotiate.
+
+`titles` has no core method to replace, so it publishes through the `obsidian-dev-utils` plugin
+registry: the API object is `PluginApiImpl`, its contract and version are in `src/plugin-api.ts`, and
+its types are in the root `api.d.ts`, which imports from `obsidian` alone so a consumer can copy it. The
+declaration goes through `getPluginApis()` rather than a hand `publishPluginApi` call, because the
+`plugin-loaded` broadcast derives its `apiVersions` from that method alone.
+
+Ask which kind a new module is before writing either file: the two are not interchangeable, and a
+core-widening surface published through the registry would ask consumers to negotiate a version for a
+method they are going to call on `app` regardless.
+
 ## Invariant: a self-link is never indexed as a re-resolution source
 
 `BacklinkCacheComponent.refreshBacklinks` records a self-link as a **backlink** (so the panel shows it)

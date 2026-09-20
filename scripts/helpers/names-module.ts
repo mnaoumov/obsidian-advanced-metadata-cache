@@ -66,22 +66,24 @@ export interface SettingsEditorPlugin extends Plugin {
  */
 export interface SwitchablePluginSettings {
   isNamesModuleEnabled: boolean;
+  isTitlesModuleEnabled: boolean;
+  titlePropertyNames: string[];
 }
 
 /**
- * Switches the `names` module on or off through the plugin's own settings, the way a user would.
+ * Applies a settings patch through the plugin's own settings component, the way a user would.
  *
- * The module is off by default and the vault is shared by every suite in a project, so a suite that
- * switches it on switches it back off again.
+ * Every module below the first is off by default and the vault is shared by every suite in a
+ * project, so a suite that switches one on switches it back off again.
  *
- * @param isEnabled - Whether the module should be running.
+ * @param patch - The settings to change; anything left out is untouched.
  * @returns What went wrong, or `null`.
  */
-export async function setNamesModuleEnabled(isEnabled: boolean): Promise<ModuleSwitchResult> {
+export async function applyPluginSettings(patch: Partial<SwitchablePluginSettings>): Promise<ModuleSwitchResult> {
   return evalInObsidian({
     async callback({
       app,
-      IS_ENABLED: isEnabledNow,
+      PATCH: settingsPatch,
       PLUGIN_ID: pluginId
     }) {
       const plugin = app.plugins.getPlugin(pluginId) as null | SettingsEditorPlugin;
@@ -91,15 +93,25 @@ export async function setNamesModuleEnabled(isEnabled: boolean): Promise<ModuleS
       }
 
       await plugin.pluginSettingsComponent.editAndSave((settings) => {
-        settings.isNamesModuleEnabled = isEnabledNow;
+        Object.assign(settings, settingsPatch);
       });
 
       return { error: null };
     },
     input: {
-      IS_ENABLED: isEnabled,
+      PATCH: patch,
       PLUGIN_ID
     },
     vaultPath: getTemporaryVault().path
   });
+}
+
+/**
+ * Switches the `names` module on or off.
+ *
+ * @param isEnabled - Whether the module should be running.
+ * @returns What went wrong, or `null`.
+ */
+export async function setNamesModuleEnabled(isEnabled: boolean): Promise<ModuleSwitchResult> {
+  return applyPluginSettings({ isNamesModuleEnabled: isEnabled });
 }

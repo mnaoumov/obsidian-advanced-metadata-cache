@@ -3,6 +3,7 @@ import type {
   App as AppOriginal,
   PluginManifest
 } from 'obsidian';
+import type { PluginApiDeclaration } from 'obsidian-dev-utils/obsidian/plugin/plugin-api';
 
 import { Component } from 'obsidian';
 import { castTo } from 'obsidian-dev-utils/object-utils';
@@ -17,7 +18,12 @@ import {
 } from 'vitest';
 
 import type { ModuleDefinition } from './modules/modules-component.ts';
+import type { TitleIndex } from './modules/titles/title-index.ts';
 
+import {
+  PLUGIN_API_CONTRACT,
+  PLUGIN_API_VERSION
+} from './plugin-api.ts';
 import { PluginSettings } from './plugin-settings.ts';
 
 // --- Mocks for the plugin's OWN sibling modules (allowed: not obsidian-dev-utils / obsidian-test-mocks) ---
@@ -27,7 +33,8 @@ const hoisted = vi.hoisted(() => ({
   modulesComponentConstructor: vi.fn(),
   nameIndexComponentConstructor: vi.fn(),
   pluginSettingsComponentConstructor: vi.fn(),
-  pluginSettingsTabConstructor: vi.fn()
+  pluginSettingsTabConstructor: vi.fn(),
+  titleIndexComponentConstructor: vi.fn()
 }));
 
 // `PluginDataHandler` and `PluginEventSourceImpl` are NOT stubbed: since obsidian-dev-utils 93.2 the base
@@ -73,9 +80,18 @@ vi.mock('./modules/backlinks/backlinks-module-component.ts', () => ({
 
 vi.mock('./modules/names/name-index-component.ts', () => ({
   NameIndexComponent: class extends Component {
-    public constructor(app: unknown) {
+    public constructor(params: unknown) {
       super();
-      hoisted.nameIndexComponentConstructor(app);
+      hoisted.nameIndexComponentConstructor(params);
+    }
+  }
+}));
+
+vi.mock('./modules/titles/title-index-component.ts', () => ({
+  TitleIndexComponent: class extends Component {
+    public constructor(params: unknown) {
+      super();
+      hoisted.titleIndexComponentConstructor(params);
     }
   }
 }));
@@ -87,8 +103,16 @@ interface ModuleDefinitionsHolder {
   readonly moduleDefinitions: readonly ModuleDefinition[];
 }
 
+interface PluginApisReader {
+  getPluginApis(): PluginApiDeclaration[];
+}
+
 interface SettingTabsHolder {
   settingTabs__: unknown[];
+}
+
+interface TitleIndexHolder {
+  readonly titleIndex: TitleIndex;
 }
 
 function createApp(): AppOriginal {
@@ -141,7 +165,7 @@ describe('Plugin', () => {
 
   it('should declare every module', async () => {
     await createLoadedPlugin(createApp());
-    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names']);
+    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names', 'titles']);
   });
 
   it('should gate the backlinks module on its own setting', async () => {
@@ -174,7 +198,53 @@ describe('Plugin', () => {
     const app = createApp();
     await createLoadedPlugin(app);
     getModuleDefinitions()[1]?.createComponent();
-    expect(hoisted.nameIndexComponentConstructor).toHaveBeenCalledWith(app);
+    expect(hoisted.nameIndexComponentConstructor).toHaveBeenCalledWith(expect.objectContaining({ app }));
+  });
+
+  it('should gate the titles module on its own setting, and leave it off by default', async () => {
+    await createLoadedPlugin(createApp());
+    const settings = new PluginSettings();
+    const moduleDefinition = getModuleDefinitions()[2];
+
+    expect(moduleDefinition?.getIsEnabled(settings)).toBe(false);
+    settings.isTitlesModuleEnabled = true;
+    expect(moduleDefinition?.getIsEnabled(settings)).toBe(true);
+  });
+
+  it('should build the titles module on demand, handing it the app', async () => {
+    const app = createApp();
+    await createLoadedPlugin(app);
+    getModuleDefinitions()[2]?.createComponent();
+    expect(hoisted.titleIndexComponentConstructor).toHaveBeenCalledWith(expect.objectContaining({ app }));
+  });
+
+  it('should hand the names and titles modules the SAME title index, which is why either may be off', async () => {
+    const app = createApp();
+    await createLoadedPlugin(app);
+    getModuleDefinitions()[1]?.createComponent();
+    getModuleDefinitions()[2]?.createComponent();
+
+    const namesParams = castTo<TitleIndexHolder>(hoisted.nameIndexComponentConstructor.mock.calls[0]?.[0]);
+    const titlesParams = castTo<TitleIndexHolder>(hoisted.titleIndexComponentConstructor.mock.calls[0]?.[0]);
+
+    expect(namesParams.titleIndex).toBe(titlesParams.titleIndex);
+  });
+
+  it('should publish its API under the contract it declares, and only once loaded', async () => {
+    const plugin = new Plugin(createApp(), createManifest());
+
+    expect(castTo<PluginApisReader>(plugin).getPluginApis()).toEqual([]);
+
+    await plugin.onload();
+    const pluginApis = castTo<PluginApisReader>(plugin).getPluginApis();
+
+    expect(pluginApis).toHaveLength(1);
+    expect(pluginApis[0]?.apiVersion).toBe(PLUGIN_API_VERSION);
+    expect(pluginApis[0]?.contract).toBe(PLUGIN_API_CONTRACT);
+
+    for (const methodName of Object.keys(PLUGIN_API_CONTRACT)) {
+      expect(pluginApis[0]?.api).toHaveProperty(methodName, expect.any(Function));
+    }
   });
 
   it('should register the open demo vault command via its command handler', async () => {

@@ -1,6 +1,6 @@
 # Start here
 
-Welcome to the [Advanced Metadata Cache](https://github.com/mnaoumov/obsidian-advanced-metadata-cache/) demo vault. **Advanced Metadata Cache** maintains the vault indexes Obsidian rebuilds on every call, and answers the built-in lookup from the index instead. Each index is a **module** you switch on or off on its own. Two are demonstrated here: **Backlinks**, which keeps an always-up-to-date index of every note's backlinks, so `app.metadataCache.getBacklinksForFile()` - the undocumented function that powers Obsidian's core **Backlinks** pane and many community plugins - answers from the index instead of rescanning the whole vault on every call; and **Names**, which does the same for what every note is called, behind the `[[` autocomplete.
+Welcome to the [Advanced Metadata Cache](https://github.com/mnaoumov/obsidian-advanced-metadata-cache/) demo vault. **Advanced Metadata Cache** maintains the vault indexes Obsidian rebuilds on every call, and answers the built-in lookup from the index instead. Each index is a **module** you switch on or off on its own. Three are demonstrated here: **Backlinks**, which keeps an always-up-to-date index of every note's backlinks, so `app.metadataCache.getBacklinksForFile()` - the undocumented function that powers Obsidian's core **Backlinks** pane and many community plugins - answers from the index instead of rescanning the whole vault on every call; **Names**, which does the same for what every note is called, behind the `[[` autocomplete; and **Titles**, which lets a frontmatter property count as a note's name too.
 
 **Honest note:** in a tiny vault like this one you will *not* feel a speed difference - the built-in lookup is already fast enough here. The plugin earns its keep in **large** vaults (thousands of notes and links), where the built-in scan gets slow. What this vault shows is *what* the plugin does: it serves the same backlinks through a cached, extended API you can call yourself.
 
@@ -13,3 +13,4 @@ Welcome to the [Advanced Metadata Cache](https://github.com/mnaoumov/obsidian-ad
 - [03 Canvas backlinks](<./03 Canvas backlinks.md>)
 - [04 Settings](<./04 Settings.md>)
 - [05 Name index](<./05 Name index.md>)
+- [06 Titles](<./06 Titles.md>)

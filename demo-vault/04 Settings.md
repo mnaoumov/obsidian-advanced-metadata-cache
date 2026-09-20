@@ -6,6 +6,10 @@ Open **Settings -> Community plugins -> Advanced Metadata Cache** to configure t
   - when on, the **Backlinks** module maintains the backlink index and answers `app.metadataCache.getBacklinksForFile()` from it. When off, the module is unloaded outright - its index, its listeners and its **Refresh backlink panels** command all go with it, and Obsidian's own implementation answers again. Every index this plugin maintains is a module of its own, so switching one off leaves the others running.
 - `isNamesModuleEnabled`
   - when on, the **Names** module indexes what every note is called - its name and its `aliases` - and answers `app.metadataCache.getLinkSuggestions()` from that index, which is what the `[[` autocomplete asks on every open. Off by default, like every module added after the one this plugin was created for. [05 Name index](<./05 Name index.md>) demonstrates it.
+- `isTitlesModuleEnabled`
+  - when on, the **Titles** module reads the frontmatter properties listed below as names for the note carrying them, alongside its own name and its `aliases`. Nothing is indexed up front - the properties are read per note, on demand - so a plugin that asks about one note pays for one note. Off by default, like every module added after the one this plugin was created for. [06 Titles](<./06 Titles.md>) demonstrates it.
+- `titlePropertyNames`
+  - the properties the **Titles** module reads, one per line. Defaults to `title` alone. Other plugins can read this same list through the plugin API, so a vault that uses a different property names it here once rather than once per plugin.
 - `shouldAutomaticallyRefreshBacklinkPanels`
   - when on, open **Backlinks** panes refresh automatically as the cache updates, so they always reflect the latest links. When off, refresh them yourself with the **Advanced Metadata Cache: Refresh backlink panels** command.
 - `shouldShowProgressBarOnLoad`
@@ -84,3 +88,21 @@ caption: Show it again (the default)
 ---
 await require('/demoSetup.ts').changeSettings(app, { shouldShowProgressBarOnLoad: true });
 ```
+
+The **Titles** module has its own pair, and [06 Titles](<./06 Titles.md>) shows what changes between them:
+
+```code-button
+---
+caption: Switch the Titles module on
+---
+await require('/demoSetup.ts').changeSettings(app, { isTitlesModuleEnabled: true });
+```
+
+```code-button
+---
+caption: Switch it off again (the default)
+---
+await require('/demoSetup.ts').changeSettings(app, { isTitlesModuleEnabled: false });
+```
+
+Manual equivalent: toggle **Titles module** above.
