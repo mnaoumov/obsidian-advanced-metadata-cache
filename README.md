@@ -27,6 +27,7 @@ A copy of the vault ships with every release. You can access it via any of the f
 - **Canvas files are indexed too**, and their links are exposed through `getCache()`, which is otherwise left empty for canvas files. [03 Canvas backlinks](<./demo-vault/03 Canvas backlinks.md>)
 - **Frontmatter markdown links count as backlinks** when the [`Frontmatter Markdown Links`](https://community.obsidian.md/plugins/frontmatter-markdown-links) plugin is installed. [03 Canvas backlinks](<./demo-vault/03 Canvas backlinks.md>)
 - **A name index behind the `[[` autocomplete**, so opening it stops rescanning every note in the vault for its name and aliases. [05 Name index](<./demo-vault/05 Name index.md>)
+- **A frontmatter property can name a note too**, so a note titled in its `title` property is found under that title. [06 Titles](<./demo-vault/06 Titles.md>)
 - **Every index is a module of its own**, switched on or off without touching the others, and refresh behavior is configurable. [04 Settings](<./demo-vault/04 Settings.md>)
 
 ## Modules
@@ -35,8 +36,27 @@ A copy of the vault ships with every release. You can access it via any of the f
 |-----------|-------------------------------------------------------------------------------------------|---------|
 | Backlinks | Which notes link to a note, answering `getBacklinksForFile()`.                            | On      |
 | Names     | What each note is called - its name and its `aliases` - answering `getLinkSuggestions()`. | Off     |
+| Titles    | What a note's own frontmatter says it is called, read per note and on demand.             | Off     |
 
 Switching a module off unloads it completely — its index, its listeners and the commands it registers all go with it, and the built-in implementation answers again. Switching one back on rebuilds its index from scratch.
+
+### Titles
+
+A note can carry its real name in a frontmatter property rather than in its filename — `title` is the usual one, and several plugins write it. Obsidian itself does not treat that value as a name, so nothing can find the note by it.
+
+Switch the **Titles** module on and every property you list there is read as a name. The list defaults to `title` alone, and it joins the note's own name and its `aliases`:
+
+```yaml
+---
+title: The Real Name
+---
+```
+
+Two things then know about it. `getPathsByName('The Real Name')` finds the note, while the **Names** module is on — and any other plugin can read the same properties and the same per-note answer, so you name the property here once instead of once per plugin.
+
+**It deliberately does NOT change the `[[` autocomplete.** The list that Obsidian offers there is answered faster by this plugin, not differently; a title is a name for looking a note *up*, not a new thing to offer when you type.
+
+This is the reverse direction from [Front Matter Title](https://github.com/snezhig/obsidian-front-matter-title), and the two are independent by design: that plugin takes a note and shows you its title, in the explorer, the tabs and the graph. This one takes a title and finds you the note. If you run both, name the property in each — one setting silently changing what another plugin answers would be worse than typing it twice.
 
 ## For plugin developers
 
@@ -66,6 +86,35 @@ const safePaths = await app.metadataCache.getLinkSuggestions.getPathsByNameSafe(
 **Use the `safe` variants when you may be asked early.** The patch is installed as soon as the module loads, but the index is built once the metadata cache can answer; until then a plain call falls through to Obsidian's implementation and `getPathsByName` answers with nothing. `safe()` / `getPathsByNameSafe()` wait for the build.
 
 To use the updated signatures from your own plugin, copy [types.d.ts](./types.d.ts) into your code. [02 Fast, safe, and original backlinks](<./demo-vault/02 Fast, safe, and original backlinks.md>) runs all three backlink calls side by side, and [05 Name index](<./demo-vault/05 Name index.md>) does the same for the name calls.
+
+### The Titles API
+
+The two modules above answer by replacing a method Obsidian already has, so there is nothing to fetch. The **Titles** module has no such method to replace — Obsidian has no notion of a name-bearing property — so it publishes an API instead, declared in [api.d.ts](./api.d.ts), which imports from `obsidian` and nothing else:
+
+```ts
+import { watchPluginApi } from 'obsidian-dev-utils/obsidian/plugin/plugin-api';
+
+const apiRef = watchPluginApi<AdvancedMetadataCacheApi>({
+  apiVersionRange: '^1',
+  app: this.app,
+  component: this,
+  pluginId: 'advanced-metadata-cache'
+});
+
+// `value` is always current and never stale: `null` while this plugin is not loaded, and non-`null`
+// on its own once it is.
+const api = apiRef.value;
+if (api) {
+  console.log(api.getTitlePropertyNames()); // ['title']
+  console.log(api.getTitles('Notes/Some note.md')); // ['The Real Name']
+}
+```
+
+Both arrived in contract `1.0.0`, and the contract version moves independently of the plugin's own, so ask for a range. Both answer **empty while the Titles module is off**, which is the same answer as "no property is configured" and is meant to be.
+
+`getTitles` is synchronous and lazily memoized per note, so it is safe on a per-keystroke path. Read `getTitlePropertyNames()` and show that list rather than offering a property setting of your own — one place to type `title` is the point of the setting living here.
+
+If you would rather not depend on `obsidian-dev-utils` for the handle, the registry is a documented wire protocol you can read directly — see [Cross-plugin APIs](https://mnaoumov.dev/obsidian-dev-utils/guides/cross-plugin-apis/).
 
 ## Installation
 

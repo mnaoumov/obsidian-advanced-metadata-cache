@@ -5,6 +5,7 @@ import type {
 import type { TFile } from 'obsidian-test-mocks/obsidian';
 
 import { castTo } from 'obsidian-dev-utils/object-utils';
+import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
 import { App } from 'obsidian-test-mocks/obsidian';
 import {
   beforeEach,
@@ -13,6 +14,10 @@ import {
   it
 } from 'vitest';
 
+import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
+
+import { PluginSettings } from '../../plugin-settings.ts';
+import { TitleIndex } from '../titles/title-index.ts';
 import {
   NameIndex,
   normalizeName
@@ -34,11 +39,19 @@ const SUPPORTED_EXTENSIONS = new Set(['canvas', 'md', 'png']);
 describe('NameIndex', () => {
   let app: App;
   let nameIndex: NameIndex;
+  let settings: PluginSettings;
 
   beforeEach(() => {
     app = App.createConfigured__();
     castTo<SupportedFileChecker>(app.metadataCache).isSupportedFile = (file): boolean => SUPPORTED_EXTENSIONS.has(file.extension);
-    nameIndex = new NameIndex(castTo<AppOriginal>(app));
+    settings = new PluginSettings();
+
+    const titleIndex = new TitleIndex({
+      app: castTo<AppOriginal>(app),
+      pluginSettingsComponent: strictProxy<PluginSettingsComponent>({ settings })
+    });
+
+    nameIndex = new NameIndex({ app: castTo<AppOriginal>(app), titleIndex });
   });
 
   describe('normalizeName', () => {
@@ -86,6 +99,31 @@ describe('NameIndex', () => {
       nameIndex.buildAll();
 
       expect(nameIndex.getPathsByName('image.png')).toEqual(['Attachments/image.png']);
+    });
+
+    it('should answer with a title while the Titles module is on, and not while it is off', () => {
+      createNote('Notes/Alpha.md', '---\ntitle: The Real Name\n---\n');
+      nameIndex.buildAll();
+
+      expect(nameIndex.getPathsByName('the real name')).toEqual([]);
+
+      settings.isTitlesModuleEnabled = true;
+      nameIndex.buildAll();
+
+      expect(nameIndex.getPathsByName('the real name')).toEqual(['Notes/Alpha.md']);
+      expect(nameIndex.getPathsByName('alpha')).toEqual(['Notes/Alpha.md']);
+    });
+
+    it('should forget the OLD title of a refreshed file', async () => {
+      settings.isTitlesModuleEnabled = true;
+      const file = createNote('Alpha.md', '---\ntitle: Before\n---\n');
+      nameIndex.buildAll();
+      await app.vault.modify(file, '---\ntitle: After\n---\n');
+
+      nameIndex.refresh(castTo<TFileOriginal>(file));
+
+      expect(nameIndex.getPathsByName('before')).toEqual([]);
+      expect(nameIndex.getPathsByName('after')).toEqual(['Alpha.md']);
     });
   });
 

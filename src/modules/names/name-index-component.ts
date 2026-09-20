@@ -12,8 +12,17 @@ import { LayoutReadyComponent } from 'obsidian-dev-utils/obsidian/components/lay
 import { isFolder } from 'obsidian-dev-utils/obsidian/file-system';
 import { ensureMetadataCacheReady } from 'obsidian-dev-utils/obsidian/metadata-cache';
 
+import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
+import type { TitleIndex } from '../titles/title-index.ts';
+
 import { NameIndex } from './name-index.ts';
 import { MetadataCacheGetLinkSuggestionsPatchComponent } from './patches/metadata-cache-get-link-suggestions-patch-component.ts';
+
+interface NameIndexComponentConstructorParams {
+  readonly app: App;
+  readonly pluginSettingsComponent: PluginSettingsComponent;
+  readonly titleIndex: TitleIndex;
+}
 
 /**
  * Owns the {@link NameIndex}'s lifecycle: builds it once the metadata cache can answer, then keeps it
@@ -38,10 +47,17 @@ export class NameIndexComponent extends LayoutReadyComponent {
 
   private buildPromise: null | Promise<void> = null;
   private isBuiltValue = false;
+  private readonly pluginSettingsComponent: PluginSettingsComponent;
+  private readonly titleIndex: TitleIndex;
+  private titlePropertyNamesKey: string;
 
-  public constructor(app: App) {
-    super(app);
-    this.nameIndex = new NameIndex(app);
+  public constructor(params: NameIndexComponentConstructorParams) {
+    super(params.app);
+
+    this.pluginSettingsComponent = params.pluginSettingsComponent;
+    this.titleIndex = params.titleIndex;
+    this.titlePropertyNamesKey = this.titleIndex.getTitlePropertyNames().join('\n');
+    this.nameIndex = new NameIndex({ app: params.app, titleIndex: params.titleIndex });
   }
 
   /**
@@ -103,6 +119,23 @@ export class NameIndexComponent extends LayoutReadyComponent {
     this.registerEvent(this.app.vault.on('rename', (abstractFile, oldPath) => {
       this.handleRename(abstractFile, oldPath);
     }));
+
+    /*
+     * A title is a name, so changing WHICH properties are titles — or switching the `Titles` module off
+     * — changes what every file in the vault is called, and no vault event says so. The whole index is
+     * rebuilt, because that is what "every file's names may have moved" means.
+     *
+     * The comparison is against the `Titles` module's own answer, which is already gated on its toggle,
+     * so both causes are one test. `ModulesComponent` registers its `saveSettings` listener when the
+     * plugin adds it as a child — before any module component exists — so by the time this one runs the
+     * titles module has already loaded or unloaded and dropped its memo.
+     */
+    const eventRef = this.pluginSettingsComponent.on('saveSettings', () => {
+      this.handleSaveSettings();
+    });
+    this.register(() => {
+      this.pluginSettingsComponent.offref(eventRef);
+    });
   }
 
   private async build(): Promise<void> {
@@ -154,6 +187,20 @@ export class NameIndexComponent extends LayoutReadyComponent {
     Vault.recurseChildren(abstractFile, (descendant) => {
       this.refreshAbstractFile(descendant);
     });
+  }
+
+  private handleSaveSettings(): void {
+    const titlePropertyNamesKey = this.titleIndex.getTitlePropertyNames().join('\n');
+
+    if (this.titlePropertyNamesKey === titlePropertyNamesKey) {
+      return;
+    }
+
+    this.titlePropertyNamesKey = titlePropertyNamesKey;
+
+    // No readiness guard is needed: this listener is registered AFTER the eager build has finished, so
+    // there is no window in which it can fire against an index that does not exist yet.
+    this.nameIndex.buildAll();
   }
 
   private refreshAbstractFile(abstractFile: TAbstractFile): void {

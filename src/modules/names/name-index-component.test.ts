@@ -2,10 +2,12 @@ import type {
   App as AppOriginal,
   TFile as TFileOriginal
 } from 'obsidian';
+import type { AsyncEventRef } from 'obsidian-dev-utils/async-events';
 import type {
   TFile,
   TFolder
 } from 'obsidian-test-mocks/obsidian';
+import type { Mock } from 'vitest';
 
 import { Component } from 'obsidian';
 import {
@@ -13,6 +15,7 @@ import {
   waitForAllAsyncOperations
 } from 'obsidian-dev-utils/async';
 import { castTo } from 'obsidian-dev-utils/object-utils';
+import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
 import { App } from 'obsidian-test-mocks/obsidian';
 import {
   beforeEach,
@@ -21,6 +24,11 @@ import {
   it,
   vi
 } from 'vitest';
+
+import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
+
+import { PluginSettings } from '../../plugin-settings.ts';
+import { TitleIndex } from '../titles/title-index.ts';
 
 const hoisted = vi.hoisted(() => ({
   patchComponentConstructor: vi.fn()
@@ -57,12 +65,36 @@ const SUPPORTED_EXTENSIONS = new Set(['canvas', 'md', 'png']);
 describe('NameIndexComponent', () => {
   let app: App;
   let component: NameIndexComponent;
+  let offref: Mock<(eventRef: AsyncEventRef) => void>;
+  let settings: PluginSettings;
+  let triggerSaveSettings: () => void;
 
   beforeEach(() => {
     vi.clearAllMocks();
     app = App.createConfigured__();
     castTo<SupportedFileChecker>(app.metadataCache).isSupportedFile = (file): boolean => SUPPORTED_EXTENSIONS.has(file.extension);
-    component = new NameIndexComponent(castTo<AppOriginal>(app));
+
+    settings = new PluginSettings();
+    offref = vi.fn();
+    let saveSettingsCallback: (() => void) | undefined;
+
+    const pluginSettingsComponent = strictProxy<PluginSettingsComponent>({
+      offref,
+      on: vi.fn((_name: string, callback: () => void) => {
+        saveSettingsCallback = callback;
+        return strictProxy<AsyncEventRef>({});
+      }),
+      settings
+    });
+    triggerSaveSettings = (): void => {
+      saveSettingsCallback?.();
+    };
+
+    component = new NameIndexComponent({
+      app: castTo<AppOriginal>(app),
+      pluginSettingsComponent,
+      titleIndex: new TitleIndex({ app: castTo<AppOriginal>(app), pluginSettingsComponent })
+    });
   });
 
   it('should build the index and install the patch once the layout is ready', async () => {
@@ -184,6 +216,63 @@ describe('NameIndexComponent', () => {
     app.vault.trigger('rename', castTo<TFile>(app.vault.getFileByPath('New/Inside.md')), 'Old/Inside.md');
 
     expect(component.nameIndex.getPathsByName('inside')).toEqual(['New/Inside.md']);
+  });
+
+  it('should rebuild when the Titles module is switched on, and again when it goes off', async () => {
+    createNote('Alpha.md', '---\ntitle: The Real Name\n---\n');
+    await load();
+
+    expect(component.nameIndex.getPathsByName('the real name')).toEqual([]);
+
+    settings.isTitlesModuleEnabled = true;
+    triggerSaveSettings();
+    expect(component.nameIndex.getPathsByName('the real name')).toEqual(['Alpha.md']);
+
+    settings.isTitlesModuleEnabled = false;
+    triggerSaveSettings();
+    expect(component.nameIndex.getPathsByName('the real name')).toEqual([]);
+  });
+
+  it('should rebuild when the configured title properties change', async () => {
+    settings.isTitlesModuleEnabled = true;
+    createNote('Alpha.md', '---\nheading: The Real Name\n---\n');
+    await load();
+
+    expect(component.nameIndex.getPathsByName('the real name')).toEqual([]);
+
+    settings.titlePropertyNames = ['title', 'heading'];
+    triggerSaveSettings();
+
+    expect(component.nameIndex.getPathsByName('the real name')).toEqual(['Alpha.md']);
+  });
+
+  it('should leave the index alone when the saved settings changed nothing it reads', async () => {
+    createNote('Alpha.md');
+    await load();
+    const buildAll = vi.spyOn(component.nameIndex, 'buildAll');
+
+    settings.shouldShowProgressBarOnLoad = false;
+    triggerSaveSettings();
+
+    expect(buildAll).not.toHaveBeenCalled();
+  });
+
+  it('should not hear a settings change before the index is built, so no rebuild can race the build', () => {
+    component.load();
+    const buildAll = vi.spyOn(component.nameIndex, 'buildAll');
+
+    settings.isTitlesModuleEnabled = true;
+    triggerSaveSettings();
+
+    expect(buildAll).not.toHaveBeenCalled();
+    expect(component.isBuilt).toBe(false);
+  });
+
+  it('should stop listening for settings changes when unloaded', async () => {
+    await load();
+    component.unload();
+
+    expect(offref).toHaveBeenCalledOnce();
   });
 
   function createFolder(path: string): TFolder {

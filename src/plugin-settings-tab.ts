@@ -38,6 +38,34 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         }
       }),
       this.settingEx({
+        desc: 'Whether to treat a frontmatter property as a name for the note carrying it, alongside its own name and its `aliases`. Nothing is indexed up front: the properties are read per note, on demand, and they join what the `Names` module answers about. Other plugins can read the same list and the same per-note answer, so the property is named here once rather than in each of them.',
+        name: 'Titles module',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            this.bind({
+              onChanged: () => {
+                this.refresh();
+              },
+              propertyName: 'isTitlesModuleEnabled',
+              valueComponent: toggle
+            });
+          });
+        }
+      }),
+      this.settingEx({
+        desc: 'The frontmatter properties whose values name the note, one per line. Order matters only for the order the titles come back in.',
+        name: 'Title properties',
+        render: (setting) => {
+          setting.addMultipleText((multipleText) => {
+            this.bind({
+              propertyName: 'titlePropertyNames',
+              valueComponent: multipleText
+            });
+          });
+        },
+        visible: () => this.pluginSettingsComponent.settings.isTitlesModuleEnabled
+      }),
+      this.settingEx({
         desc: 'Whether to refresh the backlink panels automatically when a note is saved.',
         name: 'Should automatically refresh backlink panels',
         render: (setting) => {

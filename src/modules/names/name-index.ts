@@ -33,6 +33,10 @@ import type {
 import { parseFrontMatterAliases } from 'obsidian';
 import { trimMarkdownExtension } from 'obsidian-dev-utils/obsidian/file-system';
 
+import type { TitleIndex } from '../titles/title-index.ts';
+
+import { readTitles } from '../titles/title-index.ts';
+
 /**
  * The length Obsidian truncates an unresolved link's text to before offering it as a suggestion.
  * Mirrored so the patched answer carries the same entries as the original.
@@ -52,6 +56,11 @@ interface IndexedFile {
   readonly names: readonly string[];
 }
 
+interface NameIndexConstructorParams {
+  readonly app: App;
+  readonly titleIndex: TitleIndex;
+}
+
 /**
  * Answers what notes are called, and what the `[[` autocomplete should offer.
  */
@@ -60,9 +69,11 @@ export class NameIndex {
   private readonly indexedFiles = new Map<string, IndexedFile>();
   private memoizedSuggestions: LinkSuggestion[] | null = null;
   private readonly namePaths = new Map<string, Set<string>>();
+  private readonly titleIndex: TitleIndex;
 
-  public constructor(app: App) {
-    this.app = app;
+  public constructor(params: NameIndexConstructorParams) {
+    this.app = params.app;
+    this.titleIndex = params.titleIndex;
   }
 
   /**
@@ -76,8 +87,12 @@ export class NameIndex {
   public buildAll(): void {
     this.clear();
 
+    // Read once for the whole walk rather than per file: it is the same answer for every one of
+    // them, and this loop runs across the entire vault.
+    const titlePropertyNames = this.titleIndex.getTitlePropertyNames();
+
     for (const file of this.app.vault.getFiles()) {
-      this.index(file);
+      this.index(file, titlePropertyNames);
     }
   }
 
@@ -135,7 +150,7 @@ export class NameIndex {
    */
   public refresh(file: TFile): void {
     this.remove(file.path);
-    this.index(file);
+    this.index(file, this.titleIndex.getTitlePropertyNames());
   }
 
   /**
@@ -195,6 +210,7 @@ export class NameIndex {
   private buildSuggestions(): LinkSuggestion[] {
     const suggestions: LinkSuggestion[] = [];
     const seenPaths = new Set<string>();
+    const titlePropertyNames = this.titleIndex.getTitlePropertyNames();
 
     /*
      * Walked in `vault.getFiles()` order rather than in this index's own insertion order, so the
@@ -202,7 +218,7 @@ export class NameIndex {
      * is indexed here, which makes the walk self-healing as well as ordered.
      */
     for (const file of this.app.vault.getFiles()) {
-      const indexedFile = this.indexedFiles.get(file.path) ?? this.index(file);
+      const indexedFile = this.indexedFiles.get(file.path) ?? this.index(file, titlePropertyNames);
 
       for (const entry of indexedFile.entries) {
         suggestions.push(entry);
@@ -229,7 +245,7 @@ export class NameIndex {
     return suggestions;
   }
 
-  private index(file: TFile): IndexedFile {
+  private index(file: TFile, titlePropertyNames: readonly string[]): IndexedFile {
     if (!this.app.metadataCache.isSupportedFile(file)) {
       const unsupportedFile: IndexedFile = { entries: [], names: [] };
       this.indexedFiles.set(file.path, unsupportedFile);
@@ -239,10 +255,31 @@ export class NameIndex {
     const displayPath = trimMarkdownExtension(file);
     const entries: LinkSuggestion[] = [{ file, path: displayPath }];
     const names = new Set<string>([normalizeName(basename(displayPath))]);
+    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 
-    for (const alias of parseFrontMatterAliases(this.app.metadataCache.getFileCache(file)?.frontmatter) ?? []) {
+    for (const alias of parseFrontMatterAliases(frontmatter) ?? []) {
       entries.push({ alias, file, path: displayPath });
       names.add(normalizeName(alias));
+    }
+
+    /*
+     * A title becomes a NAME and deliberately NOT an entry.
+     *
+     * `getSuggestions()` is a replacement for `metadataCache.getLinkSuggestions()`, and its contract is
+     * that it answers the array Obsidian would, only cheaper — the README says so, the demo vault says
+     * so, and the on/off tripwire suite measures the two against each other. Pushing a title in here
+     * would make the `[[` autocomplete offer something Obsidian does not, which is a user-visible
+     * feature with its own design questions rather than a faster answer to the same question.
+     *
+     * The reverse map is the other half, and is this plugin's own: `getPathsByName` answers a question
+     * the built-in flat array cannot answer at all, so widening it costs no parity.
+     *
+     * Read from the frontmatter already in hand rather than through the title index's memo — see
+     * `readTitles` for why that is not an optimization but the thing that makes the two modules
+     * independent of the order they were switched on in.
+     */
+    for (const title of readTitles(frontmatter, titlePropertyNames)) {
+      names.add(normalizeName(title));
     }
 
     const indexedFile: IndexedFile = { entries, names: [...names] };
