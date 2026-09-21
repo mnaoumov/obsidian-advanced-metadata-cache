@@ -67,14 +67,22 @@ feature with its own setting — not a widening of this one.
 ## Two kinds of public surface, and which one a new module takes
 
 `backlinks` and `names` answer by **replacing a core method**, so a consumer calls
-`app.metadataCache.…` and never learns the plugin is installed. Their widened signatures are declared in
-the root `types.d.ts`, and there is nothing to version-negotiate.
+`app.metadataCache.…` and never learns the plugin is installed. Their widened signatures are
+`GetBacklinksForFileFn` and `GetLinkSuggestionsFn`, and there is nothing to version-negotiate — a member
+is pinned against the plugin version it arrived in, which is what the README records.
 
 `titles` has no core method to replace, so it publishes through the `obsidian-dev-utils` plugin
-registry: the API object is `PluginApiImpl`, its contract and version are in `src/plugin-api.ts`, and
-its types are in the root `api.d.ts`, which imports from `obsidian` alone so a consumer can copy it. The
+registry: the API object is `PluginApiImpl`, and its contract and version are in `src/plugin-api.ts`. The
 declaration goes through `getPluginApis()` rather than a hand `publishPluginApi` call, because the
 `plugin-loaded` broadcast derives its `apiVersions` from that method alone.
+
+**Both kinds are declared in the single root `api.d.ts`**, which is the file a consumer reads, and
+`src/plugin-api.ts` re-exports `AdvancedMetadataCacheApi` from it rather than re-declaring it, so there
+is one declaration of each and nothing to drift. The file **imports from `obsidian` and nothing else**
+— that is what makes it copyable by a plugin which has never heard of `obsidian-dev-utils`, and it is
+the property to protect when adding a member. `CustomArrayDict` and `LinkSuggestion` are inlined there
+rather than imported from `@obsidian-typings/obsidian-public-latest` for exactly that reason; the file
+records which typings version they were copied from, and the trade behind the copy.
 
 Ask which kind a new module is before writing either file: the two are not interchangeable, and a
 core-widening surface published through the registry would ask consumers to negotiate a version for a

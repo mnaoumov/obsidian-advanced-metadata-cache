@@ -30,7 +30,7 @@ interface DemoSettingsPatch {
 
 /**
  * The shape `app.metadataCache.getLinkSuggestions` takes while the Names module is on. The same
- * shape `types.d.ts` ships for consumers.
+ * shape `GetLinkSuggestionsFn` in the root `api.d.ts` ships for consumers.
  */
 interface PatchedGetLinkSuggestions {
   (): LinkSuggestion[];

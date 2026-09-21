@@ -26,11 +26,11 @@
     "verbatimModuleSyntax": true
   },
   "include": [
+    "./api.d.ts",
     "./commitlint.config.ts",
     "./eslint.config.mts",
     "./scripts/**/*.ts",
     "./src/**/*.ts",
-    "./types.d.ts",
     "./vitest.config.ts"
   ]
 }

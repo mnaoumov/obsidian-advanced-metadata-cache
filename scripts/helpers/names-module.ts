@@ -15,8 +15,8 @@ export interface ModuleSwitchResult {
 
 /**
  * The shape `app.metadataCache.getLinkSuggestions` takes while the `names` module is on — the same
- * shape `types.d.ts` ships for consumers, with every grafted member optional so a suite can ask
- * whether the patch is there yet.
+ * shape `GetLinkSuggestionsFn` in the root `api.d.ts` ships for consumers, with every grafted member
+ * optional so a suite can ask whether the patch is there yet.
  *
  * Declared here rather than in each suite because an `evalInObsidian` closure cannot import a value
  * but is type-checked in its own module's scope, so TYPES are free to be shared.

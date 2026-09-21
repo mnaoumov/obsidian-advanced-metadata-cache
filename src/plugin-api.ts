@@ -4,7 +4,9 @@
  * The runtime half of this plugin's published contract: the registry contract and its version.
  *
  * The TYPES are not declared here. They live in the repo-root `api.d.ts`, which is the file a consumer
- * reads, and are re-exported from it so there is exactly one declaration of each and nothing to drift.
+ * reads — the whole of this plugin's public surface, both this registry API and the two widened core
+ * methods — and are re-exported from it so there is exactly one declaration of each and nothing to
+ * drift.
  */
 
 import type { PluginApiContract } from 'obsidian-dev-utils/obsidian/plugin/plugin-api';
@@ -25,7 +27,8 @@ export const PLUGIN_API_CONTRACT: PluginApiContract = {
  * `'^1'` and keeps working across releases that change nothing it depends on.
  *
  * `1.0.0` is the `Titles` module's pair of reads, the first answer this plugin publishes that Obsidian
- * has no method of its own for. The two older modules widen a core method instead and are declared in
- * `types.d.ts`; they are deliberately not mirrored here, because a consumer of those calls core.
+ * has no method of its own for. The two older modules widen a core method instead; their signatures
+ * live in the same `api.d.ts` but are deliberately not mirrored in this contract, because a consumer
+ * of those calls core and has no handle to negotiate a version over.
  */
 export const PLUGIN_API_VERSION = '1.0.0';
