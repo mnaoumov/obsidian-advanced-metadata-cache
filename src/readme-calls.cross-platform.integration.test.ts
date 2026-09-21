@@ -48,7 +48,8 @@ interface BacklinksCallResult {
 
 /**
  * The augmented shape of `app.metadataCache.getBacklinksForFile` after the plugin
- * patches it. Mirrors the `types.d.ts` shipped for consumers, as documented in the README.
+ * patches it. Mirrors `GetBacklinksForFileFn` in the root `api.d.ts` shipped for consumers, as
+ * documented in the README.
  */
 interface PatchedGetBacklinksForFile {
   (pathOrFile: string | TFile): CustomArrayDict<Reference>;

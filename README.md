@@ -60,6 +60,12 @@ This is the reverse direction from [Front Matter Title](https://github.com/snezh
 
 ## For plugin developers
 
+Everything this plugin offers another plugin is declared in one hand-written file — [api.d.ts](./api.d.ts) at the repository root. It imports from `obsidian` and nothing else, so you can copy it into your own code or reference it where it sits, with no build-time dependency on this repository.
+
+There are two kinds of surface in it, and which one you use depends on the module.
+
+### The widened core calls
+
 This plugin replaces `app.metadataCache.getBacklinksForFile()` with a faster implementation, adds an overload accepting a vault `path` as well as a `TFile`, and keeps the original reachable:
 
 ```js
@@ -83,13 +89,15 @@ const safePaths = await app.metadataCache.getLinkSuggestions.getPathsByNameSafe(
 
 `getPathsByName` answers "which notes are called this?" — matching a note's own name or any of its `aliases`, case-insensitively and with runs of whitespace collapsed, exactly as Obsidian resolves a wikilink. The answer is a **list** and is deliberately unranked: several notes may declare the same alias, and which one the user meant is a question about your context, not about the vault.
 
+All five of those members arrived in 1.0.0 as well, and like the backlink ones they are present only while their module — **Names** — is on.
+
 **Use the `safe` variants when you may be asked early.** The patch is installed as soon as the module loads, but the index is built once the metadata cache can answer; until then a plain call falls through to Obsidian's implementation and `getPathsByName` answers with nothing. `safe()` / `getPathsByNameSafe()` wait for the build.
 
-To use the updated signatures from your own plugin, copy [types.d.ts](./types.d.ts) into your code. [02 Fast, safe, and original backlinks](<./demo-vault/02 Fast, safe, and original backlinks.md>) runs all three backlink calls side by side, and [05 Name index](<./demo-vault/05 Name index.md>) does the same for the name calls.
+Both calls are typed in [api.d.ts](./api.d.ts) as `GetBacklinksForFileFn` and `GetLinkSuggestionsFn` — cast the core method to one of those to reach the added members. There is nothing to fetch and no version to negotiate: the patch is installed or it is not, so pin against the plugin version a member arrived in. [02 Fast, safe, and original backlinks](<./demo-vault/02 Fast, safe, and original backlinks.md>) runs all three backlink calls side by side, and [05 Name index](<./demo-vault/05 Name index.md>) does the same for the name calls.
 
 ### The Titles API
 
-The two modules above answer by replacing a method Obsidian already has, so there is nothing to fetch. The **Titles** module has no such method to replace — Obsidian has no notion of a name-bearing property — so it publishes an API instead, declared in [api.d.ts](./api.d.ts), which imports from `obsidian` and nothing else:
+The two modules above answer by replacing a method Obsidian already has, so there is nothing to fetch. The **Titles** module has no such method to replace — Obsidian has no notion of a name-bearing property — so it publishes an API instead, `AdvancedMetadataCacheApi` in the same [api.d.ts](./api.d.ts):
 
 ```ts
 import { watchPluginApi } from 'obsidian-dev-utils/obsidian/plugin/plugin-api';
