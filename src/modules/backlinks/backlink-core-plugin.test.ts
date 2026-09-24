@@ -20,6 +20,7 @@ import {
   isReferenceCache
 } from '@obsidian-typings/obsidian-public-latest/implementations';
 import { debounce } from 'obsidian';
+import { castTo } from 'obsidian-dev-utils/object-utils';
 import { isCanvasFile } from 'obsidian-dev-utils/obsidian/file-system';
 import { isFrontmatterLinkCacheWithOffsets } from 'obsidian-dev-utils/obsidian/frontmatter-link-cache-with-offsets';
 import { getBacklinksForFileSafe } from 'obsidian-dev-utils/obsidian/metadata-cache';
@@ -41,6 +42,10 @@ import {
   BacklinksCorePluginComponent,
   reloadBacklinksView
 } from './backlink-core-plugin.ts';
+
+interface BacklinksCorePluginComponentInternals {
+  patchBacklinksPane(): Promise<void>;
+}
 
 vi.mock('obsidian-dev-utils/obsidian/file-system', () => ({
   isCanvasFile: vi.fn()
@@ -197,6 +202,47 @@ describe('BacklinksCorePluginComponent', () => {
     await vi.waitFor(() => {
       expect(backlinkPrototype.recomputeBacklink).not.toBe(recomputeBacklink);
     });
+  });
+
+  it('should patch the backlinks pane only once across repeated patch calls', async () => {
+    const backlinkPrototype = { recomputeBacklink: vi.fn() };
+    const backlinksLeaf = strictProxy<WorkspaceLeaf>({
+      loadIfDeferred: vi.fn().mockResolvedValue(undefined),
+      view: strictProxy<BacklinkView>({
+        backlink: Object.create(backlinkPrototype),
+        file: null
+      })
+    });
+    const getLeavesOfType = vi.fn().mockReturnValue([]);
+    const app = strictProxy<App>({
+      internalPlugins: {
+        getPluginById: vi.fn().mockReturnValue({
+          enabled: false,
+          instance: Object.create({ onUserEnable: vi.fn() }) as object
+        })
+      },
+      workspace: {
+        getLeavesOfType
+      }
+    });
+    const component = new BacklinksCorePluginComponent(app);
+    component.load();
+    const addChildSpy = vi.spyOn(component, 'addChild');
+    async function patchBacklinksPane(): Promise<void> {
+      await castTo<BacklinksCorePluginComponentInternals>(component).patchBacklinksPane();
+    }
+
+    await patchBacklinksPane();
+    expect(addChildSpy).not.toHaveBeenCalled();
+
+    getLeavesOfType.mockReturnValue([backlinksLeaf]);
+    await Promise.all([
+      patchBacklinksPane(),
+      patchBacklinksPane()
+    ]);
+    await patchBacklinksPane();
+
+    expect(addChildSpy).toHaveBeenCalledOnce();
   });
 
   it('should invoke fallback and enable handler in patched onUserEnable', () => {
