@@ -1,7 +1,7 @@
 {
   "id": "advanced-metadata-cache",
   "name": "Advanced Metadata Cache",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "minAppVersion": "1.13.7",
   "description": "Maintains the vault indexes that are otherwise rebuilt on every call, and answers the built-in lookups from them, so backlinks come from an index instead of a fresh scan of every note.",
   "author": "mnaoumov",
