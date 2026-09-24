@@ -66,6 +66,22 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         visible: () => this.pluginSettingsComponent.settings.isTitlesModuleEnabled
       }),
       this.settingEx({
+        desc: 'Whether the `[[` autocomplete offers a note under its titles as well as under its own name and its `aliases`. Off by default, because with it off the list this plugin answers with is the one Obsidian would have built, only faster. With it on, the title entries are appended to that list, and accepting one writes a link like `[[Notes/some-note|The Real Name]]` - which keeps working even if this plugin is switched off later. A title already matching the note name or one of the `aliases` is not offered twice.',
+        name: 'Offer titles in the [[ autocomplete',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            this.bind({
+              propertyName: 'shouldOfferTitlesInLinkSuggestions',
+              valueComponent: toggle
+            });
+          });
+        },
+        // Both modules, because it does nothing without either: the `Names` module owns the list, and
+        // the `Titles` module is what makes a title a name at all. An inert toggle would be worse than
+        // an absent one.
+        visible: () => this.pluginSettingsComponent.settings.isNamesModuleEnabled && this.pluginSettingsComponent.settings.isTitlesModuleEnabled
+      }),
+      this.settingEx({
         desc: 'Whether to refresh the backlink panels automatically when a note is saved.',
         name: 'Should automatically refresh backlink panels',
         render: (setting) => {

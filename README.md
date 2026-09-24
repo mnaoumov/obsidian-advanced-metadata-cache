@@ -48,7 +48,7 @@ A copy of the vault ships with every release. You can access it via any of the f
 - **Canvas files are indexed too**, and their links are exposed through `getCache()`, which is otherwise left empty for canvas files. [03 Canvas backlinks](<./demo-vault/03 Canvas backlinks.md>)
 - **Frontmatter markdown links count as backlinks** when the [`Frontmatter Markdown Links`](https://community.obsidian.md/plugins/frontmatter-markdown-links) plugin is installed. [03 Canvas backlinks](<./demo-vault/03 Canvas backlinks.md>)
 - **A name index behind the `[[` autocomplete**, so opening it stops rescanning every note in the vault for its name and aliases. [05 Name index](<./demo-vault/05 Name index.md>)
-- **A frontmatter property can name a note too**, so a note titled in its `title` property is found under that title. [06 Titles](<./demo-vault/06 Titles.md>)
+- **A frontmatter property can name a note too**, so a note titled in its `title` property is found under that title — and, if you ask for it, offered under that title by the `[[` autocomplete. [06 Titles](<./demo-vault/06 Titles.md>)
 - **Every index is a module of its own**, switched on or off without touching the others, and refresh behavior is configurable. [04 Settings](<./demo-vault/04 Settings.md>)
 
 ## Modules
@@ -75,7 +75,13 @@ title: The Real Name
 
 Two things then know about it. `getPathsByName('The Real Name')` finds the note, while the **Names** module is on — and any other plugin can read the same properties and the same per-note answer, so you name the property here once instead of once per plugin.
 
-**It deliberately does NOT change the `[[` autocomplete.** The list that Obsidian offers there is answered faster by this plugin, not differently; a title is a name for looking a note *up*, not a new thing to offer when you type.
+**It does not change the `[[` autocomplete unless you ask it to.** Out of the box the list Obsidian offers there is answered faster by this plugin, not differently, so nothing about typing a link moves. Switch **Offer titles in the `[[` autocomplete** on — it appears under **Settings** once both the **Names** and **Titles** modules are on — and every title is offered there too, appended after everything Obsidian itself would have offered rather than ranked against it. Accepting one writes a link like:
+
+```markdown
+[[Notes/some-note|The Real Name]]
+```
+
+which resolves through Obsidian's own machinery, survives a rename, and keeps working if you ever switch this plugin off. A title that already matches the note's own name or one of its `aliases` is not offered a second time.
 
 This is the reverse direction from [Front Matter Title](https://github.com/snezhig/obsidian-front-matter-title), and the two are independent by design: that plugin takes a note and shows you its title, in the explorer, the tabs and the graph. This one takes a title and finds you the note. If you run both, name the property in each — one setting silently changing what another plugin answers would be worse than typing it twice.
 
@@ -111,6 +117,8 @@ const safePaths = await app.metadataCache.getLinkSuggestions.getPathsByNameSafe(
 `getPathsByName` answers "which notes are called this?" — matching a note's own name or any of its `aliases`, case-insensitively and with runs of whitespace collapsed, exactly as Obsidian resolves a wikilink. The answer is a **list** and is deliberately unranked: several notes may declare the same alias, and which one the user meant is a question about your context, not about the vault.
 
 All five of those members arrived in 1.0.0 as well, and like the backlink ones they are present only while their module — **Names** — is on.
+
+**The array `getLinkSuggestions()` answers with is Obsidian's own, entry for entry** — `originalFn()` is there so you can check. The single exception is the **Offer titles in the `[[` autocomplete** setting described under [Titles](#titles): with it on, the title entries are *appended*, so Obsidian's array stays a strict prefix of what you get and the difference is exactly a suffix. It is off by default, so a consumer that has not been told otherwise can treat the two as identical.
 
 **Use the `safe` variants when you may be asked early.** The patch is installed as soon as the module loads, but the index is built once the metadata cache can answer; until then a plain call falls through to Obsidian's implementation and `getPathsByName` answers with nothing. `safe()` / `getPathsByNameSafe()` wait for the build.
 

@@ -246,6 +246,36 @@ describe('NameIndexComponent', () => {
     expect(component.nameIndex.getPathsByName('the real name')).toEqual(['Alpha.md']);
   });
 
+  it('should drop the memoized suggestions when the titles-in-autocomplete setting is flipped, without rebuilding', async () => {
+    settings.isTitlesModuleEnabled = true;
+    createNote('Alpha.md', '---\ntitle: The Real Name\n---\n');
+    await load();
+
+    // The component was constructed before the Titles module was switched on, so its first save is
+    // the one that notices the title properties and rebuilds. What this case is about is the flip
+    // AFTER that, which must cost nothing.
+    triggerSaveSettings();
+    const buildAll = vi.spyOn(component.nameIndex, 'buildAll');
+
+    expect(component.nameIndex.getSuggestions()).toHaveLength(1);
+
+    settings.shouldOfferTitlesInLinkSuggestions = true;
+    triggerSaveSettings();
+
+    // A memo drop, not a vault walk: no file's names moved, only which of two known halves is served.
+    expect(buildAll).not.toHaveBeenCalled();
+    expect(component.nameIndex.getSuggestions()).toEqual([
+      { file: expect.anything() as unknown, path: 'Alpha' },
+      { alias: 'The Real Name', file: expect.anything() as unknown, path: 'Alpha' }
+    ]);
+
+    settings.shouldOfferTitlesInLinkSuggestions = false;
+    triggerSaveSettings();
+
+    expect(component.nameIndex.getSuggestions()).toHaveLength(1);
+    expect(buildAll).not.toHaveBeenCalled();
+  });
+
   it('should leave the index alone when the saved settings changed nothing it reads', async () => {
     createNote('Alpha.md');
     await load();

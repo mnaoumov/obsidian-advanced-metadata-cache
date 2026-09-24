@@ -5,8 +5,10 @@
  *
  * - The published API answers the per-note read and names the configured properties.
  * - A title joins the name index's reverse lookup, and a second configured property does too.
- * - A title is NOT offered by `getLinkSuggestions()`, which stays entry-for-entry Obsidian's.
- * - Switching the module off takes both answers with it.
+ * - A title is NOT offered by `getLinkSuggestions()` by default, which stays entry-for-entry
+ *   Obsidian's — and IS offered, appended after everything Obsidian would have built, once
+ *   `shouldOfferTitlesInLinkSuggestions` is switched on.
+ * - Switching the module off takes every one of those answers with it, whatever that setting says.
  *
  * Named `*.cross-platform.integration.test.ts` so the desktop AND android projects both collect it:
  * none of this is platform-specific, and the API is the one a consumer calls on either.
@@ -71,12 +73,24 @@ interface PluginApiRegistryWrapper {
  */
 interface TitlesResult {
   readonly error: null | string;
+  readonly fastCount: number;
   readonly isTitleOfferedAsSuggestion: boolean;
+  readonly originalCount: number;
   readonly pathsByHeading: string[];
   readonly pathsByOwnName: string[];
   readonly pathsByTitle: string[];
   readonly propertyNames: string[];
   readonly titles: string[];
+
+  /**
+   * Where the title entry sits in the answered array, or `-1` when it is not there.
+   *
+   * Compared against {@link TitlesResult.originalCount} rather than against a whole expected array:
+   * `LinkSuggestion` carries a live `TFile`, which cannot cross the transport, and the one property
+   * worth asserting is positional anyway — a title entry must sit PAST everything Obsidian's own walk
+   * produced, so that array stays a strict prefix of this one.
+   */
+  readonly titleSuggestionIndex: number;
 }
 
 const NOTE_BASENAME = 'titles-target';
@@ -102,6 +116,9 @@ describe('Titles module', () => {
     const result = await applyPluginSettings({
       isNamesModuleEnabled: true,
       isTitlesModuleEnabled: true,
+      // Stated rather than left to the default: the vault is shared, and the first case below is the
+      // one that proves the default. Inheriting a `true` from an earlier run would falsify it.
+      shouldOfferTitlesInLinkSuggestions: false,
       titlePropertyNames: ['title', 'heading']
     });
     expect(result.error).toBeNull();
@@ -113,6 +130,7 @@ describe('Titles module', () => {
     await applyPluginSettings({
       isNamesModuleEnabled: false,
       isTitlesModuleEnabled: false,
+      shouldOfferTitlesInLinkSuggestions: false,
       titlePropertyNames: ['title']
     });
   }, SCENARIO_TIMEOUT_IN_MS);
@@ -128,11 +146,36 @@ describe('Titles module', () => {
     expect(result.pathsByHeading).toEqual([NOTE_PATH]);
     expect(result.pathsByOwnName).toEqual([NOTE_PATH]);
 
-    // The one thing the module deliberately does NOT do: the `[[` list stays Obsidian's own.
+    // What the module does NOT do until it is asked to: the `[[` list stays Obsidian's own, entry
+    // for entry, which is the parity claim the README and the demo vault both make.
     expect(result.isTitleOfferedAsSuggestion).toBe(false);
+    expect(result.fastCount).toBe(result.originalCount);
   }, SCENARIO_TIMEOUT_IN_MS);
 
-  it('takes both answers away when the module is switched off', async () => {
+  it('offers the title to the autocomplete once asked to, appended after everything Obsidian would offer', async () => {
+    const switchOn = await applyPluginSettings({ shouldOfferTitlesInLinkSuggestions: true });
+    expect(switchOn.error).toBeNull();
+
+    const result = await runScenario();
+
+    expect(result.error).toBeNull();
+    expect(result.isTitleOfferedAsSuggestion).toBe(true);
+
+    /*
+     * The array grew, and the title landed PAST the end of Obsidian's own — so Obsidian's array is
+     * still a strict prefix of this one and the difference is exactly a suffix. That is what makes
+     * the parity claim survive as "with this off" rather than being quietly abandoned.
+     */
+    expect(result.fastCount).toBeGreaterThan(result.originalCount);
+    expect(result.titleSuggestionIndex).toBeGreaterThanOrEqual(result.originalCount);
+
+    // The reverse lookup is unchanged by the setting: it never needed it.
+    expect(result.pathsByTitle).toEqual([NOTE_PATH]);
+  }, SCENARIO_TIMEOUT_IN_MS);
+
+  it('takes every answer away when the module is switched off, whatever the autocomplete setting says', async () => {
+    // Left ON deliberately by the case above, so this proves the `Titles` toggle is what gates the
+    // whole thing rather than the two settings being independent switches over the same array.
     const switchOff = await applyPluginSettings({ isTitlesModuleEnabled: false });
     expect(switchOff.error).toBeNull();
 
@@ -142,6 +185,8 @@ describe('Titles module', () => {
     expect(result.propertyNames).toEqual([]);
     expect(result.titles).toEqual([]);
     expect(result.pathsByTitle).toEqual([]);
+    expect(result.isTitleOfferedAsSuggestion).toBe(false);
+    expect(result.fastCount).toBe(result.originalCount);
 
     // The note's own name is not the module's to take away.
     expect(result.pathsByOwnName).toEqual([NOTE_PATH]);
@@ -170,12 +215,15 @@ async function runScenario(): Promise<TitlesResult> {
     }) {
       const empty: TitlesResult = {
         error: null,
+        fastCount: 0,
         isTitleOfferedAsSuggestion: false,
+        originalCount: 0,
         pathsByHeading: [],
         pathsByOwnName: [],
         pathsByTitle: [],
         propertyNames: [],
-        titles: []
+        titles: [],
+        titleSuggestionIndex: -1
       };
 
       const existing = app.vault.getAbstractFileByPath(notePath);
@@ -241,14 +289,20 @@ async function runScenario(): Promise<TitlesResult> {
           timeoutInMilliseconds: frontmatterWaitMs
         });
 
+        const fast = getLinkSuggestions();
+        const titleSuggestionIndex = fast.findIndex((suggestion) => suggestion.alias === noteTitle);
+
         return {
           ...empty,
-          isTitleOfferedAsSuggestion: getLinkSuggestions().some((suggestion) => suggestion.alias === noteTitle),
+          fastCount: fast.length,
+          isTitleOfferedAsSuggestion: titleSuggestionIndex !== -1,
+          originalCount: getLinkSuggestions.originalFn().length,
           pathsByHeading: getLinkSuggestions.getPathsByName(noteHeading),
           pathsByOwnName: getLinkSuggestions.getPathsByName(noteBasename),
           pathsByTitle: getLinkSuggestions.getPathsByName(noteTitle),
           propertyNames: api.getTitlePropertyNames(),
-          titles: api.getTitles(notePath)
+          titles: api.getTitles(notePath),
+          titleSuggestionIndex
         };
       } catch (error) {
         return { ...empty, error: String(error) };

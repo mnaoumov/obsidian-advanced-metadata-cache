@@ -48,6 +48,7 @@ export class NameIndexComponent extends LayoutReadyComponent {
   private buildPromise: null | Promise<void> = null;
   private isBuiltValue = false;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
+  private shouldOfferTitlesInLinkSuggestions: boolean;
   private readonly titleIndex: TitleIndex;
   private titlePropertyNamesKey: string;
 
@@ -57,7 +58,12 @@ export class NameIndexComponent extends LayoutReadyComponent {
     this.pluginSettingsComponent = params.pluginSettingsComponent;
     this.titleIndex = params.titleIndex;
     this.titlePropertyNamesKey = this.titleIndex.getTitlePropertyNames().join('\n');
-    this.nameIndex = new NameIndex({ app: params.app, titleIndex: params.titleIndex });
+    this.shouldOfferTitlesInLinkSuggestions = params.pluginSettingsComponent.settings.shouldOfferTitlesInLinkSuggestions;
+    this.nameIndex = new NameIndex({
+      app: params.app,
+      pluginSettingsComponent: params.pluginSettingsComponent,
+      titleIndex: params.titleIndex
+    });
   }
 
   /**
@@ -129,6 +135,9 @@ export class NameIndexComponent extends LayoutReadyComponent {
      * so both causes are one test. `ModulesComponent` registers its `saveSettings` listener when the
      * plugin adds it as a child — before any module component exists — so by the time this one runs the
      * titles module has already loaded or unloaded and dropped its memo.
+     *
+     * `shouldOfferTitlesInLinkSuggestions` rides the same listener and is deliberately the cheaper of
+     * the two: see `handleTitlesOfferedChange`.
      */
     const eventRef = this.pluginSettingsComponent.on('saveSettings', () => {
       this.handleSaveSettings();
@@ -190,6 +199,8 @@ export class NameIndexComponent extends LayoutReadyComponent {
   }
 
   private handleSaveSettings(): void {
+    this.handleTitlesOfferedChange();
+
     const titlePropertyNamesKey = this.titleIndex.getTitlePropertyNames().join('\n');
 
     if (this.titlePropertyNamesKey === titlePropertyNamesKey) {
@@ -201,6 +212,25 @@ export class NameIndexComponent extends LayoutReadyComponent {
     // No readiness guard is needed: this listener is registered AFTER the eager build has finished, so
     // there is no window in which it can fire against an index that does not exist yet.
     this.nameIndex.buildAll();
+  }
+
+  /**
+   * Drops the memoized suggestion array when `shouldOfferTitlesInLinkSuggestions` has been flipped.
+   *
+   * A MEMO drop rather than a rebuild, and that is the whole reason the index records a file's title
+   * entries whatever the setting says: flipping it changes which of two already-known halves are
+   * assembled, not what any file is called. A rebuild here would be a full vault walk for an answer
+   * every file already holds.
+   */
+  private handleTitlesOfferedChange(): void {
+    const shouldOfferTitlesInLinkSuggestions = this.pluginSettingsComponent.settings.shouldOfferTitlesInLinkSuggestions;
+
+    if (this.shouldOfferTitlesInLinkSuggestions === shouldOfferTitlesInLinkSuggestions) {
+      return;
+    }
+
+    this.shouldOfferTitlesInLinkSuggestions = shouldOfferTitlesInLinkSuggestions;
+    this.nameIndex.invalidateSuggestions();
   }
 
   private refreshAbstractFile(abstractFile: TAbstractFile): void {

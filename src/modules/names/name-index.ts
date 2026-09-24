@@ -22,6 +22,11 @@
  * its names — keyed by path and dropped when that path changes. The cheap half, the walk itself, is
  * redone on each rebuild, deliberately: it costs a map lookup per file and it is what keeps the
  * answer in `vault.getFiles()` order, which is the order Obsidian's own array is in.
+ *
+ * The array is Obsidian's own, entry for entry, unless the user has switched
+ * `shouldOfferTitlesInLinkSuggestions` on — and then it is Obsidian's array with the title entries
+ * appended, so Obsidian's remains a strict PREFIX of it. See `index` for why a title is a name
+ * unconditionally and an entry only on request.
  */
 
 import type { LinkSuggestion } from '@obsidian-typings/obsidian-public-latest';
@@ -33,6 +38,7 @@ import type {
 import { parseFrontMatterAliases } from 'obsidian';
 import { trimMarkdownExtension } from 'obsidian-dev-utils/obsidian/file-system';
 
+import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 import type { TitleIndex } from '../titles/title-index.ts';
 
 import { readTitles } from '../titles/title-index.ts';
@@ -44,20 +50,28 @@ import { readTitles } from '../titles/title-index.ts';
 const MAX_UNRESOLVED_LINK_TEXT_LENGTH = 500;
 
 /**
- * What one indexed file contributes: the suggestion entries Obsidian would push for it, and the
- * normalized names it answers to.
+ * What one indexed file contributes: the suggestion entries Obsidian would push for it, the ones only
+ * this plugin would push for it, and the normalized names it answers to.
  *
  * The names are kept beside the entries rather than derived from them because they are the undo log:
  * removing a path means removing exactly these names from the reverse map, and by then the file's
  * frontmatter has already changed.
+ *
+ * `titleEntries` is kept SEPARATE from `entries`, and is recorded whatever
+ * `shouldOfferTitlesInLinkSuggestions` says, for two reasons. It is what lets the two answers — the one
+ * that is Obsidian's array and the one that is Obsidian's array plus a suffix — be assembled from the
+ * same per-file record rather than from two indexes; and it makes flipping that setting cost a dropped
+ * memo rather than a full vault walk, since nothing a file contributes has changed.
  */
 interface IndexedFile {
   readonly entries: readonly LinkSuggestion[];
   readonly names: readonly string[];
+  readonly titleEntries: readonly LinkSuggestion[];
 }
 
 interface NameIndexConstructorParams {
   readonly app: App;
+  readonly pluginSettingsComponent: PluginSettingsComponent;
   readonly titleIndex: TitleIndex;
 }
 
@@ -69,10 +83,12 @@ export class NameIndex {
   private readonly indexedFiles = new Map<string, IndexedFile>();
   private memoizedSuggestions: LinkSuggestion[] | null = null;
   private readonly namePaths = new Map<string, Set<string>>();
+  private readonly pluginSettingsComponent: PluginSettingsComponent;
   private readonly titleIndex: TitleIndex;
 
   public constructor(params: NameIndexConstructorParams) {
     this.app = params.app;
+    this.pluginSettingsComponent = params.pluginSettingsComponent;
     this.titleIndex = params.titleIndex;
   }
 
@@ -211,6 +227,8 @@ export class NameIndex {
     const suggestions: LinkSuggestion[] = [];
     const seenPaths = new Set<string>();
     const titlePropertyNames = this.titleIndex.getTitlePropertyNames();
+    const shouldOfferTitles = this.pluginSettingsComponent.settings.shouldOfferTitlesInLinkSuggestions;
+    const titleSuggestions: LinkSuggestion[] = [];
 
     /*
      * Walked in `vault.getFiles()` order rather than in this index's own insertion order, so the
@@ -227,6 +245,12 @@ export class NameIndex {
           seenPaths.add(entry.path);
         }
       }
+
+      // Collected on THIS walk rather than on a second one, and appended below: a title entry is
+      // still in `vault.getFiles()` order relative to the other title entries.
+      if (shouldOfferTitles) {
+        titleSuggestions.push(...indexedFile.titleEntries);
+      }
     }
 
     for (const links of Object.values(this.app.metadataCache.unresolvedLinks)) {
@@ -242,12 +266,25 @@ export class NameIndex {
       }
     }
 
+    /*
+     * Titles go LAST, after the unresolved-link entries and so after everything Obsidian's own walk
+     * would have produced. That is what keeps the two answers comparable: with the setting off this
+     * array IS Obsidian's, and with it on Obsidian's array is a strict PREFIX of it. A reader of
+     * either — the parity suite, the demo vault's two counts — can then say exactly what the
+     * difference is, which interleaving would have destroyed.
+     *
+     * It is also the honest place for them. Ranking a title against a real name is a question about
+     * the user's vault that this index does not have an answer to and deliberately does not guess at,
+     * the same reason `getPathsByName` is unranked; appending is the only order that asserts nothing.
+     */
+    suggestions.push(...titleSuggestions);
+
     return suggestions;
   }
 
   private index(file: TFile, titlePropertyNames: readonly string[]): IndexedFile {
     if (!this.app.metadataCache.isSupportedFile(file)) {
-      const unsupportedFile: IndexedFile = { entries: [], names: [] };
+      const unsupportedFile: IndexedFile = { entries: [], names: [], titleEntries: [] };
       this.indexedFiles.set(file.path, unsupportedFile);
       return unsupportedFile;
     }
@@ -263,26 +300,41 @@ export class NameIndex {
     }
 
     /*
-     * A title becomes a NAME and deliberately NOT an entry.
+     * A title always becomes a NAME, and becomes a suggestion entry only if the user asked for one.
      *
      * `getSuggestions()` is a replacement for `metadataCache.getLinkSuggestions()`, and its contract is
      * that it answers the array Obsidian would, only cheaper — the README says so, the demo vault says
-     * so, and the on/off tripwire suite measures the two against each other. Pushing a title in here
-     * would make the `[[` autocomplete offer something Obsidian does not, which is a user-visible
-     * feature with its own design questions rather than a faster answer to the same question.
+     * so, and the on/off tripwire suite measures the two against each other. A title in that array
+     * makes the `[[` autocomplete offer something Obsidian does not, which is a user-visible feature
+     * rather than a faster answer, so it is gated on `shouldOfferTitlesInLinkSuggestions` and that gate
+     * is default-off. The reverse map has no such constraint and is never gated: `getPathsByName`
+     * answers a question the built-in flat array cannot answer at all, so widening it costs no parity.
      *
-     * The reverse map is the other half, and is this plugin's own: `getPathsByName` answers a question
-     * the built-in flat array cannot answer at all, so widening it costs no parity.
+     * The entry is `{ alias: title, path: displayPath }`, so accepting it writes
+     * `[[Notes/foo|The Real Name]]`. That link resolves through Obsidian's own machinery and survives a
+     * rename, where a bare `[[The Real Name]]` would resolve only while this plugin is enabled — a link
+     * that rots the moment it is switched off is a trap, not a feature.
+     *
+     * A title the file ALREADY answers to under its own name or one of its `aliases` contributes no
+     * entry, because that entry would be a second offer of the same note under the same text.
      *
      * Read from the frontmatter already in hand rather than through the title index's memo — see
      * `readTitles` for why that is not an optimization but the thing that makes the two modules
      * independent of the order they were switched on in.
      */
+    const titleEntries: LinkSuggestion[] = [];
+
     for (const title of readTitles(frontmatter, titlePropertyNames)) {
-      names.add(normalizeName(title));
+      const normalizedTitle = normalizeName(title);
+
+      if (!names.has(normalizedTitle)) {
+        titleEntries.push({ alias: title, file, path: displayPath });
+      }
+
+      names.add(normalizedTitle);
     }
 
-    const indexedFile: IndexedFile = { entries, names: [...names] };
+    const indexedFile: IndexedFile = { entries, names: [...names], titleEntries };
     this.indexedFiles.set(file.path, indexedFile);
 
     for (const name of indexedFile.names) {
