@@ -24,6 +24,7 @@ interface DemoSettingsPatch {
   isNamesModuleEnabled?: boolean;
   isTitlesModuleEnabled?: boolean;
   shouldAutomaticallyRefreshBacklinkPanels?: boolean;
+  shouldOfferTitlesInLinkSuggestions?: boolean;
   shouldShowProgressBarOnLoad?: boolean;
   titlePropertyNames?: string[];
 }
@@ -113,6 +114,54 @@ export async function showNamesFor(app: App, name: string, patch: DemoSettingsPa
     '',
     `indexed link targets: ${getLinkSuggestions().length.toString()}`,
     `built-in link targets: ${getLinkSuggestions.originalFn().length.toString()}`
+  ].join('\n'));
+}
+
+/**
+ * Switches both modules on, sets whether titles are offered to the `[[` autocomplete, and reports
+ * what the autocomplete would now be handed for one title.
+ *
+ * The two counts are the point. With the setting off they are equal — the list this plugin answers
+ * with is the one Obsidian would have built — and with it on the indexed one is larger, by the title
+ * entries appended to its end. The reported position says which: a title always lands at or past the
+ * end of Obsidian's own list, never interleaved with it.
+ *
+ * Manual equivalent: turn **Names module**, **Titles module** and **Offer titles in the [[
+ * autocomplete** on in **Settings -> Community plugins -> Advanced Metadata Cache**, then type `[[`
+ * followed by the start of a title.
+ *
+ * @param app - The Obsidian app.
+ * @param title - The title to look for among the offered link targets.
+ * @param shouldOfferTitlesInLinkSuggestions - What to set the setting to first.
+ */
+export async function showAutocompleteOfferFor(app: App, title: string, shouldOfferTitlesInLinkSuggestions: boolean): Promise<void> {
+  await configureCommunityPlugin({
+    app,
+    pluginId: PLUGIN_ID,
+    settings: {
+      isNamesModuleEnabled: true,
+      isTitlesModuleEnabled: true,
+      shouldOfferTitlesInLinkSuggestions
+    }
+  });
+
+  const getLinkSuggestions = await waitForNameIndex(app);
+
+  if (!getLinkSuggestions?.originalFn) {
+    new Notice('The Names module did not finish loading.');
+    return;
+  }
+
+  const indexed = getLinkSuggestions();
+  const builtInCount = getLinkSuggestions.originalFn().length;
+  const offeredIndex = indexed.findIndex((suggestion) => suggestion.alias === title);
+
+  new Notice([
+    `"Offer titles in the [[ autocomplete" is ${shouldOfferTitlesInLinkSuggestions ? 'ON' : 'OFF'}.`,
+    `"${title}" is ${offeredIndex === -1 ? 'NOT offered' : `offered at position ${(offeredIndex + 1).toString()}`}.`,
+    '',
+    `indexed link targets: ${indexed.length.toString()}`,
+    `built-in link targets: ${builtInCount.toString()}`
   ].join('\n'));
 }
 

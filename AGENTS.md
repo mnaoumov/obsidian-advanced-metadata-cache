@@ -57,12 +57,30 @@ had not dropped yet — and that order is a user's toggle history, not something
 no ordering to get right if there is nothing to invalidate. The memo exists for the published API, whose
 callers ask repeatedly about the same note.
 
-**A title becomes a NAME, never a `LinkSuggestion` entry.** `getSuggestions()` replaces
-`metadataCache.getLinkSuggestions()` and its contract is that it returns the array Obsidian would; the
-README, the demo vault and `get-link-suggestions-on-off-tripwire` all rest on that. The reverse map is
-this plugin's own answer to a question the built-in flat array cannot answer at all, so widening it
-costs no parity. If the `[[` autocomplete should ever offer titles, that is a separate, user-visible
-feature with its own setting — not a widening of this one.
+**A title becomes a NAME unconditionally, and a `LinkSuggestion` entry only on request.**
+`getSuggestions()` replaces `metadataCache.getLinkSuggestions()` and its contract is that it returns
+the array Obsidian would; the README, the demo vault and `get-link-suggestions-on-off-tripwire` all
+rest on that. The reverse map is this plugin's own answer to a question the built-in flat array cannot
+answer at all, so widening it costs no parity — and it is never gated.
+
+Offering titles to the `[[` autocomplete is the user-visible feature that parity claim forbids by
+default, so it has a setting of its own, `shouldOfferTitlesInLinkSuggestions`, and that setting is
+**off by default**. Three things make it a suffix rather than a rewrite, and each is load-bearing:
+
+- `IndexedFile.titleEntries` is recorded **whatever the setting says**, so flipping it costs a dropped
+  memo (`handleTitlesOfferedChange`) rather than a vault walk. Nothing a file contributes has changed;
+  only which of two known halves is assembled.
+- The entries are appended **after the unresolved-link entries**, i.e. after everything Obsidian's own
+  walk would have produced. So Obsidian's array stays a strict PREFIX, and the parity claim survives
+  intact as *"with this off"* rather than being abandoned. `titles.cross-platform.integration.test.ts`
+  asserts the position, not just the presence.
+- An entry is `{ alias: title, path: displayPath }`, so accepting one writes
+  `[[Notes/foo|The Real Name]]` — a link Obsidian resolves on its own and updates on a rename. A bare
+  `[[The Real Name]]` would resolve only while this plugin is enabled, which is a trap rather than a
+  feature.
+
+A title the file already answers to under its own name or an `alias` contributes no entry: that would
+be the same note offered twice under the same text.
 
 ## Two kinds of public surface, and which one a new module takes
 

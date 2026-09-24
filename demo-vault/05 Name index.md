@@ -42,6 +42,8 @@ await require('/demoSetup.ts').showNamesFor(app, 'Research note');
 
 Each button switches the **Names** module on for you — it is off by default — and reports the notes carrying that name, plus how many link targets the index and the built-in implementation each offer. Those two counts agree: the index is a faster answer to the same question, not a different one.
 
+They agree unless you ask for the one thing that changes the answer rather than its speed — **Offer titles in the `[[` autocomplete**, which is off by default and is [06 Titles](<./06 Titles.md>)'s subject. With it on the indexed count is the larger of the two, by exactly the title entries appended to the end.
+
 The answer is a **list**, and deliberately an unranked one. Several notes may declare the same alias, and which of them you meant is a question about your context — the note you are editing, what it already links to — which the index does not have and does not guess at.
 
 ## Try it in the editor

@@ -11,6 +11,22 @@ export class PluginSettings {
    */
   public isTitlesModuleEnabled = false;
   public shouldAutomaticallyRefreshBacklinkPanels = false;
+
+  /**
+   * Whether a note's titles are offered by the `[[` autocomplete, alongside its own name and its
+   * `aliases`.
+   *
+   * **Off by default, and that default is the contract.** `getLinkSuggestions()` is published as a
+   * REPLACEMENT for Obsidian's own — the README says so, the demo vault says so, and
+   * `readme-name-calls.cross-platform.integration.test.ts` asserts the two arrays are the same length.
+   * Offering titles makes it answer a DIFFERENT question, which is a user-visible feature rather than a
+   * faster answer to the same one, so it is something a user asks for rather than something they get.
+   *
+   * It is read only while BOTH {@link PluginSettings.isNamesModuleEnabled} and
+   * {@link PluginSettings.isTitlesModuleEnabled} are on: the first owns the array, and the second is
+   * what makes a title a name at all.
+   */
+  public shouldOfferTitlesInLinkSuggestions = false;
   public shouldShowProgressBarOnLoad = true;
 
   /**

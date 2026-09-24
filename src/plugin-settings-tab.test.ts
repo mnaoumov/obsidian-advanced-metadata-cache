@@ -38,12 +38,13 @@ function checkIsVisible(definition: SettingDefinitionItem | undefined): boolean 
   return typeof visible === 'function' ? visible() : visible !== false;
 }
 
-function createHarness(isBacklinksModuleEnabled: boolean, isTitlesModuleEnabled = false): Harness {
+function createHarness(isBacklinksModuleEnabled: boolean, isTitlesModuleEnabled = false, isNamesModuleEnabled = false): Harness {
   const settings = {
     isBacklinksModuleEnabled,
-    isNamesModuleEnabled: false,
+    isNamesModuleEnabled,
     isTitlesModuleEnabled,
     shouldAutomaticallyRefreshBacklinkPanels: false,
+    shouldOfferTitlesInLinkSuggestions: false,
     shouldShowProgressBarOnLoad: true,
     titlePropertyNames: ['title']
   };
@@ -59,6 +60,7 @@ function createHarness(isBacklinksModuleEnabled: boolean, isTitlesModuleEnabled 
         isNamesModuleEnabled: '',
         isTitlesModuleEnabled: '',
         shouldAutomaticallyRefreshBacklinkPanels: '',
+        shouldOfferTitlesInLinkSuggestions: '',
         shouldShowProgressBarOnLoad: '',
         titlePropertyNames: ''
       }
@@ -117,6 +119,7 @@ describe('PluginSettingsTab', () => {
       'Names module',
       'Titles module',
       'Title properties',
+      'Offer titles in the [[ autocomplete',
       'Should automatically refresh backlink panels',
       'Should show progress bar on load'
     ]);
@@ -125,21 +128,33 @@ describe('PluginSettingsTab', () => {
       'isNamesModuleEnabled',
       'isTitlesModuleEnabled',
       'titlePropertyNames',
+      'shouldOfferTitlesInLinkSuggestions',
       'shouldAutomaticallyRefreshBacklinkPanels',
       'shouldShowProgressBarOnLoad'
     ]);
   });
 
   it('should show the options belonging to a module that is on', () => {
-    const harness = createHarness(true, true);
+    const harness = createHarness(true, true, true);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true, true]);
   });
 
   it('should hide the options belonging to a module that is off, leaving every module toggle visible', () => {
     const harness = createHarness(false);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, false, false, false]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, false, false, false, false]);
+  });
+
+  it('should hide the titles-in-autocomplete toggle until BOTH modules it needs are on', () => {
+    const titlesOnly = createHarness(true, true, false);
+    const namesOnly = createHarness(true, false, true);
+
+    // It reads a title through the `Titles` module and puts it in the `Names` module's array, so
+    // either one being off leaves it inert - and an inert toggle is worse than an absent one.
+    expect(checkIsVisible(titlesOnly.definitions[4])).toBe(false);
+    expect(checkIsVisible(namesOnly.definitions[4])).toBe(false);
+    expect(checkIsVisible(createHarness(true, true, true).definitions[4])).toBe(true);
   });
 
   it('should re-render the tab when the backlinks module toggle changes, so the hidden rows follow it', async () => {

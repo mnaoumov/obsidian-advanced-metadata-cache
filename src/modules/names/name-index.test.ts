@@ -46,12 +46,13 @@ describe('NameIndex', () => {
     castTo<SupportedFileChecker>(app.metadataCache).isSupportedFile = (file): boolean => SUPPORTED_EXTENSIONS.has(file.extension);
     settings = new PluginSettings();
 
+    const pluginSettingsComponent = strictProxy<PluginSettingsComponent>({ settings });
     const titleIndex = new TitleIndex({
       app: castTo<AppOriginal>(app),
-      pluginSettingsComponent: strictProxy<PluginSettingsComponent>({ settings })
+      pluginSettingsComponent
     });
 
-    nameIndex = new NameIndex({ app: castTo<AppOriginal>(app), titleIndex });
+    nameIndex = new NameIndex({ app: castTo<AppOriginal>(app), pluginSettingsComponent, titleIndex });
   });
 
   describe('normalizeName', () => {
@@ -191,6 +192,74 @@ describe('NameIndex', () => {
 
       expect(nameIndex.getSuggestions().map((suggestion) => suggestion.path)).toEqual(['Alpha', 'Late']);
       expect(nameIndex.getPathsByName('late')).toEqual(['Late.md']);
+    });
+
+    it('should leave a title out of the array while the setting is off, even with the Titles module on', () => {
+      settings.isTitlesModuleEnabled = true;
+      createNote('Alpha.md', '---\ntitle: The Real Name\n---\n');
+      nameIndex.buildAll();
+
+      // The name is there; the ENTRY is not. That split is the whole point of the setting.
+      expect(nameIndex.getPathsByName('the real name')).toEqual(['Alpha.md']);
+      expect(nameIndex.getSuggestions()).toEqual([{ file: expect.anything() as unknown, path: 'Alpha' }]);
+    });
+
+    it('should offer a title as an aliased entry at the note display path while the setting is on', () => {
+      settings.isTitlesModuleEnabled = true;
+      settings.shouldOfferTitlesInLinkSuggestions = true;
+      createNote('Notes/Alpha.md', '---\ntitle: The Real Name\n---\n');
+      nameIndex.buildAll();
+
+      // `{ alias, path }` is what makes Obsidian write `[[Notes/Alpha|The Real Name]]`, which resolves
+      // without this plugin.
+      expect(nameIndex.getSuggestions()).toEqual([
+        { file: expect.anything() as unknown, path: 'Notes/Alpha' },
+        { alias: 'The Real Name', file: expect.anything() as unknown, path: 'Notes/Alpha' }
+      ]);
+    });
+
+    it('should append every title entry AFTER the whole array Obsidian would have built', () => {
+      settings.isTitlesModuleEnabled = true;
+      createNote('Alpha.md', '---\ntitle: Alpha Real Name\naliases:\n  - First\n---\nSee [[Not Yet Written]].');
+      createNote('Beta.md', '---\ntitle: Beta Real Name\n---\n');
+      nameIndex.buildAll();
+
+      const withoutTitles = nameIndex.getSuggestions();
+
+      settings.shouldOfferTitlesInLinkSuggestions = true;
+      nameIndex.invalidateSuggestions();
+      const withTitles = nameIndex.getSuggestions();
+
+      // Obsidian's own array stays a strict PREFIX, unresolved-link entries and all, so the two
+      // answers differ by a suffix and by nothing else.
+      expect(withTitles.slice(0, withoutTitles.length)).toEqual(withoutTitles);
+      expect(withTitles.slice(withoutTitles.length)).toEqual([
+        { alias: 'Alpha Real Name', file: expect.anything() as unknown, path: 'Alpha' },
+        { alias: 'Beta Real Name', file: expect.anything() as unknown, path: 'Beta' }
+      ]);
+    });
+
+    it('should not offer a title the note already answers to under its own name or an alias', () => {
+      settings.isTitlesModuleEnabled = true;
+      settings.shouldOfferTitlesInLinkSuggestions = true;
+      createNote('Alpha.md', '---\ntitle: alpha\n---\n');
+      createNote('Beta.md', '---\ntitle: First\naliases:\n  - first\n---\n');
+      nameIndex.buildAll();
+
+      // Offering either would be the same note under the same text, twice.
+      expect(nameIndex.getSuggestions()).toEqual([
+        { file: expect.anything() as unknown, path: 'Alpha' },
+        { file: expect.anything() as unknown, path: 'Beta' },
+        { alias: 'first', file: expect.anything() as unknown, path: 'Beta' }
+      ]);
+    });
+
+    it('should offer nothing extra while the Titles module is off, whatever the setting says', () => {
+      settings.shouldOfferTitlesInLinkSuggestions = true;
+      createNote('Alpha.md', '---\ntitle: The Real Name\n---\n');
+      nameIndex.buildAll();
+
+      expect(nameIndex.getSuggestions()).toEqual([{ file: expect.anything() as unknown, path: 'Alpha' }]);
     });
 
     it('should answer from the memo until something invalidates it', () => {

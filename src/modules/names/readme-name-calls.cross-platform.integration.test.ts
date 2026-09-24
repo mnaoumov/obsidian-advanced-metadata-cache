@@ -9,6 +9,9 @@
  * - Original (built-in) version.
  * - The reverse lookup, `getPathsByName` and `getPathsByNameSafe`, by basename and by alias.
  *
+ * The fast and original answers are asserted to agree entry for entry, which is true with
+ * `shouldOfferTitlesInLinkSuggestions` off — its default, and what this suite runs under.
+ *
  * Named `*.cross-platform.integration.test.ts`, so the desktop AND android projects both collect it
  * and the same flow is verified on each — the API is the same on both.
  */
@@ -120,8 +123,14 @@ describe('README getLinkSuggestions calls', () => {
 
     assertNameCalls(result);
 
-    // The three suggestion calls agree entry for entry. `originalFn` is Obsidian's own walk, so this
-    // is the parity check that the index is not quietly offering a different set of link targets.
+    /*
+     * The three suggestion calls agree entry for entry. `originalFn` is Obsidian's own walk, so this
+     * is the parity check that the index is not quietly offering a different set of link targets.
+     *
+     * It holds WITH `shouldOfferTitlesInLinkSuggestions` OFF, which is its default and which this
+     * suite never changes. Switching it on is the one supported way to make these counts differ, and
+     * it differs by a suffix: `titles.cross-platform.integration.test.ts` owns both halves of that.
+     */
     expect(result.fastCount).toBe(result.originalCount);
     expect(result.safeCount).toBe(result.originalCount);
   }, SCENARIO_TIMEOUT_IN_MS);
