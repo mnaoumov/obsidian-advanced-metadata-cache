@@ -23,19 +23,6 @@ import {
   normalizeName
 } from './name-index.ts';
 
-/**
- * The one member of the real `MetadataCache` the mock does not implement.
- *
- * `getLinkSuggestions` asks it per file, so the index has to as well or it would offer link targets
- * Obsidian does not. Stubbed as "markdown and images", which is enough for these cases; when the
- * mock grows the real thing this stub is what should be deleted.
- */
-interface SupportedFileChecker {
-  isSupportedFile(file: TFileOriginal): boolean;
-}
-
-const SUPPORTED_EXTENSIONS = new Set(['canvas', 'md', 'png']);
-
 describe('NameIndex', () => {
   let app: App;
   let nameIndex: NameIndex;
@@ -43,7 +30,10 @@ describe('NameIndex', () => {
 
   beforeEach(() => {
     app = App.createConfigured__();
-    castTo<SupportedFileChecker>(app.metadataCache).isSupportedFile = (file): boolean => SUPPORTED_EXTENSIONS.has(file.extension);
+    // `getLinkSuggestions` asks `isSupportedFile` per file, and so does the index. That asks the view registry,
+    // which holds only the Markdown view until Obsidian's canvas and image views claim their extensions at startup.
+    app.viewRegistry.registerExtensions(['canvas'], 'canvas');
+    app.viewRegistry.registerExtensions(['png'], 'image');
     settings = new PluginSettings();
 
     const pluginSettingsComponent = strictProxy<PluginSettingsComponent>({ settings });
