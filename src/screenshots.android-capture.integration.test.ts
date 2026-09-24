@@ -16,6 +16,13 @@
  * `getBacklinksForFile.originalFn`. Nothing is quoted from a benchmark elsewhere,
  * and the assertion requires the patched path to actually be faster before the
  * frame claiming so is written.
+ *
+ * What this suite is NOT allowed to do is flake. Measured 2026-09-23, the same code ran red and then
+ * green three minutes apart, and the difference was the host: an emulator sharing the machine with
+ * another project's made staging the vault ~50x slower, and the run died inside the hook having
+ * written nothing. So the hook refuses a contended machine outright before it stages anything, and
+ * everything after that is bounded by a wall clock taken from the project's own hook budget rather
+ * than by a poll count that silently means a different budget on every run.
  */
 
 import {
@@ -38,6 +45,10 @@ import {
   expect,
   it
 } from 'vitest';
+
+import { assertNoForeignEmulator } from '../scripts/helpers/android-emulator-contention.ts';
+import { computeCaptureDeadline } from '../scripts/helpers/capture-budget.ts';
+import { SCREENSHOT_AVD_NAME } from '../scripts/helpers/screenshot-avd.ts';
 
 /**
  * The dictionary either implementation answers with, reduced to its keys.
@@ -119,6 +130,12 @@ const RESULT_NOTE_PATH = 'Measurements.md';
 const MOBILE_FONT_SIZE_IN_PIXELS = 13;
 
 /**
+ * How many milliseconds a second is, so the failure messages read in the unit their reader compares
+ * runs in.
+ */
+const MILLISECONDS_PER_SECOND = 1000;
+
+/**
  * The plugin's own id, which is also the id of its settings tab.
  */
 const PLUGIN_ID = 'advanced-metadata-cache';
@@ -144,6 +161,18 @@ const STAGED_NOTE_COUNT = 1 + LINKING_NOTE_COUNT + FILLER_NOTE_COUNT;
 const SETTLED_POLL_COUNT = 3;
 
 /**
+ * How many consecutive unchanged polls mean the staging is STUCK rather than slow, when the vault
+ * has stopped growing somewhere it must not stop - short of the backlinks the frames are about.
+ *
+ * Deliberately far above {@link SETTLED_POLL_COUNT}: ~170s at the measured poll cost. A contended
+ * device delivers its notes in bursts with real pauses between them, and a pause misread as a stall
+ * would fail a run that was going to succeed. What this catches is the count that has not moved at
+ * all - a watcher that never saw the extract, an app that never opened the vault - where the rest of
+ * the budget buys nothing but a later, emptier failure.
+ */
+const STALLED_POLL_COUNT = 40;
+
+/**
  * The module rows the settings tab leads with, in the order it renders them.
  *
  * Asserted rather than merely photographed: the frame's caption says every index is a module of its
@@ -165,10 +194,35 @@ const IMAGES_DIRECTORY = join(process.cwd(), 'images', 'screenshots');
 let measurement: BacklinkMeasurement | null = null;
 
 beforeAll(async () => {
+  /*
+   * The hook's clock, started here rather than at the wait below, so staging the vault is spent out
+   * of the same budget instead of quietly extending it. Everything this hook does afterwards is
+   * sized against it.
+   */
+  const hookStartedAtInMilliseconds = Date.now();
+
+  /*
+   * The authoritative half of the contention preflight - `npm run capture:screenshots` runs the same
+   * check before vitest starts, but this one also covers a direct `--project` run, and an emulator
+   * can appear on the machine while the desktop leg is still going.
+   *
+   * It is the FIRST thing here on purpose: refusing costs a second, and the alternative is the
+   * thirteen minutes of staging and polling that produced no frame on 2026-09-23.
+   */
+  await assertNoForeignEmulator(SCREENSHOT_AVD_NAME);
+
   const vault = getTemporaryVault();
 
   vault.populate(buildVault());
+
+  /*
+   * Timed because it is the cheapest honest reading of what this machine is doing: the same extract
+   * took 0.2 s with the machine quiet and 11.2 s with a foreign emulator on it. It is carried into
+   * every failure message below, so a run that dies later says outright which of the two it was.
+   */
+  const stagingStartedAtInMilliseconds = Date.now();
   await vault.syncToDevice();
+  const stagingDurationInMilliseconds = Date.now() - stagingStartedAtInMilliseconds;
 
   await evalInObsidian({
     async callback({ app, fontSizeInPixels, hubNotePath, lib: { waitUntil }, linkingNoteCount }) {
@@ -216,7 +270,10 @@ beforeAll(async () => {
   // Indexing thousands of notes takes Obsidian a while, and every frame below is
   // meaningless until it has finished — a Backlinks pane that is still filling in
   // photographs as a plugin that found nothing.
-  await waitForIndex();
+  await waitForIndex({
+    deadlineInMilliseconds: computeCaptureDeadline(hookStartedAtInMilliseconds),
+    stagingDurationInMilliseconds
+  });
 });
 
 describe('mobile store screenshots', () => {
@@ -370,6 +427,43 @@ async function compareBacklinkCounts(): Promise<BacklinkCounts> {
     input: { hubNotePath: HUB_NOTE_PATH, resultNotePath: RESULT_NOTE_PATH },
     vaultPath: vaultPath()
   });
+}
+
+/**
+ * Writes what a failed index wait knows into one message.
+ *
+ * The whole point of the wait throwing on its own terms rather than letting vitest's hook timeout
+ * fire: `Hook timed out in 600000ms` names neither the vault, nor the counts, nor the machine, and
+ * that is precisely the message the 2026-09-23 red run left behind after thirteen minutes.
+ *
+ * @param params - What the wait saw.
+ * @returns The message.
+ */
+function describeFailedIndexWait(params: FailedIndexWaitParams): string {
+  const { headline, pollCount, progress, stagingDurationInMilliseconds, waitedInMilliseconds } = params;
+
+  return [
+    headline,
+    `Last seen: ${String(progress.markdownFileCount)} of ${String(STAGED_NOTE_COUNT)} notes, `
+    + `${String(progress.backlinkCount)} of ${String(LINKING_NOTE_COUNT)} backlinks, `
+    + `after ${String(pollCount)} polls over ${formatSeconds(waitedInMilliseconds)}.`,
+    '',
+    `Staging the vault onto the device took ${formatSeconds(stagingDurationInMilliseconds)}, which is this run's own`,
+    'reading of how busy the machine is: measured 2026-09-23, the same extract took 0.2 s with the',
+    'machine to itself and 11.2 s with another emulator on it. If it is the slow figure, the device',
+    'was sharing the host and no budget this suite could carry would have covered it - capture again',
+    'once the machine is quiet.'
+  ].join('\n');
+}
+
+/**
+ * Renders a duration the way a reader compares it: in seconds, to one decimal.
+ *
+ * @param durationInMilliseconds - The duration.
+ * @returns The duration in seconds, e.g. `11.2 s`.
+ */
+function formatSeconds(durationInMilliseconds: number): string {
+  return `${(durationInMilliseconds / MILLISECONDS_PER_SECOND).toFixed(1)} s`;
 }
 
 /**
@@ -601,26 +695,36 @@ function vaultPath(): string {
  * Both halves, because they finish at different times: a frame taken before the pane settles shows a
  * half-built list, and one taken before the vault settles reports a smaller vault than the caption
  * claims.
+ *
+ * Bounded by a WALL CLOCK rather than by a poll count, because a poll is not a fixed cost: it is
+ * ~4.3s on this emulator rather than the 3s its sleep suggests - every `evalInObsidian` pays an
+ * Appium preflight round trip on top - and on a contended machine it is worse again. A poll ceiling
+ * therefore means a different budget on every run, which is how a ceiling of 140 came to spend the
+ * WHOLE 600s hook and hand the reader a bare `Hook timed out in 600000ms` with the counts that would
+ * have explained it never printed. The deadline comes from the project's own hook budget, so the two
+ * cannot drift apart.
+ *
+ * @param params - The budget this wait must land inside, and what staging the vault already cost.
+ * @returns A {@link Promise} that resolves once the vault is worth photographing.
  */
-async function waitForIndex(): Promise<void> {
-  /*
-   * Sized against the SUITE's hook budget, not against the sleep below.
-   * A poll costs ~4.3s on the emulator, not the 3s its sleep suggests: every `evalInObsidian` pays an
-   * Appium preflight round trip on top. Measured 2026-09-23 — 137 polls filled 590s.
-   * At the 140 this read before, the wait alone spent the WHOLE 600s hook, so a vault that never
-   * settled took the suite down with a bare `Hook timed out in 600000ms` and the counts that would
-   * have explained it were never printed. 80 leaves the staging above it and the throw below it room
-   * inside the same budget.
-   */
-  const ATTEMPTS = 80;
+async function waitForIndex({ deadlineInMilliseconds, stagingDurationInMilliseconds }: WaitForIndexParams): Promise<void> {
   const INTERVAL_IN_MILLISECONDS = 3000;
 
-  let progress: StagingProgress = { backlinkCount: 0, markdownFileCount: 0 };
+  const startedAtInMilliseconds = Date.now();
+  // No initializer: the `do` below assigns it before anything reads it, which is also what lets
+  // every failure message below report real counts rather than a placeholder.
+  let progress: StagingProgress;
   let lastMarkdownFileCount = -1;
+  let pollCount = 0;
   let settledPollCount = 0;
 
-  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+  // A `do` rather than a `while`, so the vault is asked at least once however little of the budget
+  // staging left behind. A deadline that has already passed must still produce counts to report;
+  // "0 of 521 notes after 0 polls" would read as a vault that never appeared rather than as one that
+  // was never asked.
+  do {
     progress = await readStagingProgress();
+    pollCount++;
 
     settledPollCount = progress.markdownFileCount === lastMarkdownFileCount ? settledPollCount + 1 : 0;
     lastMarkdownFileCount = progress.markdownFileCount;
@@ -636,12 +740,28 @@ async function waitForIndex(): Promise<void> {
       return;
     }
 
-    await sleepInNode({ milliseconds: INTERVAL_IN_MILLISECONDS });
-  }
+    // Or it stopped arriving somewhere it must not stop, which is not slowness and will not improve
+    // by being waited on. Failing here hands back the rest of the budget AND the counts.
+    if (settledPollCount >= STALLED_POLL_COUNT) {
+      throw new Error(describeFailedIndexWait({
+        headline: 'The staged vault stopped growing well short of what was pushed onto the device.',
+        pollCount,
+        progress,
+        stagingDurationInMilliseconds,
+        waitedInMilliseconds: Date.now() - startedAtInMilliseconds
+      }));
+    }
 
-  throw new Error(
-    `The vault never finished indexing. Last seen: ${String(progress.markdownFileCount)} of ${String(STAGED_NOTE_COUNT)} notes, ${String(progress.backlinkCount)} of ${String(LINKING_NOTE_COUNT)} backlinks.`
-  );
+    await sleepInNode({ milliseconds: INTERVAL_IN_MILLISECONDS });
+  } while (Date.now() < deadlineInMilliseconds);
+
+  throw new Error(describeFailedIndexWait({
+    headline: 'The vault never finished indexing inside the capture budget.',
+    pollCount,
+    progress,
+    stagingDurationInMilliseconds,
+    waitedInMilliseconds: Date.now() - startedAtInMilliseconds
+  }));
 }
 
 /**
@@ -666,11 +786,57 @@ interface BacklinkMeasurement {
 }
 
 /**
+ * Everything a failed index wait knows, which is everything its message should say.
+ */
+interface FailedIndexWaitParams {
+  /**
+   * What went wrong, in one sentence.
+   */
+  readonly headline: string;
+
+  /**
+   * How many times the vault was asked.
+   */
+  readonly pollCount: number;
+
+  /**
+   * How far the staging had got when the wait gave up.
+   */
+  readonly progress: StagingProgress;
+
+  /**
+   * How long `syncToDevice` took, which is this run's own reading of how busy the machine is.
+   */
+  readonly stagingDurationInMilliseconds: number;
+
+  /**
+   * How long the wait itself ran for.
+   */
+  readonly waitedInMilliseconds: number;
+}
+
+/**
  * How far Obsidian has got through the staged vault.
  */
 interface StagingProgress {
   readonly backlinkCount: number;
   readonly markdownFileCount: number;
+}
+
+/**
+ * What {@link waitForIndex} is given.
+ */
+interface WaitForIndexParams {
+  /**
+   * The `Date.now()` value the wait must not run past, from
+   * {@link computeCaptureDeadline}.
+   */
+  readonly deadlineInMilliseconds: number;
+
+  /**
+   * How long staging the vault onto the device took.
+   */
+  readonly stagingDurationInMilliseconds: number;
 }
 
 /**
