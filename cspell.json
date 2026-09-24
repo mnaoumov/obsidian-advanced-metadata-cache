@@ -10,6 +10,7 @@
   "words": [
     "Invocables",
     "unnumber",
+    "appops",
     "Backlink",
     "backlinks",
     "basenames",
@@ -31,7 +32,9 @@
     "postversion",
     "preversion",
     "Promisable",
+    "quickboot",
     "rescanning",
+    "sdcard",
     "smol",
     "subkey",
     "tsbuildinfo",
