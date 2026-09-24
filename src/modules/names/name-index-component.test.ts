@@ -1,7 +1,4 @@
-import type {
-  App as AppOriginal,
-  TFile as TFileOriginal
-} from 'obsidian';
+import type { App as AppOriginal } from 'obsidian';
 import type { AsyncEventRef } from 'obsidian-dev-utils/async-events';
 import type {
   TFile,
@@ -52,16 +49,6 @@ vi.mock('./patches/metadata-cache-get-link-suggestions-patch-component.ts', () =
 import { NameIndexComponent } from './name-index-component.ts';
 /* eslint-enable import-x/first, import-x/imports-first -- End of the mocked imports. */
 
-/**
- * The one member of the real `MetadataCache` the mock does not implement - see the same stub in
- * `name-index.test.ts`.
- */
-interface SupportedFileChecker {
-  isSupportedFile(file: TFileOriginal): boolean;
-}
-
-const SUPPORTED_EXTENSIONS = new Set(['canvas', 'md', 'png']);
-
 describe('NameIndexComponent', () => {
   let app: App;
   let component: NameIndexComponent;
@@ -72,7 +59,6 @@ describe('NameIndexComponent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     app = App.createConfigured__();
-    castTo<SupportedFileChecker>(app.metadataCache).isSupportedFile = (file): boolean => SUPPORTED_EXTENSIONS.has(file.extension);
 
     settings = new PluginSettings();
     offref = vi.fn();
