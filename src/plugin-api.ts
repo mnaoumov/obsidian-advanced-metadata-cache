@@ -11,7 +11,12 @@
 
 import type { PluginApiContract } from 'obsidian-dev-utils/obsidian/plugin/plugin-api';
 
-export type { AdvancedMetadataCacheApi } from '../api.d.ts';
+export type {
+  AdvancedMetadataCacheApi,
+  AdvancedMetadataCacheMigratableSettings,
+  MigrateSettingsParams,
+  MigrateSettingsResult
+} from '../api.d.ts';
 
 /**
  * The contract this plugin publishes. It declares the method names; a consumer that wants schema
@@ -19,7 +24,8 @@ export type { AdvancedMetadataCacheApi } from '../api.d.ts';
  */
 export const PLUGIN_API_CONTRACT: PluginApiContract = {
   getTitlePropertyNames: {},
-  getTitles: {}
+  getTitles: {},
+  migrateSettings: {}
 };
 
 /**
@@ -27,8 +33,10 @@ export const PLUGIN_API_CONTRACT: PluginApiContract = {
  * `'^1'` and keeps working across releases that change nothing it depends on.
  *
  * `1.0.0` is the `Titles` module's pair of reads, the first answer this plugin publishes that Obsidian
- * has no method of its own for. The two older modules widen a core method instead; their signatures
- * live in the same `api.d.ts` but are deliberately not mirrored in this contract, because a consumer
- * of those calls core and has no handle to negotiate a version over.
+ * has no method of its own for. `1.1.0` adds `migrateSettings`, purely additively, so a plugin handing
+ * its title property over asks for `'^1'` with a contract naming that member, and against `1.0.0` its
+ * offer simply waits. The two older modules widen a core method instead; their signatures live in the
+ * same `api.d.ts` but are deliberately not mirrored in this contract, because a consumer of those calls
+ * core and has no handle to negotiate a version over.
  */
-export const PLUGIN_API_VERSION = '1.0.0';
+export const PLUGIN_API_VERSION = '1.1.0';

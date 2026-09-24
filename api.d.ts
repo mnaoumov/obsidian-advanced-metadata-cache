@@ -68,6 +68,40 @@ export interface AdvancedMetadataCacheApi {
    *   file answers to, and while the `Titles` module is off.
    */
   getTitles(pathOrFile: string | TFile): string[];
+
+  /**
+   * Offers the user title properties another plugin used to own, and adds the ones they approve to
+   * {@link AdvancedMetadataCacheApi.getTitlePropertyNames}.
+   *
+   * For a plugin that stops owning a title property of its own: it proposes the value it held, and this
+   * plugin — which owns the list, and so owns the dialog — shows the user the proposed names next to the
+   * current list and lets them approve, edit or decline. The proposed names are ADDED to the list rather
+   * than replacing it, so a user who already has `title` keeps it. While the `Titles` module is off, the
+   * dialog also offers to switch it on, since the names answer nothing until it is.
+   *
+   * Resolves only once the dialog is closed, and without one at all when there is nothing to change.
+   * Proposals arriving together are shown one after another, never stacked.
+   *
+   * Added in contract `1.1.0`.
+   *
+   * @param params - The proposal.
+   * @returns Whether the user applied it. On `false` nothing was written, and the offer should come back.
+   */
+  migrateSettings(params: MigrateSettingsParams): Promise<MigrateSettingsResult>;
+}
+
+/**
+ * The settings another plugin may propose through {@link AdvancedMetadataCacheApi.migrateSettings}.
+ *
+ * Structurally the payload of `obsidian-dev-utils`'s `SettingsMigrationApi<TMigratableSettings>`, whose
+ * envelope {@link MigrateSettingsParams} and {@link MigrateSettingsResult} restate here so this file keeps
+ * importing from `obsidian` alone; the plugin's build checks the two stay assignable.
+ */
+export interface AdvancedMetadataCacheMigratableSettings {
+  /**
+   * Frontmatter properties to add to the title properties, e.g. `['subtitle']`.
+   */
+  readonly titlePropertyNames?: readonly string[];
 }
 
 /**
@@ -232,6 +266,32 @@ export interface GetLinkSuggestionsFn {
    * @returns Every link target the `[[` autocomplete can offer.
    */
   safe(): Promise<LinkSuggestion[]>;
+}
+
+/**
+ * Parameters for {@link AdvancedMetadataCacheApi.migrateSettings}.
+ */
+export interface MigrateSettingsParams {
+  /**
+   * The values the proposing plugin offers.
+   */
+  readonly proposedSettings: AdvancedMetadataCacheMigratableSettings;
+
+  /**
+   * The `manifest.id` of the plugin making the proposal, so the dialog can say whose settings these are.
+   */
+  readonly sourcePluginId: string;
+}
+
+/**
+ * The outcome of {@link AdvancedMetadataCacheApi.migrateSettings}.
+ */
+export interface MigrateSettingsResult {
+  /**
+   * Whether the user approved the migration. `false` means they cancelled and nothing was written, so the
+   * proposing plugin must NOT record the migration as done.
+   */
+  readonly isApplied: boolean;
 }
 
 /**

@@ -153,6 +153,12 @@ Both arrived in contract `1.0.0`, and the contract version moves independently o
 
 `getTitles` is synchronous and lazily memoized per note, so it is safe on a per-keystroke path. Read `getTitlePropertyNames()` and show that list rather than offering a property setting of your own — one place to type `title` is the point of the setting living here.
 
+#### Handing over a title property of your own
+
+A plugin that used to own a title property setting hands its value over with `migrateSettings`, added in contract `1.1.0`. It is the envelope of `obsidian-dev-utils`'s `SettingsMigrationApi`, so `SettingsMigrationComponent` drives it for you. Watch this plugin's API with the contract `{ migrateSettings: {} }` and the range `^1`, then propose `{ titlePropertyNames: ['subtitle'] }`. Against a `1.0.0` provider, the offer waits instead of failing.
+
+This plugin owns the list, so it owns the dialog. The dialog names your plugin, shows the proposed names beside the current list, and suggests the proposed names ADDED to that list (a name already on it in any casing is not added twice), which the user can approve, edit or decline. While the Titles module is off, it also offers to switch it on. The call resolves `{ isApplied: false }` on a cancel, so retire your pending value only on `true`. When there is nothing to change, it resolves `true` without showing anything.
+
 If you would rather not depend on `obsidian-dev-utils` for the handle, the registry is a documented wire protocol you can read directly — see [Plugin API protocol](https://mnaoumov.dev/obsidian-dev-utils/guides/plugin-api-protocol/).
 
 ## Installation

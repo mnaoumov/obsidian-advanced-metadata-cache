@@ -72,7 +72,7 @@ export class Plugin extends PluginBase {
      * module finds the same answer whatever the other is doing.
      */
     const titleIndex = new TitleIndex({ app: this.app, pluginSettingsComponent });
-    this.pluginApi = new PluginApiImpl({ app: this.app, titleIndex });
+    this.pluginApi = new PluginApiImpl({ app: this.app, pluginSettingsComponent, titleIndex });
 
     this.addChild(
       new ModulesComponent({
