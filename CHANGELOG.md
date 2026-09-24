@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.1.0
+
+- feat(api): accept a title property handover through migrateSettings
+- chore(deps): float obsidian-test-mocks to ^7.0.0
+
 ## 1.0.0
 
 - fix(canvas): merge loading the canvas index after a Canvas toggle

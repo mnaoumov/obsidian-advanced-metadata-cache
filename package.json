@@ -1,6 +1,6 @@
 {
   "name": "advanced-metadata-cache",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Maintains the vault indexes that are otherwise rebuilt on every call, and answers the built-in lookups from them",
   "keywords": [],
   "homepage": "https://github.com/mnaoumov/obsidian-advanced-metadata-cache#readme",
