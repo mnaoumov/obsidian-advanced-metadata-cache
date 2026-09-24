@@ -98,6 +98,45 @@ const REQUIRED_SPEEDUP = 2;
  */
 const RESULT_NOTE_PATH = 'Measurements.md';
 
+/**
+ * The plugin's own id, which is also the id of its settings tab.
+ */
+const PLUGIN_ID = 'advanced-metadata-cache';
+
+/**
+ * How many notes are WRITTEN into the vault: the hub, the notes linking to it, and the filler.
+ *
+ * Obsidian routinely settles BELOW it, and that is not a bug in the staging. The notes are written
+ * into a vault that is already open, so Obsidian learns about them through the platform's
+ * directory-change watcher — which has a bounded buffer and silently drops events when thousands of
+ * files land at once. Measured here 2026-09-23: 4121 written, 2546 and 2638 seen on two runs.
+ *
+ * So this is the ceiling the wait below stops AT, never the figure it holds out for. What it waits
+ * for is the count to stop moving, because the backlink count is no use as a settle signal: it
+ * reaches its own total while the filler is still arriving, which is how the first frame came out
+ * reporting a vault a third smaller than the one the caption describes.
+ */
+const STAGED_NOTE_COUNT = 1 + LINKING_NOTE_COUNT + FILLER_NOTE_COUNT;
+
+/**
+ * How many consecutive unchanged polls mean the vault has stopped growing rather than merely paused.
+ */
+const SETTLED_POLL_COUNT = 3;
+
+/**
+ * The module rows the settings tab leads with, in the order it renders them.
+ *
+ * Asserted rather than merely photographed: the frame's caption says every index is a module of its
+ * own, and this is what stops that caption outliving the settings tab it describes.
+ */
+const EXPECTED_MODULE_SETTING_NAMES = ['Backlinks module', 'Names module', 'Titles module'];
+
+/**
+ * What every module row's name ends with, and so how a module row is told from the rows that
+ * configure one.
+ */
+const MODULE_SETTING_NAME_SUFFIX = ' module';
+
 const IMAGES_DIRECTORY = join(process.cwd(), 'images', 'screenshots');
 
 /**
@@ -155,14 +194,14 @@ describe('desktop store screenshots', () => {
   it('1 - the backlinks of a note in a big vault', async () => {
     const backlinkCount = await openBacklinksPane();
     expect(backlinkCount).toBe(LINKING_NOTE_COUNT);
-    await shoot(1, 'All 120 backlinks, in a vault of thousands');
+    await shoot(1, 'The Backlinks module: all 120 backlinks, in a vault of thousands');
   });
 
   it('2 - how long each way takes', async () => {
     measurement = await measureBacklinkLookups();
     // The frame reports numbers; this is what stops it reporting a lie.
     expect(measurement.cachedInMilliseconds).toBeLessThan(measurement.originalInMilliseconds / REQUIRED_SPEEDUP);
-    await shoot(2, 'From an index, not a scan of every note');
+    await shoot(2, 'Answered from an index, not a scan of every note');
   });
 
   it('3 - the same answer, either way', async () => {
@@ -170,7 +209,16 @@ describe('desktop store screenshots', () => {
     // Faster is only worth anything if it is also right.
     expect(counts.cached).toBe(counts.original);
     expect(counts.cached).toBe(LINKING_NOTE_COUNT);
-    await shoot(3, 'Same answer as Obsidian, arrived at faster');
+    await shoot(3, 'The same answer as Obsidian, arrived at faster');
+  });
+
+  it('4 - every index is a module of its own', async () => {
+    const moduleSettingNames = await openSettingsTab();
+
+    // The whole point of the frame: three modules, and the backlink one leading. A set of frames
+    // showing only backlinks would photograph the plugin this was ported FROM.
+    expect(moduleSettingNames).toStrictEqual(EXPECTED_MODULE_SETTING_NAMES);
+    await shoot(4, 'Every index is a module, switched on by itself');
   });
 });
 
@@ -442,6 +490,51 @@ async function openBacklinksPane(): Promise<number> {
 }
 
 /**
+ * Opens the plugin's own settings tab, which is where the modules are switched on and off.
+ *
+ * Left in its default state deliberately — Backlinks on, Names and Titles off — because that IS the
+ * shape a reader meets: one module doing the work it was installed for, and two more they can switch
+ * on. Toggling one here would photograph a vault nobody has.
+ *
+ * @returns The names of the rendered module rows, in render order.
+ */
+async function openSettingsTab(): Promise<string[]> {
+  return await evalInObsidian({
+    async callback({ app, lib: { waitUntil }, moduleSettingNameSuffix, pluginId }) {
+      const RENDER_TIMEOUT_IN_MILLISECONDS = 20_000;
+      const OPEN_DELAY_IN_MILLISECONDS = 500;
+      const SETTLE_DELAY_IN_MILLISECONDS = 1500;
+
+      // The earlier frames left a results note, a Backlinks tab and an expanded dock behind. The
+      // settings modal covers all of it, but a notice would sit on TOP of the modal.
+      for (const noticeEl of document.querySelectorAll('.notice')) {
+        noticeEl.detach();
+      }
+
+      app.setting.open();
+      await sleep(OPEN_DELAY_IN_MILLISECONDS);
+      app.setting.openTabById(pluginId);
+
+      await waitUntil({
+        message: 'the settings tab to render its module rows',
+        predicate: () =>
+          [...document.querySelectorAll('.setting-item-name')]
+            .some((settingNameEl) => settingNameEl.textContent.endsWith(moduleSettingNameSuffix)),
+        timeoutInMilliseconds: RENDER_TIMEOUT_IN_MILLISECONDS
+      });
+
+      await sleep(SETTLE_DELAY_IN_MILLISECONDS);
+
+      return [...document.querySelectorAll('.setting-item-name')]
+        .map((settingNameEl) => settingNameEl.textContent)
+        .filter((settingName) => settingName.endsWith(moduleSettingNameSuffix));
+    },
+    input: { moduleSettingNameSuffix: MODULE_SETTING_NAME_SUFFIX, pluginId: PLUGIN_ID },
+    vaultPath: vaultPath()
+  });
+}
+
+/**
  * Captures the window, captions it, and writes it as
  * `images/screenshots/screenshot-desktop-<index>.png`.
  *
@@ -471,33 +564,44 @@ function vaultPath(): string {
 }
 
 /**
- * Waits for the plugin's index to hold every linking note.
+ * Waits for Obsidian to have read the whole staged vault, and for the plugin's index to hold every
+ * linking note.
  *
- * Polled from the Node side: indexing thousands of notes outlasts the transport's
- * per-call cap, and a frame taken before it settles shows a half-built pane.
+ * Both halves, because they finish at different times: a frame taken before the pane settles shows a
+ * half-built list, and one taken before the vault settles reports a smaller vault than the caption
+ * claims.
  */
 async function waitForIndex(): Promise<void> {
   const ATTEMPTS = 60;
   const INTERVAL_IN_MILLISECONDS = 3000;
 
-  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
-    const count = await evalInObsidian({
-      callback({ app, hubNotePath }) {
-        const file = app.vault.getFileByPath(hubNotePath);
-        return file ? app.metadataCache.getBacklinksForFile(file).keys().length : 0;
-      },
-      input: { hubNotePath: HUB_NOTE_PATH },
-      vaultPath: vaultPath()
-    });
+  let progress: StagingProgress = { backlinkCount: 0, markdownFileCount: 0 };
+  let lastMarkdownFileCount = -1;
+  let settledPollCount = 0;
 
-    if (count >= LINKING_NOTE_COUNT) {
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    progress = await readStagingProgress();
+
+    settledPollCount = progress.markdownFileCount === lastMarkdownFileCount ? settledPollCount + 1 : 0;
+    lastMarkdownFileCount = progress.markdownFileCount;
+
+    // Everything arrived, which is the happy ending and the only one that needs no settling.
+    if (progress.markdownFileCount >= STAGED_NOTE_COUNT && progress.backlinkCount >= LINKING_NOTE_COUNT) {
+      return;
+    }
+
+    // Or it stopped arriving, which is the ordinary ending: whatever the watcher dropped is dropped,
+    // and the vault Obsidian has is the vault the frames will report.
+    if (settledPollCount >= SETTLED_POLL_COUNT && progress.backlinkCount >= LINKING_NOTE_COUNT) {
       return;
     }
 
     await sleepInNode({ milliseconds: INTERVAL_IN_MILLISECONDS });
   }
 
-  throw new Error('The vault never finished indexing.');
+  throw new Error(
+    `The vault never finished indexing. Last seen: ${String(progress.markdownFileCount)} of ${String(STAGED_NOTE_COUNT)} notes, ${String(progress.backlinkCount)} of ${String(LINKING_NOTE_COUNT)} backlinks.`
+  );
 }
 
 /**
@@ -519,4 +623,34 @@ interface BacklinkCounts {
 interface BacklinkMeasurement {
   readonly cachedInMilliseconds: number;
   readonly originalInMilliseconds: number;
+}
+
+/**
+ * How far Obsidian has got through the staged vault.
+ */
+interface StagingProgress {
+  readonly backlinkCount: number;
+  readonly markdownFileCount: number;
+}
+
+/**
+ * Asks how far the staging has got.
+ *
+ * Polled from the Node side: staging thousands of notes outlasts the transport's per-call cap, so the
+ * wait cannot live inside one closure.
+ *
+ * @returns How much of the vault Obsidian has read, and how much of the hub's backlinks it has found.
+ */
+async function readStagingProgress(): Promise<StagingProgress> {
+  return await evalInObsidian({
+    callback({ app, hubNotePath }) {
+      const file = app.vault.getFileByPath(hubNotePath);
+      return {
+        backlinkCount: file ? app.metadataCache.getBacklinksForFile(file).keys().length : 0,
+        markdownFileCount: app.vault.getMarkdownFiles().length
+      };
+    },
+    input: { hubNotePath: HUB_NOTE_PATH },
+    vaultPath: vaultPath()
+  });
 }
