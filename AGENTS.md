@@ -94,6 +94,12 @@ registry: the API object is `PluginApiImpl`, and its contract and version are in
 declaration goes through `getPluginApis()` rather than a hand `publishPluginApi` call, because the
 `plugin-loaded` broadcast derives its `apiVersions` from that method alone.
 
+The same API also RECEIVES: `migrateSettings` (contract `1.1.0`) is `obsidian-dev-utils`'s
+`SettingsMigrationApi` envelope, through which a plugin that used to own a title property hands it over.
+`api.d.ts` restates that envelope instead of importing it, and `PluginApiImpl` `implements` the library's
+interface too, so the restatement can only drift into a compile error. The merge is additive and
+case-insensitive, because a proposal that replaced the list would take `title` away from a user who had it.
+
 **Both kinds are declared in the single root `api.d.ts`**, which is the file a consumer reads, and
 `src/plugin-api.ts` re-exports `AdvancedMetadataCacheApi` from it rather than re-declaring it, so there
 is one declaration of each and nothing to drift. The file **imports from `obsidian` and nothing else**
