@@ -25,19 +25,36 @@ const ANDROID_CAPTURE_TEST_FILES = 'src/**/*.android-capture.integration.test.ts
  * destroys the Appium session, because the display change recreates the
  * activity and with it the WebView the session is attached to.
  *
- * Needs one-time provisioning, and all three steps are non-obvious:
+ * Needs one-time provisioning, and all three steps are non-obvious. Steps 2
+ * and 3 were re-measured on the shared `obsidian_test` AVD on 2026-09-23,
+ * after a wipe took Obsidian off it and every Android suite on the machine
+ * failed at setup; both are corrected here against what that re-provisioning
+ * actually took.
  *
  * 1. The harness never installs the Obsidian APK. It launches the emulator and
  *    starts `md.obsidian`, so a fresh AVD fails with `Activity class
- *    {md.obsidian/md.obsidian.MainActivity} does not exist`.
- * 2. An install only persists if the emulator SAVES ITS SNAPSHOT. The harness
- *    launches with `-no-snapshot-save`, which discards everything the session
- *    did: an `adb install` under that flag reports `Success` and the package is
- *    gone on the next boot. Boot WITHOUT the flag, install, then `adb emu kill`.
- * 3. Obsidian's first-run onboarding has to be completed by hand once. Until
- *    someone taps through the vault-creation flow, the app sits on its welcome
- *    screen, `layoutReady` never becomes true, and setup fails after the FULL
- *    timeout with `Obsidian layout did not become ready`.
+ *    {md.obsidian/md.obsidian.MainActivity} does not exist`. Nothing here
+ *    downloads that APK either: pull it off an AVD that still has one, with
+ *    `adb shell pm path md.obsidian` and then `adb pull`.
+ * 2. An install persists only when it is made in a COLD-BOOTED session and
+ *    flushed before shutdown. Installing into a snapshot-LOADED session, and
+ *    installing without a flush, both reported `Success` and both were gone on
+ *    the next boot: the write lands in the quickboot snapshot, and the harness
+ *    always boots `-no-snapshot-load`, which reverts to the base userdata
+ *    image. What held: boot `-no-snapshot-load`, `adb install`, `adb shell
+ *    sync`, then `adb emu kill`. The package then survived both a hand cold
+ *    boot and the harness's own.
+ * 3. Obsidian's first-run onboarding has to be completed by hand once, and it
+ *    is four screens rather than one: `Create a vault`, `Continue without
+ *    sync`, name it leaving `Device storage` selected, then `Allow file
+ *    access` - which opens a SAF folder picker that has to be pointed at
+ *    `/sdcard/Documents`, the harness's `DEFAULT_ANDROID_VAULT_BASE_PATH`.
+ *    Granting `appops set md.obsidian MANAGE_EXTERNAL_STORAGE allow`
+ *    beforehand skips none of it, and neither does `adb install -g`. Until
+ *    someone taps through, the app sits on its welcome screen and setup fails
+ *    after the FULL timeout - reported as the WebView answering while
+ *    `globalThis.app` never appears, NOT as a layout-ready timeout, so the
+ *    startup phase the error names is how this is told apart from a slow app.
  */
 const SCREENSHOT_AVD_NAME = 'obsidian_screenshots';
 
