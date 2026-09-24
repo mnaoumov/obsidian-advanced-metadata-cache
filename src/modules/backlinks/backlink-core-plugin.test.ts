@@ -44,7 +44,19 @@ import {
 } from './backlink-core-plugin.ts';
 
 interface BacklinksCorePluginComponentInternals {
+  onBacklinksCorePluginEnable(): void;
   patchBacklinksPane(): Promise<void>;
+}
+
+interface BacklinksCorePluginStub {
+  enabled: boolean;
+}
+
+interface LoadedBacklinksCorePluginComponent {
+  readonly backlinksCorePlugin: BacklinksCorePluginStub;
+  readonly component: BacklinksCorePluginComponent;
+  readonly on: ReturnType<typeof vi.fn>;
+  triggerChange(): void;
 }
 
 vi.mock('obsidian-dev-utils/obsidian/file-system', () => ({
@@ -148,34 +160,73 @@ describe('BacklinksCorePluginComponent', () => {
     expect(app.internalPlugins.getPluginById).toHaveBeenCalledWith(InternalPluginName.Backlink);
   });
 
-  it('should patch onUserEnable on the plugin instance when disabled', () => {
-    const onUserEnable = vi.fn();
-    const instancePrototype = { onUserEnable };
-    const backlinksCorePlugin = {
-      enabled: false,
-      instance: Object.create(instancePrototype) as object
-    };
+  it('should subscribe to internal plugin changes when the core plugin is disabled', () => {
+    const { on } = loadBacklinksCorePluginComponent(false);
 
-    const app = strictProxy<App>({
-      internalPlugins: {
-        getPluginById: vi.fn().mockReturnValue(backlinksCorePlugin)
-      },
-      workspace: {
-        getLeavesOfType: vi.fn().mockReturnValue([])
-      }
-    });
+    expect(on).toHaveBeenCalledWith('change', expect.any(Function));
+  });
 
-    const component = new BacklinksCorePluginComponent(app);
-    component.load();
+  it('should invoke the enable handler when the core plugin becomes enabled', () => {
+    const {
+      backlinksCorePlugin,
+      component,
+      triggerChange
+    } = loadBacklinksCorePluginComponent(false);
+    const onBacklinksCorePluginEnableSpy = vi.spyOn(internals(component), 'onBacklinksCorePluginEnable');
 
-    expect(instancePrototype.onUserEnable).not.toBe(onUserEnable);
+    backlinksCorePlugin.enabled = true;
+    triggerChange();
+
+    expect(onBacklinksCorePluginEnableSpy).toHaveBeenCalledOnce();
+  });
+
+  it('should invoke the enable handler once per enable, not on every change', () => {
+    const {
+      backlinksCorePlugin,
+      component,
+      triggerChange
+    } = loadBacklinksCorePluginComponent(false);
+    const onBacklinksCorePluginEnableSpy = vi.spyOn(internals(component), 'onBacklinksCorePluginEnable');
+
+    backlinksCorePlugin.enabled = true;
+    triggerChange();
+    triggerChange();
+
+    expect(onBacklinksCorePluginEnableSpy).toHaveBeenCalledOnce();
+  });
+
+  it('should not invoke the enable handler when the core plugin becomes disabled', () => {
+    const {
+      backlinksCorePlugin,
+      component,
+      triggerChange
+    } = loadBacklinksCorePluginComponent(true);
+    const onBacklinksCorePluginEnableSpy = vi.spyOn(internals(component), 'onBacklinksCorePluginEnable');
+
+    backlinksCorePlugin.enabled = false;
+    triggerChange();
+
+    expect(onBacklinksCorePluginEnableSpy).not.toHaveBeenCalled();
+  });
+
+  it('should invoke the enable handler again after a disable and a re-enable', () => {
+    const {
+      backlinksCorePlugin,
+      component,
+      triggerChange
+    } = loadBacklinksCorePluginComponent(true);
+    const onBacklinksCorePluginEnableSpy = vi.spyOn(internals(component), 'onBacklinksCorePluginEnable');
+
+    backlinksCorePlugin.enabled = false;
+    triggerChange();
+    backlinksCorePlugin.enabled = true;
+    triggerChange();
+
+    expect(onBacklinksCorePluginEnableSpy).toHaveBeenCalledOnce();
   });
 
   it('should patch backlinks pane when plugin is already enabled', async () => {
-    const backlinksCorePlugin = {
-      enabled: true,
-      instance: Object.create({ onUserEnable: vi.fn() }) as object
-    };
+    const backlinksCorePlugin = { enabled: true };
 
     const recomputeBacklink = vi.fn();
     const backlinkPrototype = { recomputeBacklink };
@@ -189,7 +240,8 @@ describe('BacklinksCorePluginComponent', () => {
 
     const app = strictProxy<App>({
       internalPlugins: {
-        getPluginById: vi.fn().mockReturnValue(backlinksCorePlugin)
+        getPluginById: vi.fn().mockReturnValue(backlinksCorePlugin),
+        on: vi.fn().mockReturnValue({})
       },
       workspace: {
         getLeavesOfType: vi.fn().mockReturnValue([backlinksLeaf])
@@ -216,10 +268,8 @@ describe('BacklinksCorePluginComponent', () => {
     const getLeavesOfType = vi.fn().mockReturnValue([]);
     const app = strictProxy<App>({
       internalPlugins: {
-        getPluginById: vi.fn().mockReturnValue({
-          enabled: false,
-          instance: Object.create({ onUserEnable: vi.fn() }) as object
-        })
+        getPluginById: vi.fn().mockReturnValue({ enabled: false }),
+        on: vi.fn().mockReturnValue({})
       },
       workspace: {
         getLeavesOfType
@@ -228,34 +278,28 @@ describe('BacklinksCorePluginComponent', () => {
     const component = new BacklinksCorePluginComponent(app);
     component.load();
     const addChildSpy = vi.spyOn(component, 'addChild');
-    async function patchBacklinksPane(): Promise<void> {
-      await castTo<BacklinksCorePluginComponentInternals>(component).patchBacklinksPane();
-    }
 
-    await patchBacklinksPane();
+    await internals(component).patchBacklinksPane();
     expect(addChildSpy).not.toHaveBeenCalled();
 
     getLeavesOfType.mockReturnValue([backlinksLeaf]);
     await Promise.all([
-      patchBacklinksPane(),
-      patchBacklinksPane()
+      internals(component).patchBacklinksPane(),
+      internals(component).patchBacklinksPane()
     ]);
-    await patchBacklinksPane();
+    await internals(component).patchBacklinksPane();
 
     expect(addChildSpy).toHaveBeenCalledOnce();
   });
 
-  it('should invoke fallback and enable handler in patched onUserEnable', () => {
-    const onUserEnable = vi.fn();
-    const instancePrototype = { onUserEnable };
-    const backlinksCorePlugin = {
-      enabled: false,
-      instance: Object.create(instancePrototype) as object
-    };
+  function loadBacklinksCorePluginComponent(isEnabled: boolean): LoadedBacklinksCorePluginComponent {
+    const backlinksCorePlugin: BacklinksCorePluginStub = { enabled: isEnabled };
+    const on = vi.fn().mockReturnValue({});
 
     const app = strictProxy<App>({
       internalPlugins: {
-        getPluginById: vi.fn().mockReturnValue(backlinksCorePlugin)
+        getPluginById: vi.fn().mockReturnValue(backlinksCorePlugin),
+        on
       },
       workspace: {
         getLeavesOfType: vi.fn().mockReturnValue([])
@@ -265,10 +309,15 @@ describe('BacklinksCorePluginComponent', () => {
     const component = new BacklinksCorePluginComponent(app);
     component.load();
 
-    instancePrototype.onUserEnable();
-
-    expect(onUserEnable).toHaveBeenCalled();
-  });
+    return {
+      backlinksCorePlugin,
+      component,
+      on,
+      triggerChange: (): void => {
+        castTo<() => void>(on.mock.calls[0]?.[1])();
+      }
+    };
+  }
 });
 
 describe('recomputeBacklinkAsync (via patched recomputeBacklink)', () => {
@@ -301,10 +350,7 @@ describe('recomputeBacklinkAsync (via patched recomputeBacklink)', () => {
   }
 
   async function setupPatchedRecomputeBacklink(): Promise<(component: BacklinkComponent, file: null | TFile) => Promise<void>> {
-    const backlinksCorePlugin = {
-      enabled: true,
-      instance: Object.create({ onUserEnable: vi.fn() }) as object
-    };
+    const backlinksCorePlugin = { enabled: true };
 
     const originalRecomputeBacklink = vi.fn();
     const backlinkPrototype = { recomputeBacklink: originalRecomputeBacklink };
@@ -318,7 +364,8 @@ describe('recomputeBacklinkAsync (via patched recomputeBacklink)', () => {
 
     const app = strictProxy<App>({
       internalPlugins: {
-        getPluginById: vi.fn().mockReturnValue(backlinksCorePlugin)
+        getPluginById: vi.fn().mockReturnValue(backlinksCorePlugin),
+        on: vi.fn().mockReturnValue({})
       },
       workspace: {
         getLeavesOfType: vi.fn().mockReturnValue([backlinksLeaf])
@@ -833,3 +880,7 @@ describe('recomputeBacklinkAsync (via patched recomputeBacklink)', () => {
     expect(component.backlinkDom.addResult).not.toHaveBeenCalled();
   });
 });
+
+function internals(component: BacklinksCorePluginComponent): BacklinksCorePluginComponentInternals {
+  return castTo<BacklinksCorePluginComponentInternals>(component);
+}
