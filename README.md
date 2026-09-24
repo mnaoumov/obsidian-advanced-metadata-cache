@@ -147,11 +147,13 @@ if (api) {
 }
 ```
 
+The handle comes from the `obsidian-dev-utils` plugin registry; [Cross-plugin APIs](https://mnaoumov.dev/obsidian-dev-utils/guides/cross-plugin-apis/) covers `watchPluginApi` and the registry from the library's side.
+
 Both arrived in contract `1.0.0`, and the contract version moves independently of the plugin's own, so ask for a range. Both answer **empty while the Titles module is off**, which is the same answer as "no property is configured" and is meant to be.
 
 `getTitles` is synchronous and lazily memoized per note, so it is safe on a per-keystroke path. Read `getTitlePropertyNames()` and show that list rather than offering a property setting of your own — one place to type `title` is the point of the setting living here.
 
-If you would rather not depend on `obsidian-dev-utils` for the handle, the registry is a documented wire protocol you can read directly — see [Cross-plugin APIs](https://mnaoumov.dev/obsidian-dev-utils/guides/cross-plugin-apis/).
+If you would rather not depend on `obsidian-dev-utils` for the handle, the registry is a documented wire protocol you can read directly — see [Plugin API protocol](https://mnaoumov.dev/obsidian-dev-utils/guides/plugin-api-protocol/).
 
 ## Installation
 
