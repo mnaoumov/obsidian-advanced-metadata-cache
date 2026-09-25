@@ -70,11 +70,7 @@ export class TitleIndex {
   public getTitlePropertyNames(): string[] {
     const settings = this.pluginSettingsComponent.settings;
 
-    if (!settings.isTitlesModuleEnabled) {
-      return [];
-    }
-
-    return normalizePropertyNames(settings);
+    return settings.isTitlesModuleEnabled ? normalizePropertyNames(settings) : [];
   }
 
   /**
@@ -217,9 +213,5 @@ function toTitle(rawTitle: unknown): string {
     return rawTitle.trim();
   }
 
-  if (typeof rawTitle === 'number' && Number.isFinite(rawTitle)) {
-    return rawTitle.toString();
-  }
-
-  return '';
+  return typeof rawTitle === 'number' && Number.isFinite(rawTitle) ? rawTitle.toString() : '';
 }

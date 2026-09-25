@@ -21,7 +21,7 @@ export interface ModuleDefinition {
    *
    * @returns The module's component.
    */
-  createComponent(): Component;
+  createComponent: () => Component;
 
   /**
    * Reads the module's own toggle out of the settings.
@@ -29,7 +29,7 @@ export interface ModuleDefinition {
    * @param settings - The current effective settings.
    * @returns Whether the module should be running.
    */
-  getIsEnabled(settings: ReadonlyPluginSettings<PluginSettings>): boolean;
+  getIsEnabled: (settings: ReadonlyPluginSettings<PluginSettings>) => boolean;
 
   /**
    * Identifies the module within this component. Never shown to the user.
@@ -87,10 +87,13 @@ export class ModulesComponent extends ComponentEx {
         continue;
       }
 
-      if (!isEnabled && loadedModule) {
-        this.loadedModules.delete(moduleDefinition.moduleId);
-        this.removeChild(loadedModule);
+      // Running and wanted, or stopped and not wanted: nothing to change.
+      if (isEnabled || !loadedModule) {
+        continue;
       }
+
+      this.loadedModules.delete(moduleDefinition.moduleId);
+      this.removeChild(loadedModule);
     }
   }
 }

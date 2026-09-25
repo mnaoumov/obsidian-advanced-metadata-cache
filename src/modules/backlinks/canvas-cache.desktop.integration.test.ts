@@ -1,4 +1,4 @@
-import { evalInObsidian } from 'obsidian-integration-testing';
+import { pollInObsidian } from 'obsidian-integration-testing';
 import { getTemporaryVault } from 'obsidian-integration-testing/vitest-global-setup-plugin';
 import {
   describe,
@@ -29,54 +29,38 @@ const SCENARIO_TIMEOUT_IN_MS = 120_000;
 
 describe('getCache exposes canvas node links', () => {
   it('returns a metadata cache whose links include the canvas text-node link', async () => {
-    const result = await evalInObsidian({
-      async callback({
-        app,
-        CACHE_POLL_IN_MS: pollMs,
-        CACHE_WAIT_IN_MS: waitMs,
-        CANVAS_PATH: canvasPath,
-        TARGET_LINK: targetLink,
-        TARGET_PATH: targetPath
-      }) {
+    // The wait runs in Node, one short eval per poll, so no single closure nears the transport's cap.
+    const result = await pollInObsidian({
+      input: {
+        CANVAS_PATH,
+        TARGET_LINK,
+        TARGET_PATH
+      },
+      intervalInMilliseconds: CACHE_POLL_IN_MS,
+      poll({ app, CANVAS_PATH: canvasPath, TARGET_LINK: targetLink, TARGET_PATH: targetPath }) {
+        const cache = app.metadataCache.getCache(canvasPath);
+        const links = cache?.frontmatterLinks ?? [];
+        return {
+          hasCache: !!cache,
+          hasTargetLink: links.some((link) => link.link === targetLink),
+          linkCount: links.length,
+          resolvedTargetCount: app.metadataCache.resolvedLinks[canvasPath]?.[targetPath] ?? null
+        };
+      },
+      async start({ app, CANVAS_PATH: canvasPath, TARGET_LINK: targetLink, TARGET_PATH: targetPath }) {
         await app.vault.create(targetPath, '');
         const canvasContent = JSON.stringify({
           edges: [],
           nodes: [{ height: 100, id: 'node-1', text: `[[${targetLink}]]`, type: 'text', width: 200, x: 0, y: 0 }]
         });
         await app.vault.create(canvasPath, canvasContent);
-
-        const deadline = Date.now() + waitMs;
-        let cache = app.metadataCache.getCache(canvasPath);
-        let resolved = app.metadataCache.resolvedLinks[canvasPath];
-        while (
-          (!cache || (cache.frontmatterLinks?.length ?? 0) === 0 || !resolved || !Object.hasOwn(resolved, targetPath))
-          && Date.now() < deadline
-        ) {
-          await sleep(pollMs);
-          cache = app.metadataCache.getCache(canvasPath);
-          resolved = app.metadataCache.resolvedLinks[canvasPath];
-        }
-
-        const links = cache?.frontmatterLinks ?? [];
-        return {
-          error: null,
-          hasCache: !!cache,
-          hasTargetLink: links.some((link) => link.link === targetLink),
-          linkCount: links.length,
-          resolvedTargetCount: resolved?.[targetPath] ?? null
-        };
       },
-      input: {
-        CACHE_POLL_IN_MS,
-        CACHE_WAIT_IN_MS,
-        CANVAS_PATH,
-        TARGET_LINK,
-        TARGET_PATH
-      },
+      timeoutInMilliseconds: CACHE_WAIT_IN_MS,
+      timeoutMessage: `the canvas ${CANVAS_PATH} never got both a metadata cache with links and a resolved link to ${TARGET_PATH}`,
+      until: (status) => status.linkCount > 0 && status.resolvedTargetCount !== null,
       vaultPath: getTemporaryVault().path
     });
 
-    expect(result.error).toBeNull();
     // The patch built a metadata cache for the canvas file...
     expect(result.hasCache).toBe(true);
     // ...whose links include the canvas text node's link to the target.

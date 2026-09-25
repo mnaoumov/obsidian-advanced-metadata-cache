@@ -24,7 +24,7 @@ interface Harness {
   readonly definitions: SettingDefinitionItem[];
   readonly propertyNames: string[];
   readonly tab: PluginSettingsTab;
-  triggerModuleToggleChange(propertyName: string): Promise<void>;
+  triggerModuleToggleChange: (propertyName: string) => Promise<void>;
 }
 
 type ModuleToggleChangeHandler = (isEnabledNow: boolean, wasEnabled: boolean) => Promisable<void>;

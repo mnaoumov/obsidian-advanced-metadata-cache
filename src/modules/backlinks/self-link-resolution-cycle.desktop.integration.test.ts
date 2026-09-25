@@ -1,4 +1,7 @@
-import { evalInObsidian } from 'obsidian-integration-testing';
+import {
+  evalInObsidian,
+  pollInObsidian
+} from 'obsidian-integration-testing';
 import { getTemporaryVault } from 'obsidian-integration-testing/vitest-global-setup-plugin';
 import {
   describe,
@@ -28,15 +31,20 @@ const SCENARIO_TIMEOUT_IN_MS = 120_000;
 
 describe('self-linking note does not trigger a re-resolution cycle (issue #17)', () => {
   it('should not queue the note for its own change, yet still record its self-backlinks', async () => {
-    const result = await evalInObsidian({
-      async callback({
-        app,
-        CACHE_POLL_IN_MS: pollMs,
-        CACHE_WAIT_IN_MS: waitMs,
-        NOTE_BASENAME: noteBasename,
-        NOTE_PATH: notePath,
-        SELF_LINK_COUNT: selfLinkCount
-      }) {
+    const vaultPath = getTemporaryVault().path;
+
+    // Wait, in Node and one short eval per poll, for the plugin's index to see every self-link.
+    const { selfBacklinkCount } = await pollInObsidian({
+      input: {
+        NOTE_PATH,
+        SELF_LINK_COUNT
+      },
+      intervalInMilliseconds: CACHE_POLL_IN_MS,
+      poll({ app, NOTE_PATH: notePath }) {
+        const noteFile = app.vault.getFileByPath(notePath);
+        return { selfBacklinkCount: noteFile ? app.metadataCache.getBacklinksForFile(noteFile).get(notePath)?.length ?? 0 : 0 };
+      },
+      async start({ app, NOTE_PATH: notePath, SELF_LINK_COUNT: selfLinkCount }) {
         // The reporter's exact link shape: an angle-bracket-wrapped same-file heading link whose
         // display text is itself markdown. Each one gets a real heading so it resolves.
         const lines: string[] = [];
@@ -46,22 +54,20 @@ describe('self-linking note does not trigger a re-resolution cycle (issue #17)',
         // Idempotent, so a re-run against a reused vault behaves the same as a fresh one.
         const content = lines.join('\n');
         const existing = app.vault.getFileByPath(notePath);
-        let noteFile;
         if (existing) {
           await app.vault.modify(existing, content);
-          noteFile = existing;
         } else {
-          noteFile = await app.vault.create(notePath, content);
+          await app.vault.create(notePath, content);
         }
+      },
+      timeoutInMilliseconds: CACHE_WAIT_IN_MS,
+      timeoutMessage: `the index never recorded all ${String(SELF_LINK_COUNT)} self-links of ${NOTE_PATH}`,
+      until: (status) => status.selfBacklinkCount >= SELF_LINK_COUNT,
+      vaultPath
+    });
 
-        // Wait for the plugin's index to see every self-link.
-        const deadline = Date.now() + waitMs;
-        let selfBacklinkCount = app.metadataCache.getBacklinksForFile(noteFile).get(notePath)?.length ?? 0;
-        while (selfBacklinkCount < selfLinkCount && Date.now() < deadline) {
-          await sleep(pollMs);
-          selfBacklinkCount = app.metadataCache.getBacklinksForFile(noteFile).get(notePath)?.length ?? 0;
-        }
-
+    const result = await evalInObsidian({
+      callback({ app, NOTE_BASENAME: noteBasename, NOTE_PATH: notePath }) {
         // Record what the PATCHED updateRelatedLinks queues for the note's own name.
         const queuedPaths: string[] = [];
         const originalQueue = app.metadataCache.queueFileForLinkResolution.bind(app.metadataCache);
@@ -78,25 +84,17 @@ describe('self-linking note does not trigger a re-resolution cycle (issue #17)',
           app.metadataCache.queueFileForLinkResolution = originalQueue;
         }
 
-        return {
-          error: null,
-          queuedSelf: queuedPaths.includes(notePath),
-          selfBacklinkCount
-        };
+        return { queuedSelf: queuedPaths.includes(notePath) };
       },
       input: {
-        CACHE_POLL_IN_MS,
-        CACHE_WAIT_IN_MS,
         NOTE_BASENAME,
-        NOTE_PATH,
-        SELF_LINK_COUNT
+        NOTE_PATH
       },
-      vaultPath: getTemporaryVault().path
+      vaultPath
     });
 
-    expect(result.error).toBeNull();
     // Every self-link is still a backlink — the fix must not cost the panel anything.
-    expect(result.selfBacklinkCount).toBe(SELF_LINK_COUNT);
+    expect(selfBacklinkCount).toBe(SELF_LINK_COUNT);
     // The note is NOT queued to re-resolve itself. This is the cycle's closing edge; before the fix it
     // was queued, and each pass cost one full refresh plus a recompute of every open backlink panel.
     expect(result.queuedSelf).toBe(false);

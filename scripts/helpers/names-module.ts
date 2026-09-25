@@ -23,18 +23,18 @@ export interface ModuleSwitchResult {
  */
 export interface PatchedGetLinkSuggestions {
   (): LinkSuggestion[];
-  getPathsByName?(name: string): string[];
-  getPathsByNameSafe?(name: string): Promise<string[]>;
+  getPathsByName?: (name: string) => string[];
+  getPathsByNameSafe?: (name: string) => Promise<string[]>;
   // eslint-disable-next-line unicorn/name-replacements -- `originalFn` is this plugin's documented public API - the README tells users to call it.
-  originalFn?(): LinkSuggestion[];
-  safe?(): Promise<LinkSuggestion[]>;
+  originalFn?: () => LinkSuggestion[];
+  safe?: () => Promise<LinkSuggestion[]>;
 }
 
 /**
  * The settings component, seen through the one method a suite needs.
  */
 export interface PluginSettingsEditor {
-  editAndSave(editor: (settings: SwitchablePluginSettings) => void): Promise<void>;
+  editAndSave: (editor: (settings: SwitchablePluginSettings) => void) => Promise<void>;
 }
 
 /**
@@ -46,11 +46,11 @@ export interface PluginSettingsEditor {
  */
 export interface ReadyGetLinkSuggestions {
   (): LinkSuggestion[];
-  getPathsByName(name: string): string[];
-  getPathsByNameSafe(name: string): Promise<string[]>;
+  getPathsByName: (name: string) => string[];
+  getPathsByNameSafe: (name: string) => Promise<string[]>;
   // eslint-disable-next-line unicorn/name-replacements -- `originalFn` is this plugin's documented public API - the README tells users to call it.
-  originalFn(): LinkSuggestion[];
-  safe(): Promise<LinkSuggestion[]>;
+  originalFn: () => LinkSuggestion[];
+  safe: () => Promise<LinkSuggestion[]>;
 }
 
 /**
