@@ -48,9 +48,9 @@ import {
 } from './backlink-core-plugin.ts';
 
 interface BacklinksCorePluginComponentInternals {
-  onBacklinksCorePluginEnable(): void;
-  patchBacklinksPane(): Promise<boolean>;
-  patchLateBacklinks(): Promise<void>;
+  onBacklinksCorePluginEnable: () => void;
+  patchBacklinksPane: () => Promise<boolean>;
+  patchLateBacklinks: () => Promise<void>;
 }
 
 interface BacklinksCorePluginStub {
@@ -62,8 +62,8 @@ interface LoadedBacklinksCorePluginComponent {
   readonly component: BacklinksCorePluginComponent;
   readonly getLeavesOfType: ReturnType<typeof vi.fn>;
   readonly on: ReturnType<typeof vi.fn>;
-  triggerChange(): void;
-  triggerLayoutChange(): void;
+  triggerChange: () => void;
+  triggerLayoutChange: () => void;
   readonly workspaceOn: ReturnType<typeof vi.fn>;
 }
 

@@ -40,7 +40,7 @@ import {
 } from './canvas.ts';
 
 interface CanvasInternals {
-  initCanvasMetadataCache(file: TFile): Promise<void>;
+  initCanvasMetadataCache: (file: TFile) => Promise<void>;
 }
 interface MutableAbortSignal {
   aborted: boolean;
@@ -48,7 +48,7 @@ interface MutableAbortSignal {
 }
 
 interface RegisteredEventHandler {
-  callback(...$arguments: unknown[]): void;
+  callback: (...$arguments: unknown[]) => void;
   event: string;
 }
 

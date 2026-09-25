@@ -35,8 +35,8 @@ import { applyPluginSettings } from '../../../scripts/helpers/names-module.ts';
  * module's scope but cannot carry a value across.
  */
 interface AdvancedMetadataCacheApi {
-  getTitlePropertyNames(): string[];
-  getTitles(pathOrFile: string): string[];
+  getTitlePropertyNames: () => string[];
+  getTitles: (pathOrFile: string) => string[];
 }
 
 interface ObsidianDevUtilsStateBag {

@@ -20,7 +20,7 @@ export interface GetLinkSuggestionsWrapper {
    * @param name - A basename or alias, in any casing and spacing.
    * @returns The vault-relative paths of the notes carrying that name, unranked and complete.
    */
-  getPathsByName(name: string): string[];
+  getPathsByName: (name: string) => string[];
 
   /**
    * {@link GetLinkSuggestionsWrapper.getPathsByName}, waiting for the index to be built first.
@@ -28,20 +28,20 @@ export interface GetLinkSuggestionsWrapper {
    * @param name - A basename or alias, in any casing and spacing.
    * @returns The vault-relative paths of the notes carrying that name.
    */
-  getPathsByNameSafe(name: string): Promise<string[]>;
+  getPathsByNameSafe: (name: string) => Promise<string[]>;
 
   /**
    * Obsidian's own implementation, which rebuilds the whole array from a full vault walk.
    */
   // eslint-disable-next-line unicorn/name-replacements -- `originalFn` is this plugin's documented public API - the README tells users to call it.
-  originalFn(): LinkSuggestion[];
+  originalFn: () => LinkSuggestion[];
 
   /**
    * The indexed answer, waiting for the index to be built first.
    *
    * @returns The link suggestions.
    */
-  safe(): Promise<LinkSuggestion[]>;
+  safe: () => Promise<LinkSuggestion[]>;
 }
 
 type GetLinkSuggestionsFunction = MetadataCache['getLinkSuggestions'];
@@ -75,11 +75,7 @@ export class MetadataCacheGetLinkSuggestionsPatchComponent extends MonkeyAroundC
       patchHandler: ({ fallback }) => {
         // Until the eager build has run the index holds nothing, and nothing would ever fire an
         // event to complete it — so the original answer is the only correct one.
-        if (!this.nameIndexComponent.isBuilt) {
-          return fallback();
-        }
-
-        return this.nameIndexComponent.nameIndex.getSuggestions();
+        return this.nameIndexComponent.isBuilt ? this.nameIndexComponent.nameIndex.getSuggestions() : fallback();
       },
       postPatchHandler: ({
         originalMethod,

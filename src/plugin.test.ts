@@ -104,7 +104,7 @@ interface ModuleDefinitionsHolder {
 }
 
 interface PluginApisReader {
-  getPluginApis(): PluginApiDeclaration[];
+  getPluginApis: () => PluginApiDeclaration[];
 }
 
 interface SettingTabsHolder {

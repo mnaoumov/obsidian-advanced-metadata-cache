@@ -81,11 +81,7 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   public getTitles(pathOrFile: string | TFile): string[] {
     const file = getFileOrNull({ app: this.app, pathOrFile });
 
-    if (!file) {
-      return [];
-    }
-
-    return [...this.titleIndex.getTitles(file)];
+    return file ? [...this.titleIndex.getTitles(file)] : [];
   }
 
   /**

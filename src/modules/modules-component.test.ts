@@ -20,7 +20,7 @@ interface Harness {
   readonly createdModuleComponents: TestModuleComponent[];
   readonly offref: ReturnType<typeof vi.fn>;
   readonly settings: PluginSettings;
-  triggerSaveSettings(): void;
+  triggerSaveSettings: () => void;
 }
 
 class TestModuleComponent extends Component {

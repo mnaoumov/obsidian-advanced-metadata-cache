@@ -45,8 +45,8 @@ interface MigrateSettingsResultLike {
  * suite calls. Declared here because an `evalInObsidian` closure cannot carry a value across.
  */
 interface MigrationApiLike {
-  getTitlePropertyNames(): string[];
-  migrateSettings(params: MigrateSettingsParamsLike): Promise<MigrateSettingsResultLike>;
+  getTitlePropertyNames: () => string[];
+  migrateSettings: (params: MigrateSettingsParamsLike) => Promise<MigrateSettingsResultLike>;
 }
 
 interface ObsidianDevUtilsStateBag {
@@ -164,11 +164,7 @@ async function runScenario(buttonText: string): Promise<SettingsMigrationProbeRe
 
       const savedRecord: unknown = await plugin.loadData();
       function readSavedValue(key: string): unknown {
-        if (typeof savedRecord !== 'object' || savedRecord === null) {
-          return undefined;
-        }
-
-        return Object.entries(savedRecord).find(([entryKey]) => entryKey === key)?.[1];
+        return typeof savedRecord !== 'object' || savedRecord === null ? undefined : Object.entries(savedRecord).find(([entryKey]) => entryKey === key)?.[1];
       }
 
       return {
