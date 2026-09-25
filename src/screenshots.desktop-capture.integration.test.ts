@@ -536,14 +536,6 @@ async function openSettingsTab(): Promise<string[]> {
         timeoutInMilliseconds: RENDER_TIMEOUT_IN_MILLISECONDS
       });
 
-      // The settings search field takes focus when the modal opens, and its caret blinks, so whether
-      // the frame shows it depended on where in the blink cycle the capture landed: two captures
-      // differed in one 17 px column. Blurred, which takes the caret away for good.
-      const focusedEl = document.activeElement;
-      if (focusedEl instanceof HTMLElement) {
-        focusedEl.blur();
-      }
-
       await sleep(SETTLE_DELAY_IN_MILLISECONDS);
 
       return [...document.querySelectorAll('.setting-item-name')]
