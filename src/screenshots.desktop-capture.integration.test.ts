@@ -64,6 +64,15 @@ interface PatchedGetBacklinksForFile {
   originalFn: (this: void, file: unknown) => BacklinkDictionary;
 }
 
+/**
+ * The adapter's reconcile entry points, which `obsidian-typings` declares on `DataAdapterEx` rather
+ * than on the `DataAdapter` that `app.vault.adapter` is typed as.
+ */
+interface ReconcilingAdapter {
+  reconcileFile: (this: void, normalizedPath: string, normalizedNewPath: string, shouldSkipDeletionTimeout: boolean) => Promise<void>;
+  reconcileFolderCreation: (this: void, normalizedPath: string, normalizedNewPath: string) => Promise<void>;
+}
+
 const WIDTH_IN_PIXELS = 1200;
 const HEIGHT_IN_PIXELS = 800;
 
@@ -106,22 +115,23 @@ const PLUGIN_ID = 'advanced-metadata-cache';
 /**
  * How many notes are WRITTEN into the vault: the hub, the notes linking to it, and the filler.
  *
- * Obsidian routinely settles BELOW it, and that is not a bug in the staging. The notes are written
- * into a vault that is already open, so Obsidian learns about them through the platform's
- * directory-change watcher — which has a bounded buffer and silently drops events when thousands of
- * files land at once. Measured here 2026-09-23: 4121 written, 2546 and 2638 seen on two runs.
+ * The notes are written into a vault that is already open, so left to itself Obsidian learns about
+ * them only through the platform's directory-change watcher — which has a bounded buffer and silently
+ * drops events when thousands of files land at once. Measured here: 4121 written, and 2546, 2638,
+ * 2754 and 3308 seen on four runs. Frame 2 prints that count, so every re-shoot photographed a
+ * different vault, with different timings beside it.
  *
- * So this is the ceiling the wait below stops AT, never the figure it holds out for. What it waits
- * for is the count to stop moving, because the backlink count is no use as a settle signal: it
- * reaches its own total while the filler is still arriving, which is how the first frame came out
- * reporting a vault a third smaller than the one the caption describes.
+ * So the watcher is not relied on: `reconcileStagedVault` hands Obsidian every staged path itself, and
+ * the wait below holds out for ALL of them. The backlink count is no use as a settle signal on its
+ * own: it reaches its own total while the filler is still arriving.
  */
 const STAGED_NOTE_COUNT = 1 + LINKING_NOTE_COUNT + FILLER_NOTE_COUNT;
 
 /**
- * How many consecutive unchanged polls mean the vault has stopped growing rather than merely paused.
+ * How many staged paths one `reconcileStagedVault` closure hands Obsidian, which keeps each closure
+ * well under the transport's per-call cap.
  */
-const SETTLED_POLL_COUNT = 3;
+const RECONCILE_BATCH_SIZE = 500;
 
 /**
  * The module rows the settings tab leads with, in the order it renders them.
@@ -146,8 +156,9 @@ let measurement: BacklinkMeasurement | null = null;
 
 beforeAll(async () => {
   const vault = getTemporaryVault();
+  const stagedFiles = buildVault();
 
-  vault.populate(buildVault());
+  vault.populate(stagedFiles);
   await vault.syncToDevice();
 
   await evalInObsidian({
@@ -183,6 +194,8 @@ beforeAll(async () => {
     input: { hubNotePath: HUB_NOTE_PATH, linkingNoteCount: LINKING_NOTE_COUNT },
     vaultPath: vaultPath()
   });
+
+  await reconcileStagedVault(Object.keys(stagedFiles));
 
   // Indexing thousands of notes takes Obsidian a while, and every frame below is
   // meaningless until it has finished — a Backlinks pane that is still filling in
@@ -569,30 +582,19 @@ function vaultPath(): string {
  *
  * Both halves, because they finish at different times: a frame taken before the pane settles shows a
  * half-built list, and one taken before the vault settles reports a smaller vault than the caption
- * claims.
+ * claims. There is no "it stopped growing" ending: `reconcileStagedVault` has already handed Obsidian
+ * every staged note, so anything short of all of them is a failure rather than a smaller vault.
  */
 async function waitForIndex(): Promise<void> {
   const ATTEMPTS = 60;
   const INTERVAL_IN_MILLISECONDS = 3000;
 
   let progress: StagingProgress = { backlinkCount: 0, markdownFileCount: 0 };
-  let lastMarkdownFileCount = -1;
-  let settledPollCount = 0;
 
   for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
     progress = await readStagingProgress();
 
-    settledPollCount = progress.markdownFileCount === lastMarkdownFileCount ? settledPollCount + 1 : 0;
-    lastMarkdownFileCount = progress.markdownFileCount;
-
-    // Everything arrived, which is the happy ending and the only one that needs no settling.
     if (progress.markdownFileCount >= STAGED_NOTE_COUNT && progress.backlinkCount >= LINKING_NOTE_COUNT) {
-      return;
-    }
-
-    // Or it stopped arriving, which is the ordinary ending: whatever the watcher dropped is dropped,
-    // and the vault Obsidian has is the vault the frames will report.
-    if (settledPollCount >= SETTLED_POLL_COUNT && progress.backlinkCount >= LINKING_NOTE_COUNT) {
       return;
     }
 
@@ -653,4 +655,48 @@ async function readStagingProgress(): Promise<StagingProgress> {
     input: { hubNotePath: HUB_NOTE_PATH },
     vaultPath: vaultPath()
   });
+}
+
+/**
+ * Hands Obsidian every staged note directly, instead of trusting the file watcher to report them.
+ *
+ * The notes land on disk while the vault is open, and the watcher drops events under a burst of
+ * thousands (see `STAGED_NOTE_COUNT`). `reconcileFile` is the adapter's own entry point for "this path
+ * changed on disk", and it is a no-op for a note the watcher did deliver. Folders go first, shallowest
+ * first, so every note's parent is already in the tree.
+ *
+ * @param stagedPaths - The vault-relative paths of every staged note.
+ */
+async function reconcileStagedVault(stagedPaths: readonly string[]): Promise<void> {
+  const folderPaths = new Set<string>();
+  for (const stagedPath of stagedPaths) {
+    const segments = stagedPath.split('/');
+    for (let depth = 1; depth < segments.length; depth++) {
+      folderPaths.add(segments.slice(0, depth).join('/'));
+    }
+  }
+
+  await evalInObsidian({
+    async callback({ app, paths }) {
+      const adapter: unknown = app.vault.adapter;
+      for (const path of paths) {
+        await (adapter as ReconcilingAdapter).reconcileFolderCreation(path, path);
+      }
+    },
+    input: { paths: [...folderPaths].sort((left, right) => left.split('/').length - right.split('/').length) },
+    vaultPath: vaultPath()
+  });
+
+  for (let start = 0; start < stagedPaths.length; start += RECONCILE_BATCH_SIZE) {
+    await evalInObsidian({
+      async callback({ app, paths }) {
+        const adapter: unknown = app.vault.adapter;
+        for (const path of paths) {
+          await (adapter as ReconcilingAdapter).reconcileFile(path, path, false);
+        }
+      },
+      input: { paths: stagedPaths.slice(start, start + RECONCILE_BATCH_SIZE) },
+      vaultPath: vaultPath()
+    });
+  }
 }
