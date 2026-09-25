@@ -194,7 +194,7 @@ describe('desktop store screenshots', () => {
   it('1 - the backlinks of a note in a big vault', async () => {
     const backlinkCount = await openBacklinksPane();
     expect(backlinkCount).toBe(LINKING_NOTE_COUNT);
-    await shoot(1, 'The Backlinks module: all 120 backlinks, in a vault of thousands');
+    await shoot(1, 'The Backlinks module: all 120 backlinks in a big vault');
   });
 
   it('2 - how long each way takes', async () => {
