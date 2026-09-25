@@ -283,7 +283,7 @@ describe('mobile store screenshots', () => {
     // odd one, and a frame is not worth failing over one journal entry. The
     // caption says no number for the same reason.
     expect(backlinkCount).toBeGreaterThanOrEqual(LINKING_NOTE_COUNT - MISSING_NOTE_TOLERANCE);
-    await shoot(1, 'The Backlinks module: every backlink of this note, in one list');
+    await shoot(1, 'The Backlinks module: every backlink, in one list');
   });
 
   it('2 - how long each way takes', async () => {
