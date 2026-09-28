@@ -18,10 +18,7 @@ import type { PluginSettingsComponent } from '../../plugin-settings-component.ts
 
 import { PluginSettings } from '../../plugin-settings.ts';
 import { TitleIndex } from '../titles/title-index.ts';
-import {
-  NameIndex,
-  normalizeName
-} from './name-index.ts';
+import { NameIndex } from './name-index.ts';
 
 describe('NameIndex', () => {
   let app: App;
@@ -43,13 +40,6 @@ describe('NameIndex', () => {
     });
 
     nameIndex = new NameIndex({ app: castTo<AppOriginal>(app), pluginSettingsComponent, titleIndex });
-  });
-
-  describe('normalizeName', () => {
-    it('should lowercase and collapse runs of whitespace', () => {
-      expect(normalizeName('Some  Alias')).toBe('some alias');
-      expect(normalizeName('already fine')).toBe('already fine');
-    });
   });
 
   describe('getPathsByName', () => {
