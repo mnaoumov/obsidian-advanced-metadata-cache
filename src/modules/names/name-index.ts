@@ -37,6 +37,7 @@ import type {
 
 import { parseFrontMatterAliases } from 'obsidian';
 import { trimMarkdownExtension } from 'obsidian-dev-utils/obsidian/file-system';
+import { normalizeLinkName } from 'obsidian-dev-utils/obsidian/link-name';
 
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 import type { TitleIndex } from '../titles/title-index.ts';
@@ -134,7 +135,7 @@ export class NameIndex {
    *   nothing carries it.
    */
   public getPathsByName(name: string): string[] {
-    return [...this.namePaths.get(normalizeName(name)) ?? []];
+    return [...this.namePaths.get(normalizeLinkName(name)) ?? []];
   }
 
   /**
@@ -291,12 +292,12 @@ export class NameIndex {
 
     const displayPath = trimMarkdownExtension(file);
     const entries: LinkSuggestion[] = [{ file, path: displayPath }];
-    const names = new Set<string>([normalizeName(basename(displayPath))]);
+    const names = new Set<string>([normalizeLinkName(basename(displayPath))]);
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 
     for (const alias of parseFrontMatterAliases(frontmatter) ?? []) {
       entries.push({ alias, file, path: displayPath });
-      names.add(normalizeName(alias));
+      names.add(normalizeLinkName(alias));
     }
 
     /*
@@ -325,7 +326,7 @@ export class NameIndex {
     const titleEntries: LinkSuggestion[] = [];
 
     for (const title of readTitles(frontmatter, titlePropertyNames)) {
-      const normalizedTitle = normalizeName(title);
+      const normalizedTitle = normalizeLinkName(title);
 
       if (!names.has(normalizedTitle)) {
         titleEntries.push({ alias: title, file, path: displayPath });
@@ -351,21 +352,6 @@ export class NameIndex {
     this.memoizedSuggestions = null;
     return indexedFile;
   }
-}
-
-/**
- * Normalizes a name for lookup: lowercased, with runs of whitespace collapsed.
- *
- * Obsidian treats `[[some  alias]]` and `[[Some Alias]]` as naming the same note, so comparisons
- * happen in this space. Adopted verbatim from `obsidian-better-markdown-links`, which resolves
- * wikilinks by alias the same way — two different answers to "is this the same name?" would be
- * worse than either.
- *
- * @param name - The raw basename or alias.
- * @returns The name in normalized space.
- */
-export function normalizeName(name: string): string {
-  return name.toLowerCase().replaceAll(/ {2,}/g, ' ');
 }
 
 /**
