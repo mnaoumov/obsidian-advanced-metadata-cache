@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 1.1.1
+
+- test(screenshots): merge setting the desktop capture theme with applyObsidianTheme
+- refactor: merge watching core-plugin toggles through CorePluginToggleComponent
+- chore(test): merge dropping the perf transport raise obsidian-dev-utils now provides
+- refactor(names): use obsidian-dev-utils' normalizeLinkName
+- chore(lint): merge the shared-config MD025 cleanup
+- test(screenshots): drop the local caret blur now that the capture hides the caret
+- docs(screenshots): merge the re-shot store frames
+- test(screenshots): make desktop frame 4 deterministic
+- test(screenshots): reconcile the staged vault so frame 2 always reports every note
+- fix(screenshots): merge the shortened screenshot captions
+- chore(deps): float obsidian-integration-testing to ^17.0.1 with obsidian-dev-utils ^107.0.0
+
 ## 1.1.0
 
 - feat(api): accept a title property handover through migrateSettings
