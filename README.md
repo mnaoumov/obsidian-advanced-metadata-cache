@@ -163,7 +163,7 @@ If you would rather not depend on `obsidian-dev-utils` for the handle, the regis
 
 ## Installation
 
-The plugin is not yet listed in [the official Community Plugins repository](https://community.obsidian.md/plugins). Until it is, install it as a beta release.
+The plugin is available in [the official Community Plugins repository](https://community.obsidian.md/plugins/advanced-metadata-cache).
 
 ### Beta versions
 
