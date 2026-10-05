@@ -11,9 +11,9 @@
  *   can do while the module is on. There is nothing to fetch and nothing to version-negotiate: the
  *   patch is installed or it is not, so a member is pinned against the plugin version it arrived in,
  *   which the README records.
- * - **A published API.** The `Titles` module answers a question core has no method for, so there is
- *   nothing to widen; {@link AdvancedMetadataCacheApi} is published through the plugin registry under
- *   the plugin id `advanced-metadata-cache` and carries a contract version of its own.
+ * - **A published API.** The `Titles` and `Headings` modules answer questions core has no method
+ *   for, so there is nothing to widen; {@link AdvancedMetadataCacheApi} is published through the plugin
+ *   registry under the plugin id `advanced-metadata-cache` and carries a contract version of its own.
  *
  * Hand-written and self-contained on purpose: it imports from `obsidian` and nothing else, so a
  * plugin that has never heard of `obsidian-dev-utils` can copy this file, or reference it, and depend
@@ -39,6 +39,28 @@ import type {
  * `advanced-metadata-cache`.
  */
 export interface AdvancedMetadataCacheApi {
+  /**
+   * Reads when each of a note's headings was created, last modified and last seen.
+   *
+   * Obsidian keeps no per-heading metadata, so the `Headings` module keeps it: it compares each parse of
+   * a note with the previous one to work out which heading is which, across renames, moves and level
+   * changes, and stores the times in this plugin's own folder, never in the note. Synchronous, and current
+   * as of the last parse Obsidian announced, so a caller that has just edited the note should await
+   * `obsidian-dev-utils`' `getCacheSafe` (or the next `changed` event) first.
+   *
+   * The times are what this device saw: a change arriving from another device is stamped when it arrives
+   * here. A time is `null` when the plugin did not see the event happen — a heading already
+   * there when its note started being tracked has neither `created` nor `modified`. A sort should place
+   * `null` as the oldest and keep document order among equals.
+   *
+   * Added in contract `1.2.0`.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The note's headings in document order. Empty for a path no note answers to, for a note with
+   *   no headings, and while the `Headings` module is off.
+   */
+  getHeadingTimes(pathOrFile: string | TFile): HeadingTimes[];
+
   /**
    * The frontmatter properties whose values currently count as a note's title.
    *
@@ -266,6 +288,47 @@ export interface GetLinkSuggestionsFn {
    * @returns Every link target the `[[` autocomplete can offer.
    */
   safe(): Promise<LinkSuggestion[]>;
+}
+
+/**
+ * One heading's times, as {@link AdvancedMetadataCacheApi.getHeadingTimes} reports them. Every time is a
+ * Unix epoch in milliseconds.
+ */
+export interface HeadingTimes {
+  /**
+   * When the heading first appeared, or `null` when it was already there when its note started being
+   * tracked.
+   */
+  readonly created: null | number;
+
+  /**
+   * The heading text, as the metadata cache reports it.
+   */
+  readonly heading: string;
+
+  /**
+   * The heading level, 1 to 6.
+   */
+  readonly level: number;
+
+  /**
+   * The zero-based line the heading was on at the last parse.
+   */
+  readonly line: number;
+
+  /**
+   * When the heading's section — its own line and everything under it, subheadings included — last
+   * changed, or `null` when it has not changed since its note started being tracked. Moving the whole
+   * section elsewhere in the note does not count as a change to it.
+   */
+  readonly modified: null | number;
+
+  /**
+   * When the heading's own section — up to the next heading of any level — was last on screen in the
+   * active editor for at least one ~2 s dwell while the window had focus, or `null` when it has not
+   * been. Reading view is not measured.
+   */
+  readonly seen: null | number;
 }
 
 /**

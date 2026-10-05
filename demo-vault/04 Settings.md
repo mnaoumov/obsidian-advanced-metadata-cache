@@ -4,6 +4,8 @@ Open **Settings -> Community plugins -> Advanced Metadata Cache** to configure t
 
 - `isBacklinksModuleEnabled`
   - when on, the **Backlinks** module maintains the backlink index and answers `app.metadataCache.getBacklinksForFile()` from it. When off, the module is unloaded outright - its index, its listeners and its **Refresh backlink panels** command all go with it, and Obsidian's own implementation answers again. Every index this plugin maintains is a module of its own, so switching one off leaves the others running.
+- `isHeadingsModuleEnabled`
+  - when on, the **Headings** module records when each heading of a note was created, last modified and last seen on screen, and publishes it through the plugin API for other plugins to sort by. It is kept in `heading-times.json` in the plugin folder, never in the note, and only for notes opened, created or changed while it is on. Off by default, like every module added after the one this plugin was created for. [07 Heading times](<./07 Heading times.md>) demonstrates it.
 - `isNamesModuleEnabled`
   - when on, the **Names** module indexes what every note is called - its name and its `aliases` - and answers `app.metadataCache.getLinkSuggestions()` from that index, which is what the `[[` autocomplete asks on every open. Off by default, like every module added after the one this plugin was created for. [05 Name index](<./05 Name index.md>) demonstrates it.
 - `isTitlesModuleEnabled`

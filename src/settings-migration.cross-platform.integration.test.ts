@@ -26,6 +26,7 @@ import {
 } from 'vitest';
 
 import { applyPluginSettings } from '../scripts/helpers/names-module.ts';
+import { PLUGIN_API_VERSION } from './plugin-api.ts';
 
 interface MigratableSettingsLike {
   readonly titlePropertyNames?: readonly string[];
@@ -210,7 +211,8 @@ describe('A plugin handing its title property over through migrateSettings', () 
   it('adds the proposed name to the list and switches the module on when the user presses OK', async () => {
     const result = await runScenario(BUTTON_TEXT_OK);
 
-    expect(result.apiVersion).toBe('1.1.0');
+    // The live contract, whatever later members it has gained: `migrateSettings` arrived in `1.1.0`.
+    expect(result.apiVersion).toBe(PLUGIN_API_VERSION);
     // The dialog names the plugin that asked; the manifest is absent here, so it falls back to the id.
     expect(result.title).toBe(`Title properties proposed by ${SOURCE_PLUGIN_ID}`);
     // The editable list, and the module offer that appears only while the module is off.

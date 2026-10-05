@@ -20,6 +20,7 @@ import type {
   ShowSettingsMigrationModalParams
 } from './settings-migration-modal.ts';
 
+import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import { TitleIndex } from './modules/titles/title-index.ts';
 import { PluginApiImpl } from './plugin-api-impl.ts';
 import { PLUGIN_API_CONTRACT } from './plugin-api.ts';
@@ -58,7 +59,13 @@ describe('PluginApiImpl', () => {
       pluginSettingsComponent
     });
 
-    pluginApi = new PluginApiImpl({ app: castTo<AppOriginal>(app), pluginSettingsComponent, titleIndex });
+    const headingTimesIndex = new HeadingTimesIndex({
+      app: castTo<AppOriginal>(app),
+      getDataFilePath: (): string => 'heading-times.json',
+      pluginSettingsComponent
+    });
+
+    pluginApi = new PluginApiImpl({ app: castTo<AppOriginal>(app), headingTimesIndex, pluginSettingsComponent, titleIndex });
   });
 
   function approveAsShown(): void {
@@ -75,6 +82,21 @@ describe('PluginApiImpl', () => {
     for (const methodName of Object.keys(PLUGIN_API_CONTRACT)) {
       expect(pluginApi).toHaveProperty(methodName, expect.any(Function));
     }
+  });
+
+  it('should read a note heading times by path as well as by file', () => {
+    settings.isHeadingsModuleEnabled = true;
+    const file = app.vault.createSync__('Alpha.md', '# One\n');
+    const expected = [{ created: null, heading: 'One', level: 1, line: 0, modified: null, seen: null }];
+
+    expect(pluginApi.getHeadingTimes('Alpha.md')).toEqual(expected);
+    expect(pluginApi.getHeadingTimes(castTo<never>(file))).toEqual(expected);
+  });
+
+  it('should answer no heading times for a path no file answers to', () => {
+    settings.isHeadingsModuleEnabled = true;
+
+    expect(pluginApi.getHeadingTimes('Never/Written.md')).toEqual([]);
   });
 
   it('should answer with the configured property names', () => {

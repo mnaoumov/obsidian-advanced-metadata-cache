@@ -14,6 +14,7 @@ import type { PluginApiContract } from 'obsidian-dev-utils/obsidian/plugin/plugi
 export type {
   AdvancedMetadataCacheApi,
   AdvancedMetadataCacheMigratableSettings,
+  HeadingTimes,
   MigrateSettingsParams,
   MigrateSettingsResult
 } from '../api.d.ts';
@@ -23,6 +24,7 @@ export type {
  * validation at the boundary supplies its own contract to `watchPluginApi`, and the consumer's wins.
  */
 export const PLUGIN_API_CONTRACT: PluginApiContract = {
+  getHeadingTimes: {},
   getTitlePropertyNames: {},
   getTitles: {},
   migrateSettings: {}
@@ -35,8 +37,9 @@ export const PLUGIN_API_CONTRACT: PluginApiContract = {
  * `1.0.0` is the `Titles` module's pair of reads, the first answer this plugin publishes that Obsidian
  * has no method of its own for. `1.1.0` adds `migrateSettings`, purely additively, so a plugin handing
  * its title property over asks for `'^1'` with a contract naming that member, and against `1.0.0` its
- * offer simply waits. The two older modules widen a core method instead; their signatures live in the
- * same `api.d.ts` but are deliberately not mirrored in this contract, because a consumer of those calls
- * core and has no handle to negotiate a version over.
+ * offer simply waits. `1.2.0` adds `getHeadingTimes`, as additively: the `Headings` module's answer,
+ * which Advanced Note Composer sorts headings by. The two older modules widen a core method instead;
+ * their signatures live in the same `api.d.ts` but are deliberately not mirrored in this contract,
+ * because a consumer of those calls core and has no handle to negotiate a version over.
  */
-export const PLUGIN_API_VERSION = '1.1.0';
+export const PLUGIN_API_VERSION = '1.2.0';

@@ -49,6 +49,7 @@ A copy of the vault ships with every release. You can access it via any of the f
 - **Frontmatter markdown links count as backlinks** when the [`Frontmatter Markdown Links`](https://community.obsidian.md/plugins/frontmatter-markdown-links) plugin is installed. [03 Canvas backlinks](<./demo-vault/03 Canvas backlinks.md>)
 - **A name index behind the `[[` autocomplete**, so opening it stops rescanning every note in the vault for its name and aliases. [05 Name index](<./demo-vault/05 Name index.md>)
 - **A frontmatter property can name a note too**, so a note titled in its `title` property is found under that title — and, if you ask for it, offered under that title by the `[[` autocomplete. [06 Titles](<./demo-vault/06 Titles.md>)
+- **When each heading was created, modified and seen**, recorded per heading without touching the note, so other plugins can sort a note's headings by time. [07 Heading times](<./demo-vault/07 Heading times.md>)
 - **Every index is a module of its own**, switched on or off without touching the others, and refresh behavior is configurable. [04 Settings](<./demo-vault/04 Settings.md>)
 
 ## Modules
@@ -58,6 +59,7 @@ A copy of the vault ships with every release. You can access it via any of the f
 | Backlinks | Which notes link to a note, answering `getBacklinksForFile()`.                            | On      |
 | Names     | What each note is called - its name and its `aliases` - answering `getLinkSuggestions()`. | Off     |
 | Titles    | What a note's own frontmatter says it is called, read per note and on demand.             | Off     |
+| Headings  | When each heading of a note was created, last modified and last seen.                     | Off     |
 
 Switching a module off unloads it completely — its index, its listeners and the commands it registers all go with it, and the built-in implementation answers again. Switching one back on rebuilds its index from scratch.
 
@@ -84,6 +86,20 @@ Two things then know about it. `getPathsByName('The Real Name')` finds the note,
 which resolves through Obsidian's own machinery, survives a rename, and keeps working if you ever switch this plugin off. A title that already matches the note's own name or one of its `aliases` is not offered a second time.
 
 This is the reverse direction from [Front Matter Title](https://github.com/snezhig/obsidian-front-matter-title), and the two are independent by design: that plugin takes a note and shows you its title, in the explorer, the tabs and the graph. This one takes a title and finds you the note. If you run both, name the property in each — one setting silently changing what another plugin answers would be worse than typing it twice.
+
+### Headings
+
+Obsidian records when a note was created and modified, but nothing about the headings inside it. Switch the **Headings** module on and, for every heading of the notes you work on, it records:
+
+- **created**: when the heading first appeared;
+- **modified**: when its section last changed (its text, its level, or anything under it, subheadings included). Moving a whole section elsewhere in the note does not count;
+- **seen**: when its own section was last on screen in the editor for a couple of seconds, while the window had focus. Reading view is not measured.
+
+Obsidian keeps no identity for a heading, so the module works one out by comparing each version of a note with the previous one: same text first, then the same text under the heading (a rename), then the same place between the same neighbors (a rename plus an edit). Renaming a heading, moving a section, changing its level or renaming the note keeps the history. A heading deleted and the same text typed elsewhere reads as a move, and two headings with the same text that swap places keep each other's history.
+
+Nothing is written into the note. The times live in `heading-times.json` in the plugin folder, for notes opened, created or changed while the module is on, so a vault nobody is working in costs nothing. They are what this device saw: a change made on another device is stamped when it arrives here. A heading that was already there when its note started being tracked has no `created` or `modified` time, rather than a guessed one.
+
+The module has no user interface of its own: it is there for other plugins to read, through the API below. [Advanced Note Composer](https://github.com/mnaoumov/obsidian-advanced-note-composer) sorts headings by these times.
 
 ## For plugin developers
 
@@ -124,9 +140,9 @@ All five of those members arrived in 1.0.0 as well, and like the backlink ones t
 
 Both calls are typed in [api.d.ts](./api.d.ts) as `GetBacklinksForFileFn` and `GetLinkSuggestionsFn` — cast the core method to one of those to reach the added members. There is nothing to fetch and no version to negotiate: the patch is installed or it is not, so pin against the plugin version a member arrived in. [02 Fast, safe, and original backlinks](<./demo-vault/02 Fast, safe, and original backlinks.md>) runs all three backlink calls side by side, and [05 Name index](<./demo-vault/05 Name index.md>) does the same for the name calls.
 
-### The Titles API
+### The published API
 
-The two modules above answer by replacing a method Obsidian already has, so there is nothing to fetch. The **Titles** module has no such method to replace — Obsidian has no notion of a name-bearing property — so it publishes an API instead, `AdvancedMetadataCacheApi` in the same [api.d.ts](./api.d.ts):
+The two modules above answer by replacing a method Obsidian already has, so there is nothing to fetch. The **Titles** and **Headings** modules have no such method to replace — Obsidian has no notion of a name-bearing property, nor of a heading's history — so they publish an API instead, `AdvancedMetadataCacheApi` in the same [api.d.ts](./api.d.ts):
 
 ```ts
 import { watchPluginApi } from 'obsidian-dev-utils/obsidian/plugin/plugin-api';
@@ -158,6 +174,18 @@ Both arrived in contract `1.0.0`, and the contract version moves independently o
 A plugin that used to own a title property setting hands its value over with `migrateSettings`, added in contract `1.1.0`. It is the envelope of `obsidian-dev-utils`'s `SettingsMigrationApi`, so `SettingsMigrationComponent` drives it for you. Watch this plugin's API with the contract `{ migrateSettings: {} }` and the range `^1`, then propose `{ titlePropertyNames: ['subtitle'] }`. Against a `1.0.0` provider, the offer waits instead of failing.
 
 This plugin owns the list, so it owns the dialog. The dialog names your plugin, shows the proposed names beside the current list, and suggests the proposed names ADDED to that list (a name already on it in any casing is not added twice), which the user can approve, edit or decline. While the Titles module is off, it also offers to switch it on. The call resolves `{ isApplied: false }` on a cancel, so retire your pending value only on `true`. When there is nothing to change, it resolves `true` without showing anything.
+
+#### Heading times
+
+`getHeadingTimes(pathOrFile)`, added in contract `1.2.0`, answers a note's headings in document order, each with its text, level, line and three times, Unix epoch milliseconds:
+
+```ts
+for (const { created, heading, level, modified, seen } of api.getHeadingTimes('Notes/Changelog.md')) {
+  console.log(level, heading, created, modified, seen);
+}
+```
+
+A time is `null` when the plugin did not see the event happen, so sort `null` as the oldest and keep document order among equals. It is synchronous and current as of the last parse Obsidian announced: if you have just edited the note, await `getCacheSafe` from `obsidian-dev-utils` first. It answers empty while the **Headings** module is off, and a note that is not tracked yet answers its current headings with every time `null`. Ask for the range `^1.2`.
 
 If you would rather not depend on `obsidian-dev-utils` for the handle, the registry is a documented wire protocol you can read directly — see [Plugin API protocol](https://mnaoumov.dev/obsidian-dev-utils/guides/plugin-api-protocol/).
 
