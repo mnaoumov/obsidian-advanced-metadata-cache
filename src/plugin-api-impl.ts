@@ -10,10 +10,12 @@ import {
 } from 'obsidian-dev-utils/function';
 import { getFileOrNull } from 'obsidian-dev-utils/obsidian/file-system';
 
+import type { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import type { TitleIndex } from './modules/titles/title-index.ts';
 import type {
   AdvancedMetadataCacheApi,
   AdvancedMetadataCacheMigratableSettings,
+  HeadingTimes,
   MigrateSettingsParams,
   MigrateSettingsResult
 } from './plugin-api.ts';
@@ -27,6 +29,7 @@ import {
 
 interface PluginApiImplConstructorParams {
   readonly app: App;
+  readonly headingTimesIndex: HeadingTimesIndex;
   readonly pluginSettingsComponent: PluginSettingsComponent;
   readonly titleIndex: TitleIndex;
 }
@@ -47,6 +50,7 @@ interface PluginApiImplConstructorParams {
  */
 export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigrationApi<AdvancedMetadataCacheMigratableSettings> {
   private readonly app: App;
+  private readonly headingTimesIndex: HeadingTimesIndex;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
 
   /**
@@ -59,8 +63,22 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
 
   public constructor(params: PluginApiImplConstructorParams) {
     this.app = params.app;
+    this.headingTimesIndex = params.headingTimesIndex;
     this.pluginSettingsComponent = params.pluginSettingsComponent;
     this.titleIndex = params.titleIndex;
+  }
+
+  /**
+   * Reads when each of a note's headings was created, last modified and last seen.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns Its headings in document order, empty for a path no file answers to and while the `Headings`
+   *   module is off.
+   */
+  public getHeadingTimes(pathOrFile: string | TFile): HeadingTimes[] {
+    const file = getFileOrNull({ app: this.app, pathOrFile });
+
+    return file ? this.headingTimesIndex.getHeadingTimes(file) : [];
   }
 
   /**

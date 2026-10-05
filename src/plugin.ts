@@ -1,5 +1,6 @@
 import type { PluginApiDeclaration } from 'obsidian-dev-utils/obsidian/plugin/plugin-api';
 
+import { normalizePath } from 'obsidian';
 import { OpenDemoVaultCommandHandler } from 'obsidian-dev-utils/obsidian/command-handlers/open-demo-vault-command-handler';
 import { PluginSettingsTabComponent } from 'obsidian-dev-utils/obsidian/components/plugin-settings-tab-component';
 import { PluginDataHandler } from 'obsidian-dev-utils/obsidian/data-handler';
@@ -7,6 +8,8 @@ import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin';
 import { PluginEventSourceImpl } from 'obsidian-dev-utils/obsidian/plugin/plugin-event-source';
 
 import { BacklinksModuleComponent } from './modules/backlinks/backlinks-module-component.ts';
+import { HeadingTimesComponent } from './modules/headings/heading-times-component.ts';
+import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import { ModulesComponent } from './modules/modules-component.ts';
 import { NameIndexComponent } from './modules/names/name-index-component.ts';
 import { TitleIndexComponent } from './modules/titles/title-index-component.ts';
@@ -72,7 +75,13 @@ export class Plugin extends PluginBase {
      * module finds the same answer whatever the other is doing.
      */
     const titleIndex = new TitleIndex({ app: this.app, pluginSettingsComponent });
-    this.pluginApi = new PluginApiImpl({ app: this.app, pluginSettingsComponent, titleIndex });
+    // Owned here for the same reason: the published API reads it for the plugin's whole life.
+    const headingTimesIndex = new HeadingTimesIndex({
+      app: this.app,
+      getDataFilePath: (): string => this.getHeadingTimesFilePath(),
+      pluginSettingsComponent
+    });
+    this.pluginApi = new PluginApiImpl({ app: this.app, headingTimesIndex, pluginSettingsComponent, titleIndex });
 
     this.addChild(
       new ModulesComponent({
@@ -106,6 +115,11 @@ export class Plugin extends PluginBase {
             createComponent: (): TitleIndexComponent => new TitleIndexComponent({ app: this.app, titleIndex }),
             getIsEnabled: (settings): boolean => settings.isTitlesModuleEnabled,
             moduleId: 'titles'
+          },
+          {
+            createComponent: (): HeadingTimesComponent => new HeadingTimesComponent({ app: this.app, headingTimesIndex }),
+            getIsEnabled: (settings): boolean => settings.isHeadingsModuleEnabled,
+            moduleId: 'headings'
           }
         ],
         pluginSettingsComponent
@@ -120,5 +134,15 @@ export class Plugin extends PluginBase {
         pluginVersion: this.manifest.version
       })
     ]);
+  }
+
+  /**
+   * Where the `Headings` module keeps its index: a file of its own in this plugin's folder, so it never
+   * mixes into `data.json`, which holds settings and is rewritten whenever one changes.
+   *
+   * @returns The vault-relative path.
+   */
+  private getHeadingTimesFilePath(): string {
+    return normalizePath(`${this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`}/heading-times.json`);
   }
 }

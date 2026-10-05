@@ -17,6 +17,7 @@ import {
   vi
 } from 'vitest';
 
+import type { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import type { ModuleDefinition } from './modules/modules-component.ts';
 import type { TitleIndex } from './modules/titles/title-index.ts';
 
@@ -30,6 +31,7 @@ import { PluginSettings } from './plugin-settings.ts';
 
 const hoisted = vi.hoisted(() => ({
   backlinksModuleComponentConstructor: vi.fn(),
+  headingTimesComponentConstructor: vi.fn(),
   modulesComponentConstructor: vi.fn(),
   nameIndexComponentConstructor: vi.fn(),
   pluginSettingsComponentConstructor: vi.fn(),
@@ -96,8 +98,25 @@ vi.mock('./modules/titles/title-index-component.ts', () => ({
   }
 }));
 
+vi.mock('./modules/headings/heading-times-component.ts', () => ({
+  HeadingTimesComponent: class extends Component {
+    public constructor(params: unknown) {
+      super();
+      hoisted.headingTimesComponentConstructor(params);
+    }
+  }
+}));
+
 // eslint-disable-next-line import-x/first, import-x/imports-first -- vi.mock must precede imports.
 import { Plugin } from './plugin.ts';
+
+interface HeadingTimesIndexHolder {
+  readonly headingTimesIndex: HeadingTimesIndex;
+}
+
+interface HeadingTimesIndexPathReader {
+  readonly getDataFilePath: () => string;
+}
 
 interface ModuleDefinitionsHolder {
   readonly moduleDefinitions: readonly ModuleDefinition[];
@@ -123,14 +142,15 @@ function createApp(): AppOriginal {
   return appMock.asOriginalType__();
 }
 
-async function createLoadedPlugin(app: AppOriginal): Promise<Plugin> {
-  const plugin = new Plugin(app, createManifest());
+async function createLoadedPlugin(app: AppOriginal, manifest = createManifest()): Promise<Plugin> {
+  const plugin = new Plugin(app, manifest);
   await plugin.onload();
   return plugin;
 }
 
-function createManifest(): PluginManifest {
+function createManifest(extra: Partial<PluginManifest> = {}): PluginManifest {
   return strictProxy<PluginManifest>({
+    ...extra,
     id: 'advanced-metadata-cache',
     name: 'Advanced Metadata Cache',
     version: '1.0.0'
@@ -165,7 +185,7 @@ describe('Plugin', () => {
 
   it('should declare every module', async () => {
     await createLoadedPlugin(createApp());
-    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names', 'titles']);
+    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names', 'titles', 'headings']);
   });
 
   it('should gate the backlinks module on its own setting', async () => {
@@ -228,6 +248,46 @@ describe('Plugin', () => {
     const titlesParams = castTo<TitleIndexHolder>(hoisted.titleIndexComponentConstructor.mock.calls[0]?.[0]);
 
     expect(namesParams.titleIndex).toBe(titlesParams.titleIndex);
+  });
+
+  it('should gate the headings module on its own setting, and leave it off by default', async () => {
+    await createLoadedPlugin(createApp());
+    const settings = new PluginSettings();
+    const moduleDefinition = getModuleDefinitions()[3];
+
+    expect(moduleDefinition?.getIsEnabled(settings)).toBe(false);
+    settings.isHeadingsModuleEnabled = true;
+    expect(moduleDefinition?.getIsEnabled(settings)).toBe(true);
+  });
+
+  it('should build the headings module on demand, keeping its index in the plugin folder', async () => {
+    const app = createApp();
+    await createLoadedPlugin(
+      app,
+      createManifest({
+        // eslint-disable-next-line unicorn/name-replacements -- Obsidian's own `PluginManifest` member.
+        dir: 'plugins-root/custom-folder'
+      })
+    );
+    getModuleDefinitions()[3]?.createComponent();
+
+    const params = castTo<HeadingTimesIndexHolder>(hoisted.headingTimesComponentConstructor.mock.calls[0]?.[0]);
+    expect(castTo<HeadingTimesIndexPathReader>(params.headingTimesIndex).getDataFilePath()).toBe('plugins-root/custom-folder/heading-times.json');
+  });
+
+  it('should fall back to the folder named by the plugin id when the manifest names none', async () => {
+    const app = createApp();
+    await createLoadedPlugin(
+      app,
+      createManifest(castTo<Partial<PluginManifest>>({
+        // eslint-disable-next-line unicorn/name-replacements -- Obsidian's own `PluginManifest` member.
+        dir: undefined
+      }))
+    );
+    getModuleDefinitions()[3]?.createComponent();
+
+    const params = castTo<HeadingTimesIndexHolder>(hoisted.headingTimesComponentConstructor.mock.calls[0]?.[0]);
+    expect(castTo<HeadingTimesIndexPathReader>(params.headingTimesIndex).getDataFilePath()).toBe(`${app.vault.configDir}/plugins/advanced-metadata-cache/heading-times.json`);
   });
 
   it('should publish its API under the contract it declares, and only once loaded', async () => {

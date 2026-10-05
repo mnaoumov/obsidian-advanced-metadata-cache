@@ -23,6 +23,19 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         }
       }),
       this.settingEx({
+        desc: 'Whether to record when each heading of a note was created, last modified and last seen on screen, so other plugins can sort headings by those times. Obsidian keeps no such record. It is kept in a file in the plugin folder, never in the note, and only for notes opened, created or changed while this is on. Times are per device: Obsidian Sync does not carry them.',
+        name: 'Headings module',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            // No `onChanged` refresh: no other row depends on this module.
+            this.bind({
+              propertyName: 'isHeadingsModuleEnabled',
+              valueComponent: toggle
+            });
+          });
+        }
+      }),
+      this.settingEx({
         desc: 'Whether to index what every note is called - its name and its `aliases` - and answer `app.metadataCache.getLinkSuggestions()` from that index. That is what the `[[` autocomplete asks on every open, and the built-in implementation answers it by rescanning the whole vault each time. When off, the built-in implementation answers instead and nothing is indexed.',
         name: 'Names module',
         render: (setting) => {
