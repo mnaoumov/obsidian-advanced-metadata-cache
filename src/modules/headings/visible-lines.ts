@@ -35,7 +35,7 @@ export interface VisibleLineRange {
  * has focus: a note in a background tab or behind another application is not being looked at. Reading
  * view is not measured, because its rendered sections carry no line geometry to measure.
  *
- * The range is the part of the document inside the editor's scroller, not CodeMirror's viewport, which
+ * The range is the part of the document inside the editor's scrolled area, not CodeMirror's viewport, which
  * renders a margin above and below what is actually on screen.
  *
  * @param app - The Obsidian app.

@@ -64,11 +64,11 @@ describe('getVisibleLineRange', () => {
     expect(getVisibleLineRange(castTo<AppOriginal>(app))).toBeNull();
   });
 
-  it('should answer the lines inside the scroller, measured from the top of the document', () => {
+  it('should answer the lines inside the scrolled area, measured from the top of the document', () => {
     stubActiveView({});
 
     expect(getVisibleLineRange(castTo<AppOriginal>(app))).toEqual({
-      // The scroller starts 50px into the document, i.e. at line 5, and ends 150px in, at line 15.
+      // The scrolled area starts 50px into the document, i.e. at line 5, and ends 150px in, at line 15.
       fromLine: (SCROLL_TOP - DOCUMENT_TOP) / LINE_HEIGHT,
       path: 'Alpha.md',
       toLine: (SCROLL_BOTTOM - DOCUMENT_TOP) / LINE_HEIGHT

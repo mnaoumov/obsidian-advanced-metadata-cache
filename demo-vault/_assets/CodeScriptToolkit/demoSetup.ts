@@ -11,22 +11,39 @@ import { watchPluginApi } from 'obsidian-dev-utils/obsidian/plugin/plugin-api';
 const PLUGIN_ID = 'advanced-metadata-cache';
 const CENTRAL_TOPIC_PATH = 'Topics/Central topic.md';
 
+const HEADING_TIMES_WAIT_ATTEMPTS = 50;
+const HEADING_TIMES_POLL_IN_MILLISECONDS = 100;
 const NAME_INDEX_WAIT_ATTEMPTS = 50;
 const NAME_INDEX_POLL_IN_MILLISECONDS = 100;
 
 interface AdvancedMetadataCacheApi {
+  getHeadingTimes(pathOrFile: string): HeadingTimes[];
   getTitlePropertyNames(): string[];
   getTitles(pathOrFile: string): string[];
 }
 
 interface DemoSettingsPatch {
   isBacklinksModuleEnabled?: boolean;
+  isHeadingsModuleEnabled?: boolean;
   isNamesModuleEnabled?: boolean;
   isTitlesModuleEnabled?: boolean;
   shouldAutomaticallyRefreshBacklinkPanels?: boolean;
   shouldOfferTitlesInLinkSuggestions?: boolean;
   shouldShowProgressBarOnLoad?: boolean;
   titlePropertyNames?: string[];
+}
+
+/**
+ * One heading's times, as the plugin API reports them. The same shape `HeadingTimes` in the root
+ * `api.d.ts` ships for consumers.
+ */
+interface HeadingTimes {
+  readonly created: null | number;
+  readonly heading: string;
+  readonly level: number;
+  readonly line: number;
+  readonly modified: null | number;
+  readonly seen: null | number;
 }
 
 /**
@@ -227,4 +244,123 @@ async function waitForNameIndex(app: App): Promise<PatchedGetLinkSuggestions | n
   }
 
   return null;
+}
+
+/**
+ * Switches the Headings module on, opens a note so it is tracked, and reports when each of its headings
+ * was created, last modified and last seen.
+ *
+ * Manual equivalent: turn **Headings module** on in **Settings -> Community plugins -> Advanced Metadata
+ * Cache**, open the note, then call `getHeadingTimes(path)` on the API from your own plugin.
+ *
+ * @param app - The Obsidian app.
+ * @param path - The vault-relative path of the note.
+ */
+export async function showHeadingTimesFor(app: App, path: string): Promise<void> {
+  const api = await openTrackedNote(app, path);
+
+  if (!api) {
+    return;
+  }
+
+  new Notice([
+    `"${path}":`,
+    ...api.getHeadingTimes(path).map((heading) =>
+      `${'#'.repeat(heading.level)} ${heading.heading}: created ${formatTime(heading.created, 'before tracking')}, modified ${
+        formatTime(heading.modified, 'not since')
+      }, seen ${formatTime(heading.seen, 'not yet')}`
+    )
+  ].join('\n'));
+}
+
+/**
+ * Appends a new heading to a note, then reports the note's heading times, so the new one shows up as
+ * created just now.
+ *
+ * Manual equivalent: type a new `## ` heading at the end of the note.
+ *
+ * @param app - The Obsidian app.
+ * @param path - The vault-relative path of the note.
+ */
+export async function addHeadingTo(app: App, path: string): Promise<void> {
+  const heading = `Entry ${new Date().toLocaleTimeString()}`;
+  await editAndShowHeadingTimes(app, path, (content) => `${content.trimEnd()}\n\n## ${heading}\nAdded by the demo button.\n`, heading);
+}
+
+/**
+ * Adds a line under one heading of a note, then reports the note's heading times, so that heading shows
+ * up as modified just now and the others do not.
+ *
+ * Manual equivalent: type anything under that heading.
+ *
+ * @param app - The Obsidian app.
+ * @param path - The vault-relative path of the note.
+ * @param heading - The heading text to edit under.
+ */
+export async function editUnderHeading(app: App, path: string, heading: string): Promise<void> {
+  const line = `Edited at ${new Date().toLocaleTimeString()}.`;
+  await editAndShowHeadingTimes(app, path, (content) => content.replace(`## ${heading}\n`, `## ${heading}\n${line}\n`), heading);
+}
+
+async function editAndShowHeadingTimes(app: App, path: string, edit: (content: string) => string, heading: string): Promise<void> {
+  const api = await openTrackedNote(app, path);
+  const file = app.vault.getFileByPath(path);
+
+  if (!api || !file) {
+    return;
+  }
+
+  const startTime = Date.now();
+  await app.vault.process(file, edit);
+
+  for (let attempt = 0; attempt < HEADING_TIMES_WAIT_ATTEMPTS; attempt++) {
+    const times = api.getHeadingTimes(path).find((candidate) => candidate.heading === heading);
+
+    if ((times?.modified ?? 0) >= startTime) {
+      break;
+    }
+
+    await sleep(HEADING_TIMES_POLL_IN_MILLISECONDS);
+  }
+
+  await showHeadingTimesFor(app, path);
+}
+
+function formatTime(time: null | number, fallback: string): string {
+  return time === null ? fallback : new Date(time).toLocaleTimeString();
+}
+
+/**
+ * Switches the Headings module on and opens the note, which is what starts tracking it.
+ *
+ * @param app - The Obsidian app.
+ * @param path - The vault-relative path of the note.
+ * @returns The API, or `null` when the note or the API is missing.
+ */
+async function openTrackedNote(app: App, path: string): Promise<AdvancedMetadataCacheApi | null> {
+  const file = app.vault.getFileByPath(path);
+
+  if (!file) {
+    new Notice(`${path} is missing from this vault.`);
+    return null;
+  }
+
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isHeadingsModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.2',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    await app.workspace.getLeaf(false).openFile(file);
+    return api;
+  } finally {
+    component.unload();
+  }
 }

@@ -65,6 +65,7 @@ export interface SettingsEditorPlugin extends Plugin {
  * The settings a suite switches.
  */
 export interface SwitchablePluginSettings {
+  isHeadingsModuleEnabled: boolean;
   isNamesModuleEnabled: boolean;
   isTitlesModuleEnabled: boolean;
   shouldOfferTitlesInLinkSuggestions: boolean;

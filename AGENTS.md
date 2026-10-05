@@ -82,6 +82,34 @@ default, so it has a setting of its own, `shouldOfferTitlesInLinkSuggestions`, a
 A title the file already answers to under its own name or an `alias` contributes no entry: that would
 be the same note offered twice under the same text.
 
+## The `headings` module: identity is worked out, and nothing is written into the note
+
+Obsidian has no identity for a heading, and the task this module exists for (Advanced Note Composer's
+time sorts) forbids writing one into the note. So `matchHeadings` in `heading-snapshot.ts` pairs each
+parse with the previous one in four passes: same text, then same non-empty own body (a rename, even
+after a move), then same gap between paired neighbors (a rename plus an edit), and only the rest is new.
+**Level is never part of identity**, and `modified` is a change in the SUBTREE hash (level, text and
+everything under it), so reordering sibling sections, which is what a sort does, stamps nothing. Its two
+known blind spots (delete-and-retype reads as a move; same-text headings that swap keep each other's
+history) are stated in the file header and the README rather than patched with heuristics.
+
+**A time the plugin did not see is `null`, never guessed.** A note is tracked from its first open,
+create or `changed` while the module is on; at that first sight every heading is a baseline with no
+`created`/`modified`. A `create` resets the path to EMPTY instead, so every heading a new note gains
+is stamped. There is deliberately no vault walk: a vault walk would only produce baselines.
+
+`HeadingTimesIndex` is owned by the plugin (the published API reads it for the plugin's whole life, the
+same reason as `TitleIndex`) and persisted to `heading-times.json` in the plugin folder, NOT in
+`data.json`, which the settings component owns and rewrites. `HeadingTimesComponent` loads it on layout
+ready, then catches up on tracked notes whose `mtime` moved while nothing watched, stamping them with
+that `mtime`; it re-checks the `mtime` after each read so a `changed` that landed meanwhile wins. It
+saves on a non-resetting 5 s debounce and once more on unload, and clears memory at both edges.
+
+`seen` is a 2 s poll of the active editor (`visible-lines.ts`): a heading is seen when its own section
+is inside the scrolled area at two consecutive polls. Polling rather than a CodeMirror extension keeps the
+module's whole footprint inside its component, which is the module contract above. The integration
+suite does not drive `seen`, because the window cannot be given focus reliably over the transport.
+
 ## Two kinds of public surface, and which one a new module takes
 
 `backlinks` and `names` answer by **replacing a core method**, so a consumer calls
@@ -89,7 +117,7 @@ be the same note offered twice under the same text.
 `GetBacklinksForFileFn` and `GetLinkSuggestionsFn`, and there is nothing to version-negotiate — a member
 is pinned against the plugin version it arrived in, which is what the README records.
 
-`titles` has no core method to replace, so it publishes through the `obsidian-dev-utils` plugin
+`titles` and `headings` have no core method to replace, so they publish through the `obsidian-dev-utils` plugin
 registry: the API object is `PluginApiImpl`, and its contract and version are in `src/plugin-api.ts`. The
 declaration goes through `getPluginApis()` rather than a hand `publishPluginApi` call, because the
 `plugin-loaded` broadcast derives its `apiVersions` from that method alone.
