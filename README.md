@@ -97,7 +97,7 @@ Obsidian records when a note was created and modified, but nothing about the hea
 
 Obsidian keeps no identity for a heading, so the module works one out by comparing each version of a note with the previous one: same text first, then the same text under the heading (a rename), then the same place between the same neighbors (a rename plus an edit). Renaming a heading, moving a section, changing its level or renaming the note keeps the history. A heading deleted and the same text typed elsewhere reads as a move, and two headings with the same text that swap places keep each other's history.
 
-Nothing is written into the note. The times live in `heading-times.json` in the plugin folder, for notes opened, created or changed while the module is on, so a vault nobody is working in costs nothing. They are per device: Obsidian Sync does not carry the plugin's extra files, and a change arriving by Sync is stamped when it arrives. A heading that was already there when its note started being tracked has no `created` or `modified` time, rather than a guessed one.
+Nothing is written into the note. The times live in `heading-times.json` in the plugin folder, for notes opened, created or changed while the module is on, so a vault nobody is working in costs nothing. They are what this device saw: a change made on another device is stamped when it arrives here. A heading that was already there when its note started being tracked has no `created` or `modified` time, rather than a guessed one.
 
 The module has no user interface of its own: it is there for other plugins to read, through the API below. [Advanced Note Composer](https://github.com/mnaoumov/obsidian-advanced-note-composer) sorts headings by these times.
 

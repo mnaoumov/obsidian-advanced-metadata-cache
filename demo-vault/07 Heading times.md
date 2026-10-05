@@ -53,7 +53,7 @@ So renaming a heading, moving a section, or renaming the note keeps the times. W
 ## What to know
 
 - **Only notes you work on are tracked.** A note is tracked from the first time it is opened, created or changed while the module is on. A vault nobody is working in costs nothing.
-- **Times are per device.** Obsidian Sync does not carry the plugin's extra files, so each device keeps its own record, and a change that arrives by Sync is stamped when it arrives.
+- **Times are what this device saw.** A change made on another device is stamped when it arrives here, and each device keeps its own record of what it saw.
 - **Changes made while Obsidian was closed** are caught on the next start and stamped with the note's modification time, the best time known for them.
 - **Reading view is not measured** for **seen**: only the editor has the line positions to measure.
 

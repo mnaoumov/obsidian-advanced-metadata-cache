@@ -48,8 +48,8 @@ export interface AdvancedMetadataCacheApi {
    * as of the last parse Obsidian announced, so a caller that has just edited the note should await
    * `obsidian-dev-utils`' `getCacheSafe` (or the next `changed` event) first.
    *
-   * The times are per device: Obsidian Sync does not carry them, and a change arriving by Sync is stamped
-   * when it arrives. A time is `null` when the plugin did not see the event happen — a heading already
+   * The times are what this device saw: a change arriving from another device is stamped when it arrives
+   * here. A time is `null` when the plugin did not see the event happen — a heading already
    * there when its note started being tracked has neither `created` nor `modified`. A sort should place
    * `null` as the oldest and keep document order among equals.
    *
