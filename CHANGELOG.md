@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.2.0
+
+- feat(headings): merge tracking when each heading was created, modified and seen
+- docs(readme): merge linking the Community directory listing
+
 ## 1.1.1
 
 - test(screenshots): merge setting the desktop capture theme with applyObsidianTheme
