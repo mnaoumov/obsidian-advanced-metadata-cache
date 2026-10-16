@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.3.0
+
+- feat(api): publish the backlinks and names extras through the plugin API (contract 1.3.0)
+- deprecate the members grafted onto the patched getBacklinksForFile and getLinkSuggestions (safe, originalFn, getPathsByName, getPathsByNameSafe, and getBacklinksForFile called with a path); 2.0.0 removes them, and the README names the API method that replaces each
+
 ## 1.2.0
 
 - feat(headings): merge tracking when each heading was created, modified and seen
