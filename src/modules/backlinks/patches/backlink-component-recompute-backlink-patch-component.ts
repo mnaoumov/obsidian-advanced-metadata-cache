@@ -106,19 +106,21 @@ export class BacklinkComponentRecomputeBacklinkPatchComponent extends MonkeyArou
       content = patchCanvasContent(canvasData);
     }
 
+    const contentMatches: NonNullable<ResultDomResult['content']> = [];
+    const propertyMatches: NonNullable<ResultDomResult['properties']> = [];
     const resultDomResult: ResultDomResult = {
-      content: [],
-      properties: []
+      content: contentMatches,
+      properties: propertyMatches
     };
     let isValidLink = false;
 
     for (const link of links) {
       if (isReferenceCache(link)) {
-        resultDomResult.content.push([link.position.start.offset, link.position.end.offset]);
+        contentMatches.push([link.position.start.offset, link.position.end.offset]);
         isValidLink = true;
       } else if (isFrontmatterLinkCacheWithOffsets(link)) {
         const keys = link.key.split('.');
-        resultDomResult.properties.push({
+        propertyMatches.push({
           /* v8 ignore start -- split('.') always returns at least one element. */
           key: keys[0] ?? '',
           /* v8 ignore stop */
@@ -128,7 +130,7 @@ export class BacklinkComponentRecomputeBacklinkPatchComponent extends MonkeyArou
         isValidLink = true;
       } else if (isFrontmatterLinkCache(link)) {
         const keys = link.key.split('.');
-        resultDomResult.properties.push({
+        propertyMatches.push({
           /* v8 ignore start -- split('.') always returns at least one element. */
           key: keys[0] ?? '',
           /* v8 ignore stop */
@@ -220,8 +222,8 @@ function patchCanvasContent(canvasData: CanvasData): string {
 
 /*
  * Built the way Obsidian 1.14.4's own backlink recompute builds it: a numeric segment becomes a number and any other
- * stays a string. `ResultProperty.subkey` is typed `number[]`, which holds for the search path only, hence the cast.
+ * stays a string.
  */
-function toSubkey(keys: string[]): number[] {
-  return keys.map((key) => Number.isNaN(Number(key)) ? key : Number(key)) as number[];
+function toSubkey(keys: string[]): (number | string)[] {
+  return keys.map((key) => Number.isNaN(Number(key)) ? key : Number(key));
 }
