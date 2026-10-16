@@ -1,3 +1,11 @@
+import type { AbortSignalComponent } from '@mnaoumov/obsidian-lib/components/abort-signal-component';
+import type { PluginNoticeComponent } from '@mnaoumov/obsidian-lib/components/plugin-notice-component';
+// eslint-disable-next-line import-x/no-namespace -- Type-only namespace alias used for vitest's importOriginal<T>() without dynamic import() in type position.
+import type * as FileSystemModule from '@mnaoumov/obsidian-lib/file-system';
+import type {
+  CanvasReference,
+  CanvasTextNodeReference
+} from '@mnaoumov/obsidian-lib/reference';
 import type { CanvasPlugin } from '@obsidian-typings/obsidian-public-latest';
 import type {
   App,
@@ -5,21 +13,13 @@ import type {
   Reference,
   TAbstractFile
 } from 'obsidian';
-import type { AbortSignalComponent } from 'obsidian-dev-utils/obsidian/components/abort-signal-component';
-import type { PluginNoticeComponent } from 'obsidian-dev-utils/obsidian/components/plugin-notice-component';
-// eslint-disable-next-line import-x/no-namespace -- Type-only namespace alias used for vitest's importOriginal<T>() without dynamic import() in type position.
-import type * as FileSystemModule from 'obsidian-dev-utils/obsidian/file-system';
-import type {
-  CanvasReference,
-  CanvasTextNodeReference
-} from 'obsidian-dev-utils/obsidian/reference';
 
+import { getCanvasReferences } from '@mnaoumov/obsidian-lib/canvas';
+import { isCanvasFile } from '@mnaoumov/obsidian-lib/file-system';
+import { loop } from '@mnaoumov/obsidian-lib/loop';
+import { castTo } from '@mnaoumov/typescript-lib/object-utils';
+import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { TFile } from 'obsidian';
-import { castTo } from 'obsidian-dev-utils/object-utils';
-import { getCanvasReferences } from 'obsidian-dev-utils/obsidian/canvas';
-import { isCanvasFile } from 'obsidian-dev-utils/obsidian/file-system';
-import { loop } from 'obsidian-dev-utils/obsidian/loop';
-import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
 import {
   afterEach,
   beforeEach,
@@ -55,7 +55,7 @@ interface RegisteredEventHandler {
 const registeredEventHandlers: RegisteredEventHandler[] = [];
 const registeredInternalPluginsChangeHandlers: (() => void)[] = [];
 
-vi.mock('obsidian-dev-utils/obsidian/file-system', async (importOriginal) => {
+vi.mock('@mnaoumov/obsidian-lib/file-system', async (importOriginal) => {
   const original = await importOriginal<typeof FileSystemModule>();
   return {
     ...original,
@@ -63,11 +63,11 @@ vi.mock('obsidian-dev-utils/obsidian/file-system', async (importOriginal) => {
   };
 });
 
-vi.mock('obsidian-dev-utils/obsidian/loop', () => ({
+vi.mock('@mnaoumov/obsidian-lib/loop', () => ({
   loop: vi.fn()
 }));
 
-vi.mock('obsidian-dev-utils/obsidian/canvas', () => ({
+vi.mock('@mnaoumov/obsidian-lib/canvas', () => ({
   getCanvasReferences: vi.fn().mockResolvedValue([])
 }));
 

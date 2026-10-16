@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-extraneous-class -- Test mocks of the plugin's own sibling modules need constructor-only classes. */
+import type { PluginApiDeclaration } from '@mnaoumov/obsidian-lib/plugin/plugin-api';
 import type {
   App as AppOriginal,
   PluginManifest
 } from 'obsidian';
-import type { PluginApiDeclaration } from 'obsidian-dev-utils/obsidian/plugin/plugin-api';
 
+import { castTo } from '@mnaoumov/typescript-lib/object-utils';
+import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { Component } from 'obsidian';
-import { castTo } from 'obsidian-dev-utils/object-utils';
-import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
 import { App } from 'obsidian-test-mocks/obsidian';
 import {
   afterEach,
@@ -25,7 +25,7 @@ import { PLUGIN_API_VERSION } from './plugin-api-version.ts';
 import { PLUGIN_API_CONTRACT } from './plugin-api.ts';
 import { PluginSettings } from './plugin-settings.ts';
 
-// --- Mocks for the plugin's OWN sibling modules (allowed: not obsidian-dev-utils / obsidian-test-mocks) ---
+// --- Mocks for the plugin's OWN sibling modules (allowed: not @mnaoumov/obsidian-lib / obsidian-test-mocks) ---
 
 const hoisted = vi.hoisted(() => ({
   backlinkCacheComponent: { isBacklinkCacheComponent: true },
@@ -39,7 +39,7 @@ const hoisted = vi.hoisted(() => ({
   titleIndexComponentConstructor: vi.fn()
 }));
 
-// `PluginDataHandler` and `PluginEventSourceImpl` are NOT stubbed: since obsidian-dev-utils 93.2 the base
+// `PluginDataHandler` and `PluginEventSourceImpl` are NOT stubbed: since obsidian-dev-utils 93.2 (now @mnaoumov/obsidian-lib) the base
 // builds its own settings component out of them during `onload`, and that component really calls
 // `pluginEventSource.on`, so a bare `vi.fn()` double makes the base throw before `onloadImpl` runs.
 vi.mock('./plugin-settings-component.ts', () => ({

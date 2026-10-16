@@ -6,18 +6,18 @@ import type {
   TFile
 } from 'obsidian';
 
-import {
-  debounce,
-  MarkdownView
-} from 'obsidian';
-import { invokeAsyncSafely } from 'obsidian-dev-utils/async';
-import { LayoutReadyComponent } from 'obsidian-dev-utils/obsidian/components/layout-ready-component';
+import { LayoutReadyComponent } from '@mnaoumov/obsidian-lib/components/layout-ready-component';
 import {
   isFile,
   isFolder,
   isMarkdownFile
-} from 'obsidian-dev-utils/obsidian/file-system';
-import { ensureMetadataCacheReady } from 'obsidian-dev-utils/obsidian/metadata-cache';
+} from '@mnaoumov/obsidian-lib/file-system';
+import { ensureMetadataCacheReady } from '@mnaoumov/obsidian-lib/metadata-cache';
+import { invokeAsyncSafely } from '@mnaoumov/typescript-lib/async';
+import {
+  debounce,
+  MarkdownView
+} from 'obsidian';
 
 import type { HeadingTimesIndex } from './heading-times-index.ts';
 import type { VisibleLineRange } from './visible-lines.ts';

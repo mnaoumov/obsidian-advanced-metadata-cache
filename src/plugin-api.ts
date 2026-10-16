@@ -9,7 +9,7 @@
  * drift.
  */
 
-import type { PluginApiContract } from 'obsidian-dev-utils/obsidian/plugin/plugin-api';
+import type { ApiContract } from '@mnaoumov/typescript-lib/api-contract';
 
 import { ADVANCED_METADATA_CACHE_API_CONTRACT } from '../api-contract.ts';
 
@@ -26,4 +26,4 @@ export type {
  * provider and its consumers validate against one definition. Assigning it here is also what checks
  * that the hand-written schemas are Standard Schemas the registry accepts.
  */
-export const PLUGIN_API_CONTRACT: PluginApiContract = ADVANCED_METADATA_CACHE_API_CONTRACT;
+export const PLUGIN_API_CONTRACT: ApiContract = ADVANCED_METADATA_CACHE_API_CONTRACT;

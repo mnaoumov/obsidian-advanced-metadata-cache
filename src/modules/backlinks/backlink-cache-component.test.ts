@@ -1,3 +1,10 @@
+import type { AbortSignalComponent } from '@mnaoumov/obsidian-lib/components/abort-signal-component';
+import type { ConsoleDebugComponent } from '@mnaoumov/obsidian-lib/components/console-debug-component';
+import type { PluginNoticeComponent } from '@mnaoumov/obsidian-lib/components/plugin-notice-component';
+// eslint-disable-next-line import-x/no-namespace -- Type-only namespace alias used for vitest's importOriginal<T>() without dynamic import() in type position.
+import type * as FileSystemModule from '@mnaoumov/obsidian-lib/file-system';
+// eslint-disable-next-line import-x/no-namespace -- Type-only namespace alias used for vitest's importOriginal<T>() without dynamic import() in type position.
+import type * as LinkModule from '@mnaoumov/obsidian-lib/link';
 import type {
   CustomArrayDict,
   DataAdapterEx
@@ -10,14 +17,22 @@ import type {
   ReferenceCache,
   WorkspaceLeaf
 } from 'obsidian';
-import type { AbortSignalComponent } from 'obsidian-dev-utils/obsidian/components/abort-signal-component';
-import type { ConsoleDebugComponent } from 'obsidian-dev-utils/obsidian/components/console-debug-component';
-import type { PluginNoticeComponent } from 'obsidian-dev-utils/obsidian/components/plugin-notice-component';
-// eslint-disable-next-line import-x/no-namespace -- Type-only namespace alias used for vitest's importOriginal<T>() without dynamic import() in type position.
-import type * as FileSystemModule from 'obsidian-dev-utils/obsidian/file-system';
-// eslint-disable-next-line import-x/no-namespace -- Type-only namespace alias used for vitest's importOriginal<T>() without dynamic import() in type position.
-import type * as LinkModule from 'obsidian-dev-utils/obsidian/link';
 
+import {
+  getFileOrNull,
+  isCanvasFile
+} from '@mnaoumov/obsidian-lib/file-system';
+import {
+  extractLinkFile,
+  splitSubpath
+} from '@mnaoumov/obsidian-lib/link';
+import { loop } from '@mnaoumov/obsidian-lib/loop';
+import {
+  ensureMetadataCacheReady,
+  getLinks
+} from '@mnaoumov/obsidian-lib/metadata-cache';
+import { castTo } from '@mnaoumov/typescript-lib/object-utils';
+import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { CustomArrayDictImpl } from '@obsidian-typings/obsidian-public-latest/implementations';
 import {
   Component,
@@ -25,21 +40,6 @@ import {
   TAbstractFile,
   TFile
 } from 'obsidian';
-import { castTo } from 'obsidian-dev-utils/object-utils';
-import {
-  getFileOrNull,
-  isCanvasFile
-} from 'obsidian-dev-utils/obsidian/file-system';
-import {
-  extractLinkFile,
-  splitSubpath
-} from 'obsidian-dev-utils/obsidian/link';
-import { loop } from 'obsidian-dev-utils/obsidian/loop';
-import {
-  ensureMetadataCacheReady,
-  getLinks
-} from 'obsidian-dev-utils/obsidian/metadata-cache';
-import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
 import {
   afterEach,
   beforeEach,
@@ -56,7 +56,7 @@ import { BacklinkCacheComponent } from './backlink-cache-component.ts';
 import { reloadBacklinksView } from './backlink-core-plugin.ts';
 import { isCanvasPluginEnabled } from './canvas.ts';
 
-vi.mock('obsidian-dev-utils/obsidian/file-system', async (importOriginal) => {
+vi.mock('@mnaoumov/obsidian-lib/file-system', async (importOriginal) => {
   const original = await importOriginal<typeof FileSystemModule>();
   return {
     ...original,
@@ -65,25 +65,25 @@ vi.mock('obsidian-dev-utils/obsidian/file-system', async (importOriginal) => {
   };
 });
 
-vi.mock('obsidian-dev-utils/obsidian/link', async (importOriginal) => ({
+vi.mock('@mnaoumov/obsidian-lib/link', async (importOriginal) => ({
   ...await importOriginal<typeof LinkModule>(),
   extractLinkFile: vi.fn()
 }));
 
-vi.mock('obsidian-dev-utils/obsidian/loop', () => ({
+vi.mock('@mnaoumov/obsidian-lib/loop', () => ({
   loop: vi.fn()
 }));
 
-vi.mock('obsidian-dev-utils/obsidian/metadata-cache', () => ({
+vi.mock('@mnaoumov/obsidian-lib/metadata-cache', () => ({
   ensureMetadataCacheReady: vi.fn().mockResolvedValue(undefined),
   getLinks: vi.fn().mockReturnValue([])
 }));
 
-vi.mock('obsidian-dev-utils/obsidian/reference', () => ({
+vi.mock('@mnaoumov/obsidian-lib/reference', () => ({
   sortReferences: vi.fn((refs: Reference[]) => refs)
 }));
 
-vi.mock('obsidian-dev-utils/obsidian/vault', () => ({
+vi.mock('@mnaoumov/obsidian-lib/vault', () => ({
   getMarkdownFilesSorted: vi.fn().mockReturnValue([])
 }));
 

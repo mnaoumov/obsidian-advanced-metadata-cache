@@ -16,7 +16,7 @@
  * and it never blocks a run on its own inability to ask.
  */
 
-import { exec } from 'obsidian-dev-utils/script-utils/exec';
+import { exec } from '@mnaoumov/typescript-dev-toolkit/exec';
 
 /**
  * An emulator `adb` can see, and the AVD it is running.

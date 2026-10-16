@@ -1,7 +1,7 @@
 import type { LinkSuggestion } from '@obsidian-typings/obsidian-public-latest';
 import type { MetadataCache } from 'obsidian';
 
-import { MonkeyAroundComponent } from 'obsidian-dev-utils/obsidian/components/monkey-around-component';
+import { MonkeyAroundComponent } from '@mnaoumov/obsidian-lib/components/monkey-around-component';
 
 import type { NameIndexComponent } from '../name-index-component.ts';
 

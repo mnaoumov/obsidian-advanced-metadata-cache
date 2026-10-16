@@ -3,8 +3,8 @@ import type {
   TAbstractFile
 } from 'obsidian';
 
-import { ComponentEx } from 'obsidian-dev-utils/obsidian/components/component-ex';
-import { isFolder } from 'obsidian-dev-utils/obsidian/file-system';
+import { ComponentEx } from '@mnaoumov/obsidian-lib/components/component-ex';
+import { isFolder } from '@mnaoumov/obsidian-lib/file-system';
 
 import type { TitleIndex } from './title-index.ts';
 

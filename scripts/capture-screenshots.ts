@@ -1,5 +1,5 @@
-import { wrapCliTask } from 'obsidian-dev-utils/script-utils/cli-utils';
-import { test } from 'obsidian-dev-utils/script-utils/test-runners/vitest';
+import { wrapCliTask } from '@mnaoumov/typescript-dev-toolkit/cli-utils';
+import { test } from '@mnaoumov/typescript-dev-toolkit/test-runners/vitest';
 
 import { assertNoForeignEmulator } from './helpers/android-emulator-contention.ts';
 import { SCREENSHOT_AVD_NAME } from './helpers/screenshot-avd.ts';

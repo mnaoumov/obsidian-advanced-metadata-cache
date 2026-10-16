@@ -1,7 +1,7 @@
-import type { AsyncEventRef } from 'obsidian-dev-utils/async-events';
+import type { AsyncEventRef } from '@mnaoumov/typescript-lib/async-events';
 
+import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { Component } from 'obsidian';
-import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
 import {
   describe,
   expect,

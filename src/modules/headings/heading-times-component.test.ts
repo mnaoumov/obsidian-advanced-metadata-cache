@@ -4,14 +4,12 @@ import type {
 } from 'obsidian';
 import type { TFile } from 'obsidian-test-mocks/obsidian';
 
+import { setTimeoutAsync } from '@mnaoumov/typescript-lib/async';
+import { noopAsync } from '@mnaoumov/typescript-lib/function';
+import { castTo } from '@mnaoumov/typescript-lib/object-utils';
+import { waitForAllAsyncOperations } from '@mnaoumov/typescript-test-toolkit/async-operation-tracking';
+import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { MarkdownView } from 'obsidian';
-import {
-  setTimeoutAsync,
-  waitForAllAsyncOperations
-} from 'obsidian-dev-utils/async';
-import { noopAsync } from 'obsidian-dev-utils/function';
-import { castTo } from 'obsidian-dev-utils/object-utils';
-import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
 import { App } from 'obsidian-test-mocks/obsidian';
 import {
   afterEach,
@@ -34,7 +32,7 @@ const hoisted = vi.hoisted(() => ({
   getVisibleLineRange: vi.fn<() => null | VisibleLineRange>(() => null)
 }));
 
-vi.mock('obsidian-dev-utils/obsidian/metadata-cache', () => ({
+vi.mock('@mnaoumov/obsidian-lib/metadata-cache', () => ({
   ensureMetadataCacheReady: vi.fn().mockResolvedValue(undefined)
 }));
 

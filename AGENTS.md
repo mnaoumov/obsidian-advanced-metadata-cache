@@ -116,7 +116,7 @@ suite does not drive `seen`, because the window cannot be given focus reliably o
 `backlinks` and `names` **replace a core method** — `getBacklinksForFile`, `getLinkSuggestions` — keeping
 Obsidian's own signature, so every consumer of core gets the faster answer and never learns the plugin is
 installed. Everything a consumer asks for BEYOND that answer (the `Safe` and `Original` variants, a path
-instead of a `TFile`, the reverse name lookup) goes through the `obsidian-dev-utils` plugin registry, as
+instead of a `TFile`, the reverse name lookup) goes through the `@mnaoumov/obsidian-lib` plugin registry, as
 does everything `titles` and `headings` know: the API object is `PluginApiImpl`, and its contract and
 version are in `src/plugin-api.ts`. The declaration goes through `getPluginApis()` rather than a hand
 `publishPluginApi` call, because the `plugin-loaded` broadcast derives its `apiVersions` from that method
@@ -130,7 +130,7 @@ are answered from that recorded field (`getBacklinksForFileOriginal`, `getLinkSu
 per call, because a module switched off and on again is a fresh component; a module that is off answers
 `null` from every member backed by it, while the `Original` members fall back to core, which is then the
 original.
-The same API also RECEIVES: `migrateSettings` (contract `1.1.0`) is `obsidian-dev-utils`'s
+The same API also RECEIVES: `migrateSettings` (contract `1.1.0`) is `@mnaoumov/obsidian-lib`'s
 `SettingsMigrationApi` envelope, through which a plugin that used to own a title property hands it over.
 `api.d.ts` restates that envelope instead of importing it, and `PluginApiImpl` `implements` the library's
 interface too, so the restatement can only drift into a compile error. The merge is additive and
@@ -139,7 +139,7 @@ case-insensitive, because a proposal that replaced the list would take `title` a
 **The API is declared in the single root `api.d.ts`**, which is the file a consumer reads, and
 `src/plugin-api.ts` re-exports `AdvancedMetadataCacheApi` from it rather than re-declaring it, so there
 is one declaration of each and nothing to drift. The file **imports from `obsidian` and nothing else**
-— that is what makes it copyable by a plugin which has never heard of `obsidian-dev-utils`, and it is
+— that is what makes it copyable by a plugin which has never heard of `@mnaoumov/obsidian-lib`, and it is
 the property to protect when adding a member. `CustomArrayDict` and `LinkSuggestion` are inlined there
 rather than imported from `@obsidian-typings/obsidian-public-latest` for exactly that reason; the file
 records which typings version they were copied from, and the trade behind the copy.

@@ -1,6 +1,6 @@
 import type { SettingDefinitionItem } from 'obsidian';
 
-import { PluginSettingsTabBase } from 'obsidian-dev-utils/obsidian/plugin/plugin-settings-tab';
+import { PluginSettingsTabBase } from '@mnaoumov/obsidian-lib/plugin/plugin-settings-tab';
 
 import type { PluginSettings } from './plugin-settings.ts';
 

@@ -1,13 +1,13 @@
+import type { CommandHandler } from '@mnaoumov/obsidian-lib/command-handlers/command-handler';
+import type { CommandHandlerComponent } from '@mnaoumov/obsidian-lib/command-handlers/command-handler-component';
+import type { AbortSignalComponent } from '@mnaoumov/obsidian-lib/components/abort-signal-component';
+import type { ConsoleDebugComponent } from '@mnaoumov/obsidian-lib/components/console-debug-component';
+import type { PluginNoticeComponent } from '@mnaoumov/obsidian-lib/components/plugin-notice-component';
+import type { DisposableEx } from '@mnaoumov/typescript-lib/disposable';
 import type { App } from 'obsidian';
-import type { DisposableEx } from 'obsidian-dev-utils/disposable';
-import type { CommandHandler } from 'obsidian-dev-utils/obsidian/command-handlers/command-handler';
-import type { CommandHandlerComponent } from 'obsidian-dev-utils/obsidian/command-handlers/command-handler-component';
-import type { AbortSignalComponent } from 'obsidian-dev-utils/obsidian/components/abort-signal-component';
-import type { ConsoleDebugComponent } from 'obsidian-dev-utils/obsidian/components/console-debug-component';
-import type { PluginNoticeComponent } from 'obsidian-dev-utils/obsidian/components/plugin-notice-component';
 
+import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { Component } from 'obsidian';
-import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
 import {
   describe,
   expect,

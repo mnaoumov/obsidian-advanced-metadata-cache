@@ -1,6 +1,6 @@
 import type { MetadataCache } from 'obsidian';
 
-import { MonkeyAroundComponent } from 'obsidian-dev-utils/obsidian/components/monkey-around-component';
+import { MonkeyAroundComponent } from '@mnaoumov/obsidian-lib/components/monkey-around-component';
 
 import type { BacklinkCacheComponent } from '../backlink-cache-component.ts';
 

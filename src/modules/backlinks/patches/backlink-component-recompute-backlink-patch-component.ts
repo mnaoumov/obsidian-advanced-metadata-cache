@@ -6,21 +6,21 @@ import type {
 } from 'obsidian';
 import type { CanvasData } from 'obsidian/canvas.js';
 
-import {
-  isFrontmatterLinkCache,
-  isReferenceCache
-} from '@obsidian-typings/obsidian-public-latest/implementations';
-import { invokeAsyncSafely } from 'obsidian-dev-utils/async';
-import { getPrototypeOf } from 'obsidian-dev-utils/object-utils';
-import { MonkeyAroundComponent } from 'obsidian-dev-utils/obsidian/components/monkey-around-component';
-import { isCanvasFile } from 'obsidian-dev-utils/obsidian/file-system';
-import { isFrontmatterLinkCacheWithOffsets } from 'obsidian-dev-utils/obsidian/frontmatter-link-cache-with-offsets';
-import { getBacklinksForFileSafe } from 'obsidian-dev-utils/obsidian/metadata-cache';
+import { MonkeyAroundComponent } from '@mnaoumov/obsidian-lib/components/monkey-around-component';
+import { isCanvasFile } from '@mnaoumov/obsidian-lib/file-system';
+import { isFrontmatterLinkCacheWithOffsets } from '@mnaoumov/obsidian-lib/frontmatter-link-cache-with-offsets';
+import { getBacklinksForFileSafe } from '@mnaoumov/obsidian-lib/metadata-cache';
 import {
   isCanvasFileNodeReference,
   isCanvasReference,
   isCanvasTextNodeReference
-} from 'obsidian-dev-utils/obsidian/reference';
+} from '@mnaoumov/obsidian-lib/reference';
+import { invokeAsyncSafely } from '@mnaoumov/typescript-lib/async';
+import { getPrototypeOf } from '@mnaoumov/typescript-lib/object-utils';
+import {
+  isFrontmatterLinkCache,
+  isReferenceCache
+} from '@obsidian-typings/obsidian-public-latest/implementations';
 
 import { getFileComparer } from '../file-comparer.ts';
 

@@ -2,7 +2,7 @@ import type { LinkSuggestion } from '@obsidian-typings/obsidian-public-latest';
 import type { MetadataCache } from 'obsidian';
 import type { Mock } from 'vitest';
 
-import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
+import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import {
   beforeEach,
   describe,
