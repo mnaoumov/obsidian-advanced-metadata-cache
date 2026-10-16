@@ -61,6 +61,19 @@ export class ModulesComponent extends ComponentEx {
     this.pluginSettingsComponent = params.pluginSettingsComponent;
   }
 
+  /**
+   * Finds the component of a module that is running now.
+   *
+   * Asked per call rather than handed out once, because a module switched off and on again is a fresh
+   * component: a reference kept across the toggle would point at a torn-down one.
+   *
+   * @param moduleId - The module's {@link ModuleDefinition.moduleId}.
+   * @returns The module's component, or `null` while the module is off.
+   */
+  public getModuleComponent(moduleId: string): Component | null {
+    return this.loadedModules.get(moduleId) ?? null;
+  }
+
   public override onload(): void {
     const eventRef = this.pluginSettingsComponent.on('saveSettings', () => {
       this.syncModules();

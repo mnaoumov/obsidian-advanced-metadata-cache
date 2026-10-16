@@ -1,5 +1,10 @@
 import type {
+  CustomArrayDict,
+  LinkSuggestion
+} from '@obsidian-typings/obsidian-public-latest';
+import type {
   App,
+  Reference,
   TFile
 } from 'obsidian';
 import type { SettingsMigrationApi } from 'obsidian-dev-utils/obsidian/plugin/settings-migration-api';
@@ -10,7 +15,9 @@ import {
 } from 'obsidian-dev-utils/function';
 import { getFileOrNull } from 'obsidian-dev-utils/obsidian/file-system';
 
+import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
 import type { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
+import type { NameIndexComponent } from './modules/names/name-index-component.ts';
 import type { TitleIndex } from './modules/titles/title-index.ts';
 import type {
   AdvancedMetadataCacheApi,
@@ -29,6 +36,16 @@ import {
 
 interface PluginApiImplConstructorParams {
   readonly app: App;
+  /**
+   * Finds the `Backlinks` module's cache, or `null` while the module is off. Asked per call, because a
+   * module switched off and on again is a fresh component.
+   */
+  readonly getBacklinkCacheComponent: () => BacklinkCacheComponent | null;
+  /**
+   * Finds the `Names` module's component, or `null` while the module is off. Asked per call, for the
+   * same reason.
+   */
+  readonly getNameIndexComponent: () => NameIndexComponent | null;
   readonly headingTimesIndex: HeadingTimesIndex;
   readonly pluginSettingsComponent: PluginSettingsComponent;
   readonly titleIndex: TitleIndex;
@@ -37,8 +54,9 @@ interface PluginApiImplConstructorParams {
 /**
  * The published API, implemented over the indexes the modules own.
  *
- * It is published for the plugin's whole life rather than for a module's, and answers emptily while the
- * module behind it is off. A registry record that came and went with a toggle would make "the plugin is
+ * It is published for the plugin's whole life rather than for a module's, and answers emptily, or with
+ *
+ull where empty would be a real answer, while the module behind it is off. A registry record that came and went with a toggle would make "the plugin is
  * not installed" and "you switched a module off" the same observation for a consumer — the first is
  * something to repair, the second is a setting, and telling them apart is most of what the registry is
  * for.
@@ -50,6 +68,8 @@ interface PluginApiImplConstructorParams {
  */
 export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigrationApi<AdvancedMetadataCacheMigratableSettings> {
   private readonly app: App;
+  private readonly getBacklinkCacheComponent: () => BacklinkCacheComponent | null;
+  private readonly getNameIndexComponent: () => NameIndexComponent | null;
   private readonly headingTimesIndex: HeadingTimesIndex;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
 
@@ -63,9 +83,41 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
 
   public constructor(params: PluginApiImplConstructorParams) {
     this.app = params.app;
+    this.getBacklinkCacheComponent = params.getBacklinkCacheComponent;
+    this.getNameIndexComponent = params.getNameIndexComponent;
     this.headingTimesIndex = params.headingTimesIndex;
     this.pluginSettingsComponent = params.pluginSettingsComponent;
     this.titleIndex = params.titleIndex;
+  }
+
+  /**
+   * Reads a note's backlinks from the `Backlinks` module's cache.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The backlinks, or `null` while the `Backlinks` module is off.
+   */
+  public getBacklinksForFile(pathOrFile: string | TFile): CustomArrayDict<Reference> | null {
+    return this.getBacklinkCacheComponent()?.getBacklinksForFileAsCore(pathOrFile) ?? null;
+  }
+
+  /**
+   * Calls Obsidian's own `getBacklinksForFile()`, bypassing the cache.
+   *
+   * @param file - The note.
+   * @returns Obsidian's answer.
+   */
+  public getBacklinksForFileOriginal(file: TFile): CustomArrayDict<Reference> {
+    return this.getBacklinkCacheComponent()?.getBacklinksForFileOriginal(file) ?? this.app.metadataCache.getBacklinksForFile(file);
+  }
+
+  /**
+   * Reads a note's backlinks once every change already reported to the cache has been processed.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The backlinks, or `null` while the `Backlinks` module is off.
+   */
+  public async getBacklinksForFileSafe(pathOrFile: string | TFile): Promise<CustomArrayDict<Reference> | null> {
+    return await this.getBacklinkCacheComponent()?.getBacklinksForFileAsCoreSafe(pathOrFile) ?? null;
   }
 
   /**
@@ -79,6 +131,53 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
     const file = getFileOrNull({ app: this.app, pathOrFile });
 
     return file ? this.headingTimesIndex.getHeadingTimes(file) : [];
+  }
+
+  /**
+   * Every link target the `[[` autocomplete can offer, from the `Names` module's index.
+   *
+   * @returns The link suggestions, or `null` while the `Names` module is off.
+   */
+  public getLinkSuggestions(): LinkSuggestion[] | null {
+    return this.getNameIndexComponent()?.getLinkSuggestions() ?? null;
+  }
+
+  /**
+   * Calls Obsidian's own `getLinkSuggestions()`, bypassing the index.
+   *
+   * @returns Obsidian's answer.
+   */
+  public getLinkSuggestionsOriginal(): LinkSuggestion[] {
+    return this.getNameIndexComponent()?.getLinkSuggestionsOriginal() ?? this.app.metadataCache.getLinkSuggestions();
+  }
+
+  /**
+   * Every link target the `[[` autocomplete can offer, once the index is built.
+   *
+   * @returns The link suggestions, or `null` while the `Names` module is off.
+   */
+  public async getLinkSuggestionsSafe(): Promise<LinkSuggestion[] | null> {
+    return await this.getNameIndexComponent()?.getSuggestionsSafe() ?? null;
+  }
+
+  /**
+   * Finds every note that answers to a name.
+   *
+   * @param name - A basename, alias or title, in any casing and spacing.
+   * @returns The vault-relative paths, or `null` while the `Names` module is off.
+   */
+  public getPathsByName(name: string): null | string[] {
+    return this.getNameIndexComponent()?.nameIndex.getPathsByName(name) ?? null;
+  }
+
+  /**
+   * Finds every note that answers to a name, once the index is built.
+   *
+   * @param name - A basename, alias or title, in any casing and spacing.
+   * @returns The vault-relative paths, or `null` while the `Names` module is off.
+   */
+  public async getPathsByNameSafe(name: string): Promise<null | string[]> {
+    return await this.getNameIndexComponent()?.getPathsByNameSafe(name) ?? null;
   }
 
   /**

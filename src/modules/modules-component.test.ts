@@ -141,6 +141,18 @@ describe('ModulesComponent', () => {
     expect(harness.createdModuleComponents[1]?.isLoaded).toBe(true);
   });
 
+  it('should find the component of a running module, and nothing once it is switched off', async () => {
+    const harness = createHarness();
+    await harness.component.loadWithPromises();
+
+    expect(harness.component.getModuleComponent('backlinks')).toBe(harness.createdModuleComponents[0]);
+
+    harness.settings.isBacklinksModuleEnabled = false;
+    harness.triggerSaveSettings();
+
+    expect(harness.component.getModuleComponent('backlinks')).toBeNull();
+  });
+
   it('should stop listening for settings changes when unloaded', async () => {
     const harness = createHarness();
     await harness.component.loadWithPromises();

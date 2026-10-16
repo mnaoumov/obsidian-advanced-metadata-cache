@@ -105,50 +105,19 @@ The module has no user interface of its own: it is there for other plugins to re
 
 Everything this plugin offers another plugin is declared in one hand-written file — [api.d.ts](./api.d.ts) at the repository root. It imports from `obsidian` and nothing else, so you can copy it into your own code or reference it where it sits, with no build-time dependency on this repository.
 
-There are two kinds of surface in it, and which one you use depends on the module.
+### The faster core calls
 
-### The widened core calls
-
-This plugin replaces `app.metadataCache.getBacklinksForFile()` with a faster implementation, adds an overload accepting a vault `path` as well as a `TFile`, and keeps the original reachable:
-
-```js
-const fast = app.metadataCache.getBacklinksForFile(pathOrFile);
-const safe = await app.metadataCache.getBacklinksForFile.safe(pathOrFile);
-const original = app.metadataCache.getBacklinksForFile.originalFn(file);
-```
-
-All three members arrived in 1.0.0, and all three are present only while the **Backlinks** module is on — a consumer that cannot assume it is should fall back to the built-in signature rather than assume the widened one.
-
-While the **Names** module is on, `app.metadataCache.getLinkSuggestions()` is answered from the name index instead of from a full vault walk, and carries the same three members plus the reverse lookup that walk cannot do at all:
-
-```js
-const fast = app.metadataCache.getLinkSuggestions();
-const safe = await app.metadataCache.getLinkSuggestions.safe();
-const original = app.metadataCache.getLinkSuggestions.originalFn();
-
-const paths = app.metadataCache.getLinkSuggestions.getPathsByName('Some Alias');
-const safePaths = await app.metadataCache.getLinkSuggestions.getPathsByNameSafe('Some Alias');
-```
-
-`getPathsByName` answers "which notes are called this?" — matching a note's own name or any of its `aliases`, case-insensitively and with runs of whitespace collapsed, exactly as Obsidian resolves a wikilink. The answer is a **list** and is deliberately unranked: several notes may declare the same alias, and which one the user meant is a question about your context, not about the vault.
-
-All five of those members arrived in 1.0.0 as well, and like the backlink ones they are present only while their module — **Names** — is on.
-
-**The array `getLinkSuggestions()` answers with is Obsidian's own, entry for entry** — `originalFn()` is there so you can check. The single exception is the **Offer titles in the `[[` autocomplete** setting described under [Titles](#titles): with it on, the title entries are *appended*, so Obsidian's array stays a strict prefix of what you get and the difference is exactly a suffix. It is off by default, so a consumer that has not been told otherwise can treat the two as identical.
-
-**Use the `safe` variants when you may be asked early.** The patch is installed as soon as the module loads, but the index is built once the metadata cache can answer; until then a plain call falls through to Obsidian's implementation and `getPathsByName` answers with nothing. `safe()` / `getPathsByNameSafe()` wait for the build.
-
-Both calls are typed in [api.d.ts](./api.d.ts) as `GetBacklinksForFileFn` and `GetLinkSuggestionsFn` — cast the core method to one of those to reach the added members. There is nothing to fetch and no version to negotiate: the patch is installed or it is not, so pin against the plugin version a member arrived in. [02 Fast, safe, and original backlinks](<./demo-vault/02 Fast, safe, and original backlinks.md>) runs all three backlink calls side by side, and [05 Name index](<./demo-vault/05 Name index.md>) does the same for the name calls.
+While the **Backlinks** module is on, `app.metadataCache.getBacklinksForFile(file)` is answered from this plugin's cache, and while the **Names** module is on, `app.metadataCache.getLinkSuggestions()` is answered from the name index instead of from a full vault walk. Both keep Obsidian's own signature and answer what Obsidian would, so every plugin that calls them gets the faster answer without knowing this plugin exists. There is nothing to do to use them.
 
 ### The published API
 
-The two modules above answer by replacing a method Obsidian already has, so there is nothing to fetch. The **Titles** and **Headings** modules have no such method to replace — Obsidian has no notion of a name-bearing property, nor of a heading's history — so they publish an API instead, `AdvancedMetadataCacheApi` in the same [api.d.ts](./api.d.ts):
+Everything beyond that — the titles and heading times core has no method for, and the safe, original and reverse-lookup variants of the two core calls — is published as an API, `AdvancedMetadataCacheApi` in [api.d.ts](./api.d.ts):
 
 ```ts
 import { watchPluginApi } from 'obsidian-dev-utils/obsidian/plugin/plugin-api';
 
 const apiRef = watchPluginApi<AdvancedMetadataCacheApi>({
-  apiVersionRange: '^1',
+  apiVersionRange: '^1.3',
   app: this.app,
   component: this,
   pluginId: 'advanced-metadata-cache'
@@ -163,9 +132,56 @@ if (api) {
 }
 ```
 
-The handle comes from the `obsidian-dev-utils` plugin registry; [Cross-plugin APIs](https://mnaoumov.dev/obsidian-dev-utils/guides/cross-plugin-apis/) covers `watchPluginApi` and the registry from the library's side.
+The handle comes from the `obsidian-dev-utils` plugin registry; [Cross-plugin APIs](https://mnaoumov.dev/obsidian-dev-utils/guides/cross-plugin-apis/) covers `watchPluginApi` and the registry from the library's side. The contract version moves independently of the plugin's own, so ask for a range, and ask for the lowest version that has every member you call — each one below says which it arrived in.
 
-Both arrived in contract `1.0.0`, and the contract version moves independently of the plugin's own, so ask for a range. Both answer **empty while the Titles module is off**, which is the same answer as "no property is configured" and is meant to be.
+#### Backlinks
+
+Added in contract `1.3.0`:
+
+```ts
+const fast = api.getBacklinksForFile(pathOrFile);
+const safe = await api.getBacklinksForFileSafe(pathOrFile);
+const original = api.getBacklinksForFileOriginal(file);
+```
+
+`getBacklinksForFile` reads straight from the cache and accepts a vault path as well as a `TFile`; it may be a moment behind a change Obsidian has not finished processing. `getBacklinksForFileSafe` waits for those changes first. Both answer **`null` while the Backlinks module is off** — call the core method then. `getBacklinksForFileOriginal` is Obsidian's own implementation, bypassing the cache, and always answers. [02 Fast, safe, and original backlinks](<./demo-vault/02 Fast, safe, and original backlinks.md>) runs all three side by side.
+
+#### Names
+
+Added in contract `1.3.0`:
+
+```ts
+const fast = api.getLinkSuggestions();
+const safe = await api.getLinkSuggestionsSafe();
+const original = api.getLinkSuggestionsOriginal();
+
+const paths = api.getPathsByName('Some Alias');
+const safePaths = await api.getPathsByNameSafe('Some Alias');
+```
+
+`getPathsByName` answers "which notes are called this?" — matching a note's own name, any of its `aliases` or any of its [titles](#titles), case-insensitively and with runs of whitespace collapsed, exactly as Obsidian resolves a wikilink. The answer is a **list** and is deliberately unranked: several notes may declare the same alias, and which one the user meant is a question about your context, not about the vault.
+
+**The array `getLinkSuggestions()` answers with is Obsidian's own, entry for entry** — `getLinkSuggestionsOriginal()` is there so you can check. The single exception is the **Offer titles in the `[[` autocomplete** setting described under [Titles](#titles): with it on, the title entries are *appended*, so Obsidian's array stays a strict prefix of what you get and the difference is exactly a suffix. It is off by default, so a consumer that has not been told otherwise can treat the two as identical.
+
+**Use the `Safe` variants when you may be asked early.** The index is built once the metadata cache can answer; until then `getLinkSuggestions()` falls through to Obsidian's implementation and `getPathsByName` answers with nothing. `getLinkSuggestionsSafe()` / `getPathsByNameSafe()` wait for the build. All four answer **`null` while the Names module is off**; `getLinkSuggestionsOriginal` always answers. [05 Name index](<./demo-vault/05 Name index.md>) runs them.
+
+#### Deprecated: the members on the core methods
+
+Before `1.3.0` these calls were reached through members this plugin added to the patched core methods. They still work while their module is on, are typed in [api.d.ts](./api.d.ts) as `GetBacklinksForFileFn` and `GetLinkSuggestionsFn`, and **are removed in 2.0.0**, because nothing of this plugin's own belongs on an Obsidian function:
+
+| Deprecated                                                  | Use instead                                  |
+|-------------------------------------------------------------|----------------------------------------------|
+| `app.metadataCache.getBacklinksForFile(path)`, with a path  | `api.getBacklinksForFile(path)`              |
+| `app.metadataCache.getBacklinksForFile.safe(pathOrFile)`    | `api.getBacklinksForFileSafe(pathOrFile)`    |
+| `app.metadataCache.getBacklinksForFile.originalFn(file)`    | `api.getBacklinksForFileOriginal(file)`      |
+| `app.metadataCache.getLinkSuggestions.safe()`               | `api.getLinkSuggestionsSafe()`               |
+| `app.metadataCache.getLinkSuggestions.originalFn()`         | `api.getLinkSuggestionsOriginal()`           |
+| `app.metadataCache.getLinkSuggestions.getPathsByName(n)`    | `api.getPathsByName(n)`                      |
+| `app.metadataCache.getLinkSuggestions.getPathsByNameSafe(n)`| `api.getPathsByNameSafe(n)`                  |
+
+#### Titles
+
+`getTitlePropertyNames` and `getTitles` arrived in contract `1.0.0`. Both answer **empty while the Titles module is off**, which is the same answer as "no property is configured" and is meant to be.
 
 `getTitles` is synchronous and lazily memoized per note, so it is safe on a per-keystroke path. Read `getTitlePropertyNames()` and show that list rather than offering a property setting of your own — one place to type `title` is the point of the setting living here.
 

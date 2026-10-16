@@ -18,6 +18,7 @@ import type * as FileSystemModule from 'obsidian-dev-utils/obsidian/file-system'
 // eslint-disable-next-line import-x/no-namespace -- Type-only namespace alias used for vitest's importOriginal<T>() without dynamic import() in type position.
 import type * as LinkModule from 'obsidian-dev-utils/obsidian/link';
 
+import { CustomArrayDictImpl } from '@obsidian-typings/obsidian-public-latest/implementations';
 import {
   Component,
   MarkdownView,
@@ -395,6 +396,34 @@ describe('BacklinkCacheComponent', () => {
 
       const result = await getBacklinksForFileFunction(context.app).safe('test.md');
       expect(result.keys()).toEqual([]);
+    });
+
+    it('should answer like the core method from Obsidian until the patch is installed', async () => {
+      const coreBacklinks = new CustomArrayDictImpl<Reference>();
+      const originalGetBacklinksForFile = vi.mocked(context.app.metadataCache.getBacklinksForFile).mockReturnValue(coreBacklinks);
+      const noteFile = createTFile('note.md');
+      vi.mocked(getFileOrNull).mockReturnValue(noteFile);
+
+      expect(context.component.getBacklinksForFileAsCore('note.md')).toBe(coreBacklinks);
+      await expect(context.component.getBacklinksForFileAsCoreSafe('note.md')).resolves.toBe(coreBacklinks);
+      expect(context.component.getBacklinksForFileOriginal(noteFile)).toBe(coreBacklinks);
+      expect(originalGetBacklinksForFile).toHaveBeenCalledWith(noteFile);
+
+      vi.mocked(getFileOrNull).mockReturnValue(null);
+      expect(context.component.getBacklinksForFileAsCore('missing.md').keys()).toEqual([]);
+    });
+
+    it('should answer like the core method from the cache once the patch is installed, keeping the original reachable', async () => {
+      const coreBacklinks = new CustomArrayDictImpl<Reference>();
+      const originalGetBacklinksForFile = vi.mocked(context.app.metadataCache.getBacklinksForFile).mockReturnValue(coreBacklinks);
+      await setupOnLayoutReady();
+      const noteFile = createTFile('note.md');
+
+      expect(context.component.getBacklinksForFileAsCore('test.md')).not.toBe(coreBacklinks);
+      await expect(context.component.getBacklinksForFileAsCoreSafe('test.md')).resolves.not.toBe(coreBacklinks);
+      expect(originalGetBacklinksForFile).not.toHaveBeenCalled();
+      expect(context.component.getBacklinksForFileOriginal(noteFile)).toBe(coreBacklinks);
+      expect(originalGetBacklinksForFile).toHaveBeenCalledWith(noteFile);
     });
 
     it('should expose originalFn', async () => {

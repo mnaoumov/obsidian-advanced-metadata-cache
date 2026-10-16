@@ -80,6 +80,17 @@ describe('MetadataCacheGetLinkSuggestionsPatchComponent', () => {
     expect(getLinkSuggestions).toHaveBeenCalledOnce();
   });
 
+  it('should call Obsidian implementation as the original, before and after the patch is installed', async () => {
+    expect(component.getLinkSuggestionsOriginal()).toBe(NATIVE_SUGGESTIONS);
+
+    await component.loadWithPromises();
+    isBuilt = true;
+
+    expect(component.getLinkSuggestionsOriginal()).toBe(NATIVE_SUGGESTIONS);
+    expect(getLinkSuggestions).toHaveBeenCalledTimes(2);
+    expect(getSuggestions).not.toHaveBeenCalled();
+  });
+
   it('should expose the waiting variants as `safe` and `getPathsByNameSafe`', async () => {
     await component.loadWithPromises();
 

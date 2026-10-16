@@ -30,8 +30,10 @@ import { PluginSettings } from './plugin-settings.ts';
 // --- Mocks for the plugin's OWN sibling modules (allowed: not obsidian-dev-utils / obsidian-test-mocks) ---
 
 const hoisted = vi.hoisted(() => ({
+  backlinkCacheComponent: { isBacklinkCacheComponent: true },
   backlinksModuleComponentConstructor: vi.fn(),
   headingTimesComponentConstructor: vi.fn(),
+  loadedModules: new Map<string>(),
   modulesComponentConstructor: vi.fn(),
   nameIndexComponentConstructor: vi.fn(),
   pluginSettingsComponentConstructor: vi.fn(),
@@ -68,11 +70,17 @@ vi.mock('./modules/modules-component.ts', () => ({
       super();
       hoisted.modulesComponentConstructor(params);
     }
+
+    public getModuleComponent(moduleId: string): unknown {
+      return hoisted.loadedModules.get(moduleId) ?? null;
+    }
   }
 }));
 
 vi.mock('./modules/backlinks/backlinks-module-component.ts', () => ({
   BacklinksModuleComponent: class extends Component {
+    public readonly backlinkCacheComponent = hoisted.backlinkCacheComponent;
+
     public constructor(params: unknown) {
       super();
       hoisted.backlinksModuleComponentConstructor(params);
@@ -109,6 +117,11 @@ vi.mock('./modules/headings/heading-times-component.ts', () => ({
 
 // eslint-disable-next-line import-x/first, import-x/imports-first -- vi.mock must precede imports.
 import { Plugin } from './plugin.ts';
+
+interface ApiModuleGetters {
+  readonly getBacklinkCacheComponent: () => unknown;
+  readonly getNameIndexComponent: () => unknown;
+}
 
 interface HeadingTimesIndexHolder {
   readonly headingTimesIndex: HeadingTimesIndex;
@@ -163,6 +176,7 @@ function getModuleDefinitions(): readonly ModuleDefinition[] {
 
 afterEach(() => {
   vi.clearAllMocks();
+  hoisted.loadedModules.clear();
 });
 
 describe('Plugin', () => {
@@ -305,6 +319,21 @@ describe('Plugin', () => {
     for (const methodName of Object.keys(PLUGIN_API_CONTRACT)) {
       expect(pluginApis[0]?.api).toHaveProperty(methodName, expect.any(Function));
     }
+  });
+
+  it('should hand the API the components of the modules running now, and null while they are off', async () => {
+    const plugin = await createLoadedPlugin(createApp());
+    const moduleGetters = castTo<ApiModuleGetters>(castTo<PluginApisReader>(plugin).getPluginApis()[0]?.api);
+
+    expect(moduleGetters.getBacklinkCacheComponent()).toBeNull();
+    expect(moduleGetters.getNameIndexComponent()).toBeNull();
+
+    hoisted.loadedModules.set('backlinks', getModuleDefinitions()[0]?.createComponent());
+    const nameIndexComponent = getModuleDefinitions()[1]?.createComponent();
+    hoisted.loadedModules.set('names', nameIndexComponent);
+
+    expect(moduleGetters.getBacklinkCacheComponent()).toBe(hoisted.backlinkCacheComponent);
+    expect(moduleGetters.getNameIndexComponent()).toBe(nameIndexComponent);
   });
 
   it('should register the open demo vault command via its command handler', async () => {

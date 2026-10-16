@@ -7,6 +7,8 @@ import { PluginDataHandler } from 'obsidian-dev-utils/obsidian/data-handler';
 import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin';
 import { PluginEventSourceImpl } from 'obsidian-dev-utils/obsidian/plugin/plugin-event-source';
 
+import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
+
 import { BacklinksModuleComponent } from './modules/backlinks/backlinks-module-component.ts';
 import { HeadingTimesComponent } from './modules/headings/heading-times-component.ts';
 import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
@@ -81,50 +83,63 @@ export class Plugin extends PluginBase {
       getDataFilePath: (): string => this.getHeadingTimesFilePath(),
       pluginSettingsComponent
     });
-    this.pluginApi = new PluginApiImpl({ app: this.app, headingTimesIndex, pluginSettingsComponent, titleIndex });
+    const modulesComponent = new ModulesComponent({
+      moduleDefinitions: [
+        {
+          createComponent: (): BacklinksModuleComponent =>
+            new BacklinksModuleComponent({
+              abortSignalComponent: this.abortSignalComponent,
+              app: this.app,
+              commandHandlerComponent: this.commandHandlerComponent,
+              consoleDebugComponent: this.consoleDebugComponent,
+              pluginNoticeComponent: this.pluginNoticeComponent,
+              pluginSettingsComponent
+            }),
+          getIsEnabled: (settings): boolean => settings.isBacklinksModuleEnabled,
+          moduleId: 'backlinks'
+        },
+        {
+          // The index component IS the module: unlike `backlinks` it registers no command, so a
+          // wrapper component would own nothing but the child below.
+          createComponent: (): NameIndexComponent =>
+            new NameIndexComponent({
+              app: this.app,
+              pluginSettingsComponent,
+              titleIndex
+            }),
+          getIsEnabled: (settings): boolean => settings.isNamesModuleEnabled,
+          moduleId: 'names'
+        },
+        {
+          createComponent: (): TitleIndexComponent => new TitleIndexComponent({ app: this.app, titleIndex }),
+          getIsEnabled: (settings): boolean => settings.isTitlesModuleEnabled,
+          moduleId: 'titles'
+        },
+        {
+          createComponent: (): HeadingTimesComponent => new HeadingTimesComponent({ app: this.app, headingTimesIndex }),
+          getIsEnabled: (settings): boolean => settings.isHeadingsModuleEnabled,
+          moduleId: 'headings'
+        }
+      ],
+      pluginSettingsComponent
+    });
 
-    this.addChild(
-      new ModulesComponent({
-        moduleDefinitions: [
-          {
-            createComponent: (): BacklinksModuleComponent =>
-              new BacklinksModuleComponent({
-                abortSignalComponent: this.abortSignalComponent,
-                app: this.app,
-                commandHandlerComponent: this.commandHandlerComponent,
-                consoleDebugComponent: this.consoleDebugComponent,
-                pluginNoticeComponent: this.pluginNoticeComponent,
-                pluginSettingsComponent
-              }),
-            getIsEnabled: (settings): boolean => settings.isBacklinksModuleEnabled,
-            moduleId: 'backlinks'
-          },
-          {
-            // The index component IS the module: unlike `backlinks` it registers no command, so a
-            // wrapper component would own nothing but the child below.
-            createComponent: (): NameIndexComponent =>
-              new NameIndexComponent({
-                app: this.app,
-                pluginSettingsComponent,
-                titleIndex
-              }),
-            getIsEnabled: (settings): boolean => settings.isNamesModuleEnabled,
-            moduleId: 'names'
-          },
-          {
-            createComponent: (): TitleIndexComponent => new TitleIndexComponent({ app: this.app, titleIndex }),
-            getIsEnabled: (settings): boolean => settings.isTitlesModuleEnabled,
-            moduleId: 'titles'
-          },
-          {
-            createComponent: (): HeadingTimesComponent => new HeadingTimesComponent({ app: this.app, headingTimesIndex }),
-            getIsEnabled: (settings): boolean => settings.isHeadingsModuleEnabled,
-            moduleId: 'headings'
-          }
-        ],
-        pluginSettingsComponent
-      })
-    );
+    this.pluginApi = new PluginApiImpl({
+      app: this.app,
+      getBacklinkCacheComponent: (): BacklinkCacheComponent | null => {
+        const moduleComponent = modulesComponent.getModuleComponent('backlinks');
+        return moduleComponent instanceof BacklinksModuleComponent ? moduleComponent.backlinkCacheComponent : null;
+      },
+      getNameIndexComponent: (): NameIndexComponent | null => {
+        const moduleComponent = modulesComponent.getModuleComponent('names');
+        return moduleComponent instanceof NameIndexComponent ? moduleComponent : null;
+      },
+      headingTimesIndex,
+      pluginSettingsComponent,
+      titleIndex
+    });
+
+    this.addChild(modulesComponent);
 
     await this.commandHandlerComponent.registerCommandHandlers(() => [
       new OpenDemoVaultCommandHandler({

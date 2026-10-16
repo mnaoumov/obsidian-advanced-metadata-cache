@@ -47,6 +47,7 @@ export class NameIndexComponent extends LayoutReadyComponent {
 
   private buildPromise: null | Promise<void> = null;
   private isBuiltValue = false;
+  private linkSuggestionsPatchComponent: MetadataCacheGetLinkSuggestionsPatchComponent | null = null;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
   private shouldOfferTitlesInLinkSuggestions: boolean;
   private readonly titleIndex: TitleIndex;
@@ -64,6 +65,25 @@ export class NameIndexComponent extends LayoutReadyComponent {
       pluginSettingsComponent: params.pluginSettingsComponent,
       titleIndex: params.titleIndex
     });
+  }
+
+  /**
+   * Answers `getLinkSuggestions()` the way the patch does: from the index once it is built, and from
+   * Obsidian's own implementation until then.
+   *
+   * @returns The link suggestions.
+   */
+  public getLinkSuggestions(): LinkSuggestion[] {
+    return this.isBuiltValue ? this.nameIndex.getSuggestions() : this.getLinkSuggestionsOriginal();
+  }
+
+  /**
+   * Calls Obsidian's own `getLinkSuggestions()`, bypassing the index.
+   *
+   * @returns Every link target the `[[` autocomplete can offer, from a full vault walk.
+   */
+  public getLinkSuggestionsOriginal(): LinkSuggestion[] {
+    return this.linkSuggestionsPatchComponent?.getLinkSuggestionsOriginal() ?? this.app.metadataCache.getLinkSuggestions();
   }
 
   /**
@@ -92,7 +112,7 @@ export class NameIndexComponent extends LayoutReadyComponent {
      * Installed BEFORE the build, not after: while the index is empty the patch falls through to
      * Obsidian's implementation, so there is no window in which a caller gets an incomplete answer.
      */
-    this.addChild(
+    this.linkSuggestionsPatchComponent = this.addChild(
       new MetadataCacheGetLinkSuggestionsPatchComponent({
         metadataCache: this.app.metadataCache,
         nameIndexComponent: this

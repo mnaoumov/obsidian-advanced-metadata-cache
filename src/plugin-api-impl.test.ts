@@ -1,6 +1,12 @@
 import type {
+  CustomArrayDict,
+  LinkSuggestion
+} from '@obsidian-typings/obsidian-public-latest';
+import type {
   App as AppOriginal,
-  PluginManifest
+  PluginManifest,
+  Reference,
+  TFile
 } from 'obsidian';
 
 import { castTo } from 'obsidian-dev-utils/object-utils';
@@ -14,6 +20,9 @@ import {
   vi
 } from 'vitest';
 
+import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
+import type { NameIndexComponent } from './modules/names/name-index-component.ts';
+import type { NameIndex } from './modules/names/name-index.ts';
 import type { PluginSettingsComponent } from './plugin-settings-component.ts';
 import type {
   ApprovedSettingsMigration,
@@ -31,11 +40,25 @@ vi.mock('./settings-migration-modal.ts', () => ({
   showSettingsMigrationModal: vi.fn()
 }));
 
+interface BacklinksSource {
+  getBacklinksForFile: (file: TFile) => CustomArrayDict<Reference>;
+}
+
+interface LinkSuggestionsSource {
+  getLinkSuggestions: () => LinkSuggestion[];
+}
+
 const SOURCE_PLUGIN_ID = 'alias-quick-switcher';
+const CACHED_BACKLINKS = castTo<CustomArrayDict<Reference>>({ source: 'cache' });
+const CORE_BACKLINKS = castTo<CustomArrayDict<Reference>>({ source: 'core' });
+const INDEXED_SUGGESTIONS: LinkSuggestion[] = [{ file: null, path: 'indexed' }];
+const CORE_SUGGESTIONS: LinkSuggestion[] = [{ file: null, path: 'core' }];
 
 describe('PluginApiImpl', () => {
   let app: App;
+  let backlinkCacheComponent: BacklinkCacheComponent | null;
   let editAndSaveCallCount: number;
+  let nameIndexComponent: NameIndexComponent | null;
   let pluginApi: PluginApiImpl;
   let settings: PluginSettings;
 
@@ -45,6 +68,8 @@ describe('PluginApiImpl', () => {
     settings = new PluginSettings();
     settings.isTitlesModuleEnabled = true;
     editAndSaveCallCount = 0;
+    backlinkCacheComponent = null;
+    nameIndexComponent = null;
 
     const pluginSettingsComponent = strictProxy<PluginSettingsComponent>({
       async editAndSave(settingsEditor: (settingsToEdit: PluginSettings) => Promise<void> | void): Promise<void> {
@@ -65,7 +90,14 @@ describe('PluginApiImpl', () => {
       pluginSettingsComponent
     });
 
-    pluginApi = new PluginApiImpl({ app: castTo<AppOriginal>(app), headingTimesIndex, pluginSettingsComponent, titleIndex });
+    pluginApi = new PluginApiImpl({
+      app: castTo<AppOriginal>(app),
+      getBacklinkCacheComponent: (): BacklinkCacheComponent | null => backlinkCacheComponent,
+      getNameIndexComponent: (): NameIndexComponent | null => nameIndexComponent,
+      headingTimesIndex,
+      pluginSettingsComponent,
+      titleIndex
+    });
   });
 
   function approveAsShown(): void {
@@ -82,6 +114,72 @@ describe('PluginApiImpl', () => {
     for (const methodName of Object.keys(PLUGIN_API_CONTRACT)) {
       expect(pluginApi).toHaveProperty(methodName, expect.any(Function));
     }
+  });
+
+  describe('backlinks', () => {
+    it('should answer from the module cache, by path or by file', async () => {
+      const getBacklinksForFileAsCore = vi.fn().mockReturnValue(CACHED_BACKLINKS);
+      const getBacklinksForFileAsCoreSafe = vi.fn().mockResolvedValue(CACHED_BACKLINKS);
+      const getBacklinksForFileOriginal = vi.fn().mockReturnValue(CORE_BACKLINKS);
+      backlinkCacheComponent = strictProxy<BacklinkCacheComponent>({
+        getBacklinksForFileAsCore,
+        getBacklinksForFileAsCoreSafe,
+        getBacklinksForFileOriginal
+      });
+      const file = castTo<TFile>({ path: 'Alpha.md' });
+
+      expect(pluginApi.getBacklinksForFile('Alpha.md')).toBe(CACHED_BACKLINKS);
+      await expect(pluginApi.getBacklinksForFileSafe(file)).resolves.toBe(CACHED_BACKLINKS);
+      expect(pluginApi.getBacklinksForFileOriginal(file)).toBe(CORE_BACKLINKS);
+      expect(getBacklinksForFileAsCore).toHaveBeenCalledWith('Alpha.md');
+      expect(getBacklinksForFileAsCoreSafe).toHaveBeenCalledWith(file);
+      expect(getBacklinksForFileOriginal).toHaveBeenCalledWith(file);
+    });
+
+    it('should answer null while the module is off, and the original from core', async () => {
+      const getBacklinksForFile = vi.fn().mockReturnValue(CORE_BACKLINKS);
+      castTo<BacklinksSource>(app.metadataCache).getBacklinksForFile = getBacklinksForFile;
+      const file = castTo<TFile>({ path: 'Alpha.md' });
+
+      expect(pluginApi.getBacklinksForFile('Alpha.md')).toBeNull();
+      await expect(pluginApi.getBacklinksForFileSafe('Alpha.md')).resolves.toBeNull();
+      expect(pluginApi.getBacklinksForFileOriginal(file)).toBe(CORE_BACKLINKS);
+      expect(getBacklinksForFile).toHaveBeenCalledWith(file);
+    });
+  });
+
+  describe('names', () => {
+    it('should answer from the module index', async () => {
+      const getPathsByName = vi.fn().mockReturnValue(['Indexed.md']);
+      const getPathsByNameSafe = vi.fn().mockResolvedValue(['Safe.md']);
+      nameIndexComponent = strictProxy<NameIndexComponent>({
+        getLinkSuggestions: () => INDEXED_SUGGESTIONS,
+        getLinkSuggestionsOriginal: () => CORE_SUGGESTIONS,
+        getPathsByNameSafe,
+        getSuggestionsSafe: () => Promise.resolve(INDEXED_SUGGESTIONS),
+        nameIndex: strictProxy<NameIndex>({ getPathsByName })
+      });
+
+      expect(pluginApi.getLinkSuggestions()).toBe(INDEXED_SUGGESTIONS);
+      await expect(pluginApi.getLinkSuggestionsSafe()).resolves.toBe(INDEXED_SUGGESTIONS);
+      expect(pluginApi.getLinkSuggestionsOriginal()).toBe(CORE_SUGGESTIONS);
+      expect(pluginApi.getPathsByName('alpha')).toEqual(['Indexed.md']);
+      await expect(pluginApi.getPathsByNameSafe('alpha')).resolves.toEqual(['Safe.md']);
+      expect(getPathsByName).toHaveBeenCalledWith('alpha');
+      expect(getPathsByNameSafe).toHaveBeenCalledWith('alpha');
+    });
+
+    it('should answer null while the module is off, and the original from core', async () => {
+      const getLinkSuggestions = vi.fn().mockReturnValue(CORE_SUGGESTIONS);
+      castTo<LinkSuggestionsSource>(app.metadataCache).getLinkSuggestions = getLinkSuggestions;
+
+      expect(pluginApi.getLinkSuggestions()).toBeNull();
+      await expect(pluginApi.getLinkSuggestionsSafe()).resolves.toBeNull();
+      expect(pluginApi.getPathsByName('alpha')).toBeNull();
+      await expect(pluginApi.getPathsByNameSafe('alpha')).resolves.toBeNull();
+      expect(pluginApi.getLinkSuggestionsOriginal()).toBe(CORE_SUGGESTIONS);
+      expect(getLinkSuggestions).toHaveBeenCalledOnce();
+    });
   });
 
   it('should read a note heading times by path as well as by file', () => {
