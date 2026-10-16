@@ -1,7 +1,4 @@
-import type {
-  BacklinkView,
-  ResultDomResult
-} from '@obsidian-typings/obsidian-public-latest';
+import type { BacklinkView } from '@obsidian-typings/obsidian-public-latest';
 import type { BacklinkComponent } from '@obsidian-typings/obsidian-public-latest/implementations';
 import type { App } from 'obsidian';
 
@@ -15,10 +12,6 @@ import { ComponentEx } from 'obsidian-dev-utils/obsidian/components/component-ex
 import { CorePluginToggleComponent } from 'obsidian-dev-utils/obsidian/components/core-plugin-toggle-component';
 
 import { BacklinkComponentRecomputeBacklinkPatchComponent } from './patches/backlink-component-recompute-backlink-patch-component.ts';
-
-// Intentional `Record<>` use: the canvas-${string} key shape is open-ended (one entry per canvas node) and cannot be expressed by a closed object type or `Partial<T>`.
-export interface CanvasDomResult extends Record<`canvas-${string}`, [from: number, to: number][]>, ResultDomResult {
-}
 
 export class BacklinksCorePluginComponent extends ComponentEx {
   private isBacklinksPanePatched = false;
