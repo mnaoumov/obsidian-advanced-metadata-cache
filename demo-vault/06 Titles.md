@@ -92,7 +92,7 @@ caption: Back to "title" alone (the default)
 await require('/demoSetup.ts').changeSettings(app, { titlePropertyNames: ['title'] });
 ```
 
-Manual equivalent: edit **Title properties** in **Settings -> Community plugins -> Advanced Metadata Cache**, one property per line.
+Manual equivalent: edit **Title properties** in **Settings -> Community plugins -> `Advanced Metadata Cache`**, one property per line.
 
 ## If you also use Front Matter Title
 

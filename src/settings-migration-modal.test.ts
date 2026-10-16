@@ -4,6 +4,7 @@ import type { App as AppOriginal } from 'obsidian';
 
 import {
   ButtonComponent,
+  Modal,
   TextAreaComponent,
   ToggleComponent
 } from 'obsidian';
@@ -109,6 +110,21 @@ describe('showSettingsMigrationModal', () => {
 
     const texts = createElSpy.mock.calls.map(([, options]) => (typeof options === 'object' ? options.text : undefined));
     expect(texts).toContainEqual(expect.stringContaining('Proposed: subtitle. Currently: (none).'));
+
+    pressButton('Cancel');
+    await resultPromise;
+  });
+
+  it('should mark the proposing plugin\'s name as code in the title and the introduction', async () => {
+    const openSpy = vi.spyOn(Modal.prototype, 'open');
+    const resultPromise = showSettingsMigrationModal(createParams());
+
+    const modal = castTo<Modal | undefined>(openSpy.mock.contexts[0]);
+    expect(modal?.titleEl.querySelector('code')?.textContent).toBe('Alias Quick Switcher');
+    expect(modal?.titleEl.textContent).toBe('Title properties proposed by Alias Quick Switcher');
+    const introEl = modal?.contentEl.querySelector('p');
+    expect(introEl?.querySelector('code')?.textContent).toBe('Alias Quick Switcher');
+    expect(introEl?.textContent).toMatch(/^Alias Quick Switcher no longer keeps a title property/);
 
     pressButton('Cancel');
     await resultPromise;

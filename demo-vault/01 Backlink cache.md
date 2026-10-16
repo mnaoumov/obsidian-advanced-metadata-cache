@@ -1,6 +1,6 @@
 # Backlink cache
 
-Obsidian resolves backlinks with the undocumented `app.metadataCache.getBacklinksForFile()` function. **Advanced Metadata Cache** keeps a live index of every link in the vault and answers that call from the index, so it stays fast even when the vault grows to thousands of notes.
+Obsidian resolves backlinks with the undocumented `app.metadataCache.getBacklinksForFile()` function. `Advanced Metadata Cache` keeps a live index of every link in the vault and answers that call from the index, so it stays fast even when the vault grows to thousands of notes.
 
 This vault has a small web of notes that all point at [Central topic](<./Topics/Central topic.md>):
 
@@ -22,7 +22,7 @@ const paths = dict.keys();
 new Notice(`Advanced Metadata Cache served ${paths.length.toString()} backlink(s):\n${paths.join('\n')}`);
 ```
 
-Open the core **Backlinks** pane on [Central topic](<./Topics/Central topic.md>) and you will see the same list - Advanced Metadata Cache is what keeps that pane fast in a large vault.
+Open the core **Backlinks** pane on [Central topic](<./Topics/Central topic.md>) and you will see the same list - `Advanced Metadata Cache` is what keeps that pane fast in a large vault.
 
 ```code-button
 ---

@@ -16,6 +16,7 @@ import {
   TextAreaComponent,
   ToggleComponent
 } from 'obsidian';
+import { appendCodeBlock } from 'obsidian-dev-utils/obsidian/html-element';
 import {
   ModalBase,
   showModal
@@ -101,11 +102,14 @@ class SettingsMigrationModal extends ModalBase<ApprovedSettingsMigration | null>
   }
 
   public override onOpen(): void {
-    this.titleEl.setText(`Title properties proposed by ${this.sourcePluginName}`);
+    this.titleEl.setText('Title properties proposed by ');
+    appendCodeBlock(this.titleEl, this.sourcePluginName);
 
-    this.contentEl.createEl('p', {
-      text: `${this.sourcePluginName} no longer keeps a title property of its own, and reads this plugin's list instead. It proposes the one it held, so notes it used to show under that property keep showing under it.`
-    });
+    const introEl = this.contentEl.createEl('p');
+    appendCodeBlock(introEl, this.sourcePluginName);
+    introEl.appendText(
+      ' no longer keeps a title property of its own, and reads this plugin\'s list instead. It proposes the one it held, so notes it used to show under that property keep showing under it.'
+    );
     this.contentEl.createEl('p', {
       text: `Proposed: ${formatTitlePropertyNames(this.proposedTitlePropertyNames)}. Currently: ${formatTitlePropertyNames(this.currentTitlePropertyNames)}. The proposed names are added to the current list below; edit it if you like. Nothing is written until you press OK.`
     });
