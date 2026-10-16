@@ -1,19 +1,19 @@
+import type { AbortSignalComponent } from '@mnaoumov/obsidian-lib/components/abort-signal-component';
+import type { PluginNoticeComponent } from '@mnaoumov/obsidian-lib/components/plugin-notice-component';
 import type {
   App,
   CachedMetadata,
   TAbstractFile
 } from 'obsidian';
-import type { AbortSignalComponent } from 'obsidian-dev-utils/obsidian/components/abort-signal-component';
-import type { PluginNoticeComponent } from 'obsidian-dev-utils/obsidian/components/plugin-notice-component';
 
+import { getCanvasReferences } from '@mnaoumov/obsidian-lib/canvas';
+import { ComponentEx } from '@mnaoumov/obsidian-lib/components/component-ex';
+import { CorePluginToggleComponent } from '@mnaoumov/obsidian-lib/components/core-plugin-toggle-component';
+import { isCanvasFile } from '@mnaoumov/obsidian-lib/file-system';
+import { loop } from '@mnaoumov/obsidian-lib/loop';
+import { invokeAsyncSafely } from '@mnaoumov/typescript-lib/async';
 import { InternalPluginName } from '@obsidian-typings/obsidian-public-latest/implementations';
 import { TFile } from 'obsidian';
-import { invokeAsyncSafely } from 'obsidian-dev-utils/async';
-import { getCanvasReferences } from 'obsidian-dev-utils/obsidian/canvas';
-import { ComponentEx } from 'obsidian-dev-utils/obsidian/components/component-ex';
-import { CorePluginToggleComponent } from 'obsidian-dev-utils/obsidian/components/core-plugin-toggle-component';
-import { isCanvasFile } from 'obsidian-dev-utils/obsidian/file-system';
-import { loop } from 'obsidian-dev-utils/obsidian/loop';
 
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 import type { BacklinkCacheComponent } from './backlink-cache-component.ts';

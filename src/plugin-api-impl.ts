@@ -1,3 +1,4 @@
+import type { SettingsMigrationApi } from '@mnaoumov/obsidian-lib/plugin/settings-migration-api';
 import type {
   CustomArrayDict,
   LinkSuggestion
@@ -7,13 +8,12 @@ import type {
   Reference,
   TFile
 } from 'obsidian';
-import type { SettingsMigrationApi } from 'obsidian-dev-utils/obsidian/plugin/settings-migration-api';
 
+import { getFileOrNull } from '@mnaoumov/obsidian-lib/file-system';
 import {
   noop,
   noopAsync
-} from 'obsidian-dev-utils/function';
-import { getFileOrNull } from 'obsidian-dev-utils/obsidian/file-system';
+} from '@mnaoumov/typescript-lib/function';
 
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
 import type { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
@@ -207,7 +207,7 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
    * @param params - The proposal.
    * @returns Whether the user applied it.
    */
-  // eslint-disable-next-line obsidian-dev-utils/params-options-name-match -- The type is the published contract's, shared with the interface this class implements; renaming it per class+method would rename it in every consumer.
+  // eslint-disable-next-line typescript-dev-toolkit/params-options-name-match -- The type is the published contract's, shared with the interface this class implements; renaming it per class+method would rename it in every consumer.
   public async migrateSettings(params: MigrateSettingsParams): Promise<MigrateSettingsResult> {
     const previousMigrations = this.queuedMigrations;
     let releaseQueue: () => void = noop;
@@ -228,7 +228,7 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
     return this.app.plugins.manifests[sourcePluginId]?.name ?? sourcePluginId;
   }
 
-  // eslint-disable-next-line obsidian-dev-utils/params-options-name-match -- Same published contract type, one call deeper.
+  // eslint-disable-next-line typescript-dev-toolkit/params-options-name-match -- Same published contract type, one call deeper.
   private async migrateSettingsWithoutQueueing(params: MigrateSettingsParams): Promise<MigrateSettingsResult> {
     const settings = this.pluginSettingsComponent.settings;
     const proposedTitlePropertyNames = getProposedTitlePropertyNames(params.proposedSettings);

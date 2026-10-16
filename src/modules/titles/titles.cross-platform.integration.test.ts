@@ -51,7 +51,7 @@ interface ObsidianDevUtilsStateBag {
  *
  * The suite reads the registry directly rather than through `watchPluginApi`, for two reasons: the
  * serialized renderer closure cannot import a value, and this IS the documented route for a consumer
- * that does not use `obsidian-dev-utils` — so the check covers the protocol as well as the answers.
+ * that does not use `@mnaoumov/obsidian-lib` — so the check covers the protocol as well as the answers.
  */
 interface PluginApiRecord {
   readonly api: AdvancedMetadataCacheApi;

@@ -35,9 +35,9 @@ import type {
   TFile
 } from 'obsidian';
 
+import { trimMarkdownExtension } from '@mnaoumov/obsidian-lib/file-system';
+import { normalizeLinkName } from '@mnaoumov/obsidian-lib/link-name';
 import { parseFrontMatterAliases } from 'obsidian';
-import { trimMarkdownExtension } from 'obsidian-dev-utils/obsidian/file-system';
-import { normalizeLinkName } from 'obsidian-dev-utils/obsidian/link-name';
 
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 import type { TitleIndex } from '../titles/title-index.ts';

@@ -1,18 +1,16 @@
+import type { AsyncEventRef } from '@mnaoumov/typescript-lib/async-events';
 import type { App as AppOriginal } from 'obsidian';
-import type { AsyncEventRef } from 'obsidian-dev-utils/async-events';
 import type {
   TFile,
   TFolder
 } from 'obsidian-test-mocks/obsidian';
 import type { Mock } from 'vitest';
 
+import { setTimeoutAsync } from '@mnaoumov/typescript-lib/async';
+import { castTo } from '@mnaoumov/typescript-lib/object-utils';
+import { waitForAllAsyncOperations } from '@mnaoumov/typescript-test-toolkit/async-operation-tracking';
+import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { Component } from 'obsidian';
-import {
-  setTimeoutAsync,
-  waitForAllAsyncOperations
-} from 'obsidian-dev-utils/async';
-import { castTo } from 'obsidian-dev-utils/object-utils';
-import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
 import { App } from 'obsidian-test-mocks/obsidian';
 import {
   beforeEach,
@@ -36,7 +34,7 @@ const hoisted = vi.hoisted(() => ({
   patchOriginalSuggestions: [{ file: null, path: 'patch-original' }]
 }));
 
-vi.mock('obsidian-dev-utils/obsidian/metadata-cache', () => ({
+vi.mock('@mnaoumov/obsidian-lib/metadata-cache', () => ({
   ensureMetadataCacheReady: vi.fn().mockResolvedValue(undefined)
 }));
 

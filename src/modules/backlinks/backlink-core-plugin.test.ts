@@ -14,6 +14,16 @@ import type {
 } from 'obsidian';
 import type { CanvasData } from 'obsidian/canvas.d.ts';
 
+import { isCanvasFile } from '@mnaoumov/obsidian-lib/file-system';
+import { isFrontmatterLinkCacheWithOffsets } from '@mnaoumov/obsidian-lib/frontmatter-link-cache-with-offsets';
+import { getBacklinksForFileSafe } from '@mnaoumov/obsidian-lib/metadata-cache';
+import {
+  isCanvasFileNodeReference,
+  isCanvasReference,
+  isCanvasTextNodeReference
+} from '@mnaoumov/obsidian-lib/reference';
+import { castTo } from '@mnaoumov/typescript-lib/object-utils';
+import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import {
   InternalPluginName,
   isFrontmatterLinkCache,
@@ -24,16 +34,6 @@ import {
   debounce,
   MarkdownView
 } from 'obsidian';
-import { castTo } from 'obsidian-dev-utils/object-utils';
-import { isCanvasFile } from 'obsidian-dev-utils/obsidian/file-system';
-import { isFrontmatterLinkCacheWithOffsets } from 'obsidian-dev-utils/obsidian/frontmatter-link-cache-with-offsets';
-import { getBacklinksForFileSafe } from 'obsidian-dev-utils/obsidian/metadata-cache';
-import {
-  isCanvasFileNodeReference,
-  isCanvasReference,
-  isCanvasTextNodeReference
-} from 'obsidian-dev-utils/obsidian/reference';
-import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
 import {
   afterEach,
   describe,
@@ -66,19 +66,19 @@ interface LoadedBacklinksCorePluginComponent {
   readonly workspaceOn: ReturnType<typeof vi.fn>;
 }
 
-vi.mock('obsidian-dev-utils/obsidian/file-system', () => ({
+vi.mock('@mnaoumov/obsidian-lib/file-system', () => ({
   isCanvasFile: vi.fn()
 }));
 
-vi.mock('obsidian-dev-utils/obsidian/frontmatter-link-cache-with-offsets', () => ({
+vi.mock('@mnaoumov/obsidian-lib/frontmatter-link-cache-with-offsets', () => ({
   isFrontmatterLinkCacheWithOffsets: vi.fn()
 }));
 
-vi.mock('obsidian-dev-utils/obsidian/metadata-cache', () => ({
+vi.mock('@mnaoumov/obsidian-lib/metadata-cache', () => ({
   getBacklinksForFileSafe: vi.fn()
 }));
 
-vi.mock('obsidian-dev-utils/obsidian/reference', () => ({
+vi.mock('@mnaoumov/obsidian-lib/reference', () => ({
   isCanvasFileNodeReference: vi.fn(),
   isCanvasReference: vi.fn(),
   isCanvasTextNodeReference: vi.fn()

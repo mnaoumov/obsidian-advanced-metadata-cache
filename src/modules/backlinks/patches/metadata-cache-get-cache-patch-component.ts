@@ -1,7 +1,7 @@
 import type { MetadataCache } from 'obsidian';
 
-import { MonkeyAroundComponent } from 'obsidian-dev-utils/obsidian/components/monkey-around-component';
-import { isCanvasFile } from 'obsidian-dev-utils/obsidian/file-system';
+import { MonkeyAroundComponent } from '@mnaoumov/obsidian-lib/components/monkey-around-component';
+import { isCanvasFile } from '@mnaoumov/obsidian-lib/file-system';
 
 import type { CanvasComponent } from '../canvas.ts';
 

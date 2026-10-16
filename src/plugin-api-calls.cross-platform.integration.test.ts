@@ -75,7 +75,7 @@ interface ObsidianDevUtilsStateBag {
 
 /**
  * The registry record, as the published wire protocol carries it. Read directly, as in the titles
- * suite: this is the documented route for a consumer that does not use `obsidian-dev-utils`.
+ * suite: this is the documented route for a consumer that does not use `@mnaoumov/obsidian-lib`.
  */
 interface PluginApiRecord {
   readonly api: AdvancedMetadataCacheApi;

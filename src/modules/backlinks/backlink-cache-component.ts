@@ -1,14 +1,32 @@
+import type { AbortSignalComponent } from '@mnaoumov/obsidian-lib/components/abort-signal-component';
+import type { ConsoleDebugComponent } from '@mnaoumov/obsidian-lib/components/console-debug-component';
+import type { PluginNoticeComponent } from '@mnaoumov/obsidian-lib/components/plugin-notice-component';
+import type { PathOrFile } from '@mnaoumov/obsidian-lib/file-system';
 import type { CustomArrayDict } from '@obsidian-typings/obsidian-public-latest';
 import type {
   App,
   Debouncer,
   Reference
 } from 'obsidian';
-import type { AbortSignalComponent } from 'obsidian-dev-utils/obsidian/components/abort-signal-component';
-import type { ConsoleDebugComponent } from 'obsidian-dev-utils/obsidian/components/console-debug-component';
-import type { PluginNoticeComponent } from 'obsidian-dev-utils/obsidian/components/plugin-notice-component';
-import type { PathOrFile } from 'obsidian-dev-utils/obsidian/file-system';
 
+import { LayoutReadyComponent } from '@mnaoumov/obsidian-lib/components/layout-ready-component';
+import {
+  getFileOrNull,
+  getPath,
+  isCanvasFile
+} from '@mnaoumov/obsidian-lib/file-system';
+import {
+  extractLinkFile,
+  splitSubpath
+} from '@mnaoumov/obsidian-lib/link';
+import { loop } from '@mnaoumov/obsidian-lib/loop';
+import {
+  ensureMetadataCacheReady,
+  getLinks
+} from '@mnaoumov/obsidian-lib/metadata-cache';
+import { sortReferences } from '@mnaoumov/obsidian-lib/reference';
+import { getMarkdownFilesSorted } from '@mnaoumov/obsidian-lib/vault';
+import { invokeAsyncSafely } from '@mnaoumov/typescript-lib/async';
 import {
   CustomArrayDictImpl,
   ViewType
@@ -19,24 +37,6 @@ import {
   TAbstractFile,
   TFile
 } from 'obsidian';
-import { invokeAsyncSafely } from 'obsidian-dev-utils/async';
-import { LayoutReadyComponent } from 'obsidian-dev-utils/obsidian/components/layout-ready-component';
-import {
-  getFileOrNull,
-  getPath,
-  isCanvasFile
-} from 'obsidian-dev-utils/obsidian/file-system';
-import {
-  extractLinkFile,
-  splitSubpath
-} from 'obsidian-dev-utils/obsidian/link';
-import { loop } from 'obsidian-dev-utils/obsidian/loop';
-import {
-  ensureMetadataCacheReady,
-  getLinks
-} from 'obsidian-dev-utils/obsidian/metadata-cache';
-import { sortReferences } from 'obsidian-dev-utils/obsidian/reference';
-import { getMarkdownFilesSorted } from 'obsidian-dev-utils/obsidian/vault';
 
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 

@@ -18,12 +18,12 @@
  * in, the same way it does for a basename and an alias.
  */
 
+import type { ReadonlyPluginSettings } from '@mnaoumov/obsidian-lib/components/plugin-settings-component';
 import type {
   App,
   FrontMatterCache,
   TFile
 } from 'obsidian';
-import type { ReadonlyPluginSettings } from 'obsidian-dev-utils/obsidian/components/plugin-settings-component';
 
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 import type { PluginSettings } from '../../plugin-settings.ts';
