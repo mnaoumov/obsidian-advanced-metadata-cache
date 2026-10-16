@@ -27,6 +27,7 @@
   },
   "include": [
     "./api.d.ts",
+    "./api-contract.ts",
     "./commitlint.config.ts",
     "./eslint.config.mts",
     "./scripts/**/*.ts",
