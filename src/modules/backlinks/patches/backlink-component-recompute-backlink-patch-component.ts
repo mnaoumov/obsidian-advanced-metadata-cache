@@ -1,3 +1,4 @@
+import type { ResultDomResult } from '@obsidian-typings/obsidian-public-latest';
 import type { BacklinkComponent } from '@obsidian-typings/obsidian-public-latest/implementations';
 import type {
   Reference,
@@ -20,8 +21,6 @@ import {
   isCanvasReference,
   isCanvasTextNodeReference
 } from 'obsidian-dev-utils/obsidian/reference';
-
-import type { CanvasDomResult } from '../backlink-core-plugin.ts';
 
 import { getFileComparer } from '../file-comparer.ts';
 
@@ -107,7 +106,7 @@ export class BacklinkComponentRecomputeBacklinkPatchComponent extends MonkeyArou
       content = patchCanvasContent(canvasData);
     }
 
-    const resultDomResult: CanvasDomResult = {
+    const resultDomResult: ResultDomResult = {
       content: [],
       properties: []
     };
@@ -124,7 +123,7 @@ export class BacklinkComponentRecomputeBacklinkPatchComponent extends MonkeyArou
           key: keys[0] ?? '',
           /* v8 ignore stop */
           pos: [link.startOffset, link.endOffset],
-          subkey: keys.slice(1).map((key) => Number.isNaN(Number(key)) ? key : Number(key))
+          subkey: toSubkey(keys.slice(1))
         });
         isValidLink = true;
       } else if (isFrontmatterLinkCache(link)) {
@@ -134,7 +133,7 @@ export class BacklinkComponentRecomputeBacklinkPatchComponent extends MonkeyArou
           key: keys[0] ?? '',
           /* v8 ignore stop */
           pos: [0, link.original.length],
-          subkey: keys.slice(1).map((key) => Number.isNaN(Number(key)) ? key : Number(key))
+          subkey: toSubkey(keys.slice(1))
         });
         isValidLink = true;
 
@@ -217,4 +216,12 @@ function patchCanvasContent(canvasData: CanvasData): string {
     })
   };
   return JSON.stringify(patched);
+}
+
+/*
+ * Built the way Obsidian 1.14.4's own backlink recompute builds it: a numeric segment becomes a number and any other
+ * stays a string. `ResultProperty.subkey` is typed `number[]`, which holds for the search path only, hence the cast.
+ */
+function toSubkey(keys: string[]): number[] {
+  return keys.map((key) => Number.isNaN(Number(key)) ? key : Number(key)) as number[];
 }
