@@ -61,11 +61,25 @@ interface MetadataCacheGetLinkSuggestionsPatchComponentConstructorParams {
 export class MetadataCacheGetLinkSuggestionsPatchComponent extends MonkeyAroundComponent {
   private readonly metadataCache: MetadataCache;
   private readonly nameIndexComponent: NameIndexComponent;
+  private originalMethod: GetLinkSuggestionsFunction | null = null;
 
   public constructor(params: MetadataCacheGetLinkSuggestionsPatchComponentConstructorParams) {
     super();
     this.metadataCache = params.metadataCache;
     this.nameIndexComponent = params.nameIndexComponent;
+  }
+
+  /**
+   * Calls the method this patch replaced: Obsidian's own, or whatever another plugin had installed first.
+   *
+   * Kept in a field of this component rather than read off the patched method, so the published API can
+   * offer it without anything being grafted onto an Obsidian function. Before the patch is installed the
+   * method on the metadata cache is still the original, so that is what answers.
+   *
+   * @returns Every link target the `[[` autocomplete can offer, from a full vault walk.
+   */
+  public getLinkSuggestionsOriginal(): LinkSuggestion[] {
+    return (this.originalMethod ?? this.metadataCache.getLinkSuggestions).call(this.metadataCache);
   }
 
   public override onload(): void {
@@ -81,6 +95,8 @@ export class MetadataCacheGetLinkSuggestionsPatchComponent extends MonkeyAroundC
         originalMethod,
         patchedMethod
       }): GetLinkSuggestionsFunction & GetLinkSuggestionsWrapper => {
+        this.originalMethod = originalMethod;
+        // Deprecated since 1.3.0, which publishes the same calls through the plugin API; removed in 2.0.0.
         return Object.assign(patchedMethod, {
           getPathsByName: (name: string): string[] => this.nameIndexComponent.nameIndex.getPathsByName(name),
           getPathsByNameSafe: (name: string): Promise<string[]> => this.nameIndexComponent.getPathsByNameSafe(name),

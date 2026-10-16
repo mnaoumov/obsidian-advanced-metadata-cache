@@ -27,8 +27,13 @@ import type { PluginSettingsComponent } from '../../plugin-settings-component.ts
 import { PluginSettings } from '../../plugin-settings.ts';
 import { TitleIndex } from '../titles/title-index.ts';
 
+interface LinkSuggestionsSource {
+  getLinkSuggestions: () => unknown;
+}
+
 const hoisted = vi.hoisted(() => ({
-  patchComponentConstructor: vi.fn()
+  patchComponentConstructor: vi.fn(),
+  patchOriginalSuggestions: [{ file: null, path: 'patch-original' }]
 }));
 
 vi.mock('obsidian-dev-utils/obsidian/metadata-cache', () => ({
@@ -41,6 +46,10 @@ vi.mock('./patches/metadata-cache-get-link-suggestions-patch-component.ts', () =
     public constructor(params: unknown) {
       super();
       hoisted.patchComponentConstructor(params);
+    }
+
+    public getLinkSuggestionsOriginal(): unknown {
+      return hoisted.patchOriginalSuggestions;
     }
   }
 }));
@@ -109,6 +118,22 @@ describe('NameIndexComponent', () => {
     await expect(component.getPathsByNameSafe('alpha')).resolves.toEqual(['Alpha.md']);
     expect(component.isBuilt).toBe(true);
     await expect(component.getSuggestionsSafe()).resolves.toHaveLength(1);
+  });
+
+  it('should answer link suggestions from Obsidian until the index is built, and from the index after', async () => {
+    createNote('Alpha.md');
+    const coreSuggestions = [{ file: null, path: 'core' }];
+    const getLinkSuggestions = vi.fn().mockReturnValue(coreSuggestions);
+    castTo<LinkSuggestionsSource>(app.metadataCache).getLinkSuggestions = getLinkSuggestions;
+
+    expect(component.getLinkSuggestions()).toBe(coreSuggestions);
+    expect(component.getLinkSuggestionsOriginal()).toBe(coreSuggestions);
+
+    await load();
+
+    expect(component.getLinkSuggestions()).toEqual(component.nameIndex.getSuggestions());
+    expect(component.getLinkSuggestionsOriginal()).toBe(hoisted.patchOriginalSuggestions);
+    expect(getLinkSuggestions).toHaveBeenCalledTimes(2);
   });
 
   it('should build once however many callers ask at the same moment', async () => {

@@ -1,5 +1,8 @@
 import type { LinkSuggestion } from '@obsidian-typings/obsidian-public-latest';
-import type { App } from 'obsidian';
+import type {
+  App,
+  TFile
+} from 'obsidian';
 
 import {
   Component,
@@ -13,13 +16,26 @@ const CENTRAL_TOPIC_PATH = 'Topics/Central topic.md';
 
 const HEADING_TIMES_WAIT_ATTEMPTS = 50;
 const HEADING_TIMES_POLL_IN_MILLISECONDS = 100;
-const NAME_INDEX_WAIT_ATTEMPTS = 50;
-const NAME_INDEX_POLL_IN_MILLISECONDS = 100;
 
+/**
+ * The slice of the plugin API these buttons call. The same shape `AdvancedMetadataCacheApi` in the root
+ * `api.d.ts` ships for consumers, with the backlinks dictionary narrowed to what is counted here.
+ */
 interface AdvancedMetadataCacheApi {
+  getBacklinksForFile(pathOrFile: string): BacklinksDict | null;
+  getBacklinksForFileOriginal(file: TFile): BacklinksDict;
+  getBacklinksForFileSafe(pathOrFile: string): Promise<BacklinksDict | null>;
   getHeadingTimes(pathOrFile: string): HeadingTimes[];
+  getLinkSuggestions(): LinkSuggestion[] | null;
+  getLinkSuggestionsOriginal(): LinkSuggestion[];
+  getLinkSuggestionsSafe(): Promise<LinkSuggestion[] | null>;
+  getPathsByNameSafe(name: string): Promise<null | string[]>;
   getTitlePropertyNames(): string[];
   getTitles(pathOrFile: string): string[];
+}
+
+interface BacklinksDict {
+  count(): number;
 }
 
 interface DemoSettingsPatch {
@@ -47,18 +63,6 @@ interface HeadingTimes {
 }
 
 /**
- * The shape `app.metadataCache.getLinkSuggestions` takes while the Names module is on. The same
- * shape `GetLinkSuggestionsFn` in the root `api.d.ts` ships for consumers.
- */
-interface PatchedGetLinkSuggestions {
-  (): LinkSuggestion[];
-  getPathsByName?(name: string): string[];
-  // eslint-disable-next-line unicorn/name-replacements -- `originalFn` is the plugin's documented public API - the README tells users to call it.
-  originalFn?(): LinkSuggestion[];
-  safe?(): Promise<LinkSuggestion[]>;
-}
-
-/**
  * Opens the note everything links to and reveals the core Backlinks pane beside it.
  *
  * The existing buttons query the cache through the API; this puts the UI that the same cache feeds on
@@ -75,6 +79,36 @@ export async function showCentralTopicBacklinks(app: App): Promise<void> {
 
   await app.workspace.getLeaf(false).openFile(note);
   app.commands.executeCommandById('backlink:open-backlinks');
+}
+
+/**
+ * Asks the plugin API for the central topic's backlinks three ways - fast, safe and original - and
+ * reports how many each one found.
+ *
+ * Manual equivalent: take the API through `watchPluginApi` from your own plugin, then call
+ * `getBacklinksForFile`, `getBacklinksForFileSafe` and `getBacklinksForFileOriginal`.
+ */
+export async function compareBacklinks(app: App): Promise<void> {
+  const note = app.vault.getFileByPath(CENTRAL_TOPIC_PATH);
+  if (!note) {
+    new Notice(`${CENTRAL_TOPIC_PATH} is missing from this vault.`);
+    return;
+  }
+
+  const api = await getApi(app);
+  const fast = api.getBacklinksForFile(CENTRAL_TOPIC_PATH);
+  const safe = await api.getBacklinksForFileSafe(CENTRAL_TOPIC_PATH);
+
+  if (!fast || !safe) {
+    new Notice('The Backlinks module is off. Switch it on in the plugin settings.');
+    return;
+  }
+
+  new Notice([
+    `fast:     ${fast.count().toString()}`,
+    `safe:     ${safe.count().toString()}`,
+    `original: ${api.getBacklinksForFileOriginal(note).count().toString()}`
+  ].join('\n'));
 }
 
 /**
@@ -106,7 +140,7 @@ export async function changeSettings(app: App, patch: DemoSettingsPatch): Promis
  * so the button that calls this turns it on for you rather than leaving you to find the toggle.
  *
  * Manual equivalent: turn **Names module** on in **Settings -> Community plugins -> Advanced
- * Metadata Cache**, then call `app.metadataCache.getLinkSuggestions.getPathsByName(name)`.
+ * Metadata Cache**, then call `getPathsByName(name)` on the API from your own plugin.
  *
  * @param app - The Obsidian app.
  * @param name - The name to look up.
@@ -116,21 +150,22 @@ export async function changeSettings(app: App, patch: DemoSettingsPatch): Promis
 export async function showNamesFor(app: App, name: string, patch: DemoSettingsPatch = {}): Promise<void> {
   await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { ...patch, isNamesModuleEnabled: true } });
 
-  const getLinkSuggestions = await waitForNameIndex(app);
+  const api = await getApi(app);
+  // The safe variant waits for the index to be built, which the module starts only once it loads.
+  const paths = await api.getPathsByNameSafe(name);
+  const indexed = api.getLinkSuggestions();
 
-  if (!getLinkSuggestions?.getPathsByName || !getLinkSuggestions.originalFn) {
+  if (!paths || !indexed) {
     new Notice('The Names module did not finish loading.');
     return;
   }
-
-  const paths = getLinkSuggestions.getPathsByName(name);
 
   new Notice([
     `"${name}" names ${paths.length.toString()} note(s):`,
     ...paths,
     '',
-    `indexed link targets: ${getLinkSuggestions().length.toString()}`,
-    `built-in link targets: ${getLinkSuggestions.originalFn().length.toString()}`
+    `indexed link targets: ${indexed.length.toString()}`,
+    `built-in link targets: ${api.getLinkSuggestionsOriginal().length.toString()}`
   ].join('\n'));
 }
 
@@ -162,15 +197,15 @@ export async function showAutocompleteOfferFor(app: App, title: string, shouldOf
     }
   });
 
-  const getLinkSuggestions = await waitForNameIndex(app);
+  const api = await getApi(app);
+  const indexed = await api.getLinkSuggestionsSafe();
 
-  if (!getLinkSuggestions?.originalFn) {
+  if (!indexed) {
     new Notice('The Names module did not finish loading.');
     return;
   }
 
-  const indexed = getLinkSuggestions();
-  const builtInCount = getLinkSuggestions.originalFn().length;
+  const builtInCount = api.getLinkSuggestionsOriginal().length;
   const offeredIndex = indexed.findIndex((suggestion) => suggestion.alias === title);
 
   new Notice([
@@ -225,25 +260,25 @@ export async function showTitlesFor(app: App, path: string): Promise<void> {
 }
 
 /**
- * Waits for the Names module to install its patch and build its index.
+ * Takes the plugin API from the registry, waiting for the plugin to publish it.
  *
- * The patch is installed as soon as the module loads, but the index is built once the metadata cache
- * can answer — so waiting for the patch alone would ask an empty index. `safe()` waits for the
- * build, which is why this returns only after calling it.
+ * @param app - The Obsidian app.
+ * @returns The API, at contract `1.3.0` or later, which is where the backlinks and names calls arrived.
  */
-async function waitForNameIndex(app: App): Promise<PatchedGetLinkSuggestions | null> {
-  for (let attempt = 0; attempt < NAME_INDEX_WAIT_ATTEMPTS; attempt++) {
-    const getLinkSuggestions = app.metadataCache.getLinkSuggestions as PatchedGetLinkSuggestions;
+async function getApi(app: App): Promise<AdvancedMetadataCacheApi> {
+  const component = new Component();
+  component.load();
 
-    if (getLinkSuggestions.safe) {
-      await getLinkSuggestions.safe();
-      return getLinkSuggestions;
-    }
-
-    await sleep(NAME_INDEX_POLL_IN_MILLISECONDS);
+  try {
+    return await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.3',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+  } finally {
+    component.unload();
   }
-
-  return null;
 }
 
 /**

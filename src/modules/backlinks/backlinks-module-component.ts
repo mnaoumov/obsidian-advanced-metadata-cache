@@ -28,34 +28,29 @@ interface BacklinksModuleComponentConstructorParams {
  * left behind would call into a torn-down cache.
  */
 export class BacklinksModuleComponent extends ComponentEx {
-  private readonly abortSignalComponent: AbortSignalComponent;
-  private readonly app: App;
+  /**
+   * The cache, built with the module rather than when it loads, so the published API finds it from the
+   * moment the module exists. It answers like the core method until its own patch is installed.
+   */
+  public readonly backlinkCacheComponent: BacklinkCacheComponent;
+
   private readonly commandHandlerComponent: CommandHandlerComponent;
-  private readonly consoleDebugComponent: ConsoleDebugComponent;
-  private readonly pluginNoticeComponent: PluginNoticeComponent;
-  private readonly pluginSettingsComponent: PluginSettingsComponent;
 
   public constructor(params: BacklinksModuleComponentConstructorParams) {
     super();
 
-    this.abortSignalComponent = params.abortSignalComponent;
-    this.app = params.app;
     this.commandHandlerComponent = params.commandHandlerComponent;
-    this.consoleDebugComponent = params.consoleDebugComponent;
-    this.pluginNoticeComponent = params.pluginNoticeComponent;
-    this.pluginSettingsComponent = params.pluginSettingsComponent;
+    this.backlinkCacheComponent = new BacklinkCacheComponent({
+      abortSignalComponent: params.abortSignalComponent,
+      app: params.app,
+      consoleDebugComponent: params.consoleDebugComponent,
+      pluginNoticeComponent: params.pluginNoticeComponent,
+      pluginSettingsComponent: params.pluginSettingsComponent
+    });
   }
 
   public override async onloadAsync(): Promise<void> {
-    const backlinkCacheComponent = this.addChild(
-      new BacklinkCacheComponent({
-        abortSignalComponent: this.abortSignalComponent,
-        app: this.app,
-        consoleDebugComponent: this.consoleDebugComponent,
-        pluginNoticeComponent: this.pluginNoticeComponent,
-        pluginSettingsComponent: this.pluginSettingsComponent
-      })
-    );
+    const backlinkCacheComponent = this.addChild(this.backlinkCacheComponent);
 
     await this.commandHandlerComponent.registerCommandHandlers(() => [
       new RefreshBacklinkPanelsCommandHandler(backlinkCacheComponent)

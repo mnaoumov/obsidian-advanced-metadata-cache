@@ -1,13 +1,15 @@
 # Fast, safe, and original backlinks
 
-Advanced Metadata Cache extends `app.metadataCache.getBacklinksForFile` with three ways to call it. The fast and safe versions accept a `TFile` **or** a vault path string; the original accepts a `TFile`.
+Advanced Metadata Cache answers `app.metadataCache.getBacklinksForFile(file)` from its cache, so every plugin that asks for backlinks gets the faster answer without doing anything. A plugin that wants more asks this plugin's API, which offers three ways to read them. The fast and safe versions accept a `TFile` **or** a vault path string; the original accepts a `TFile`.
 
 - **Fast**
-  - `getBacklinksForFile(pathOrFile)` reads straight from the cache. It is the fastest, and may be momentarily stale if a note changed a split second ago.
+  - `api.getBacklinksForFile(pathOrFile)` reads straight from the cache. It is the fastest, and may be momentarily stale if a note changed a split second ago.
 - **Safe**
-  - `await getBacklinksForFile.safe(pathOrFile)` waits for any pending changes to be processed first, so the result is guaranteed current.
+  - `await api.getBacklinksForFileSafe(pathOrFile)` waits for any pending changes to be processed first, so the result is guaranteed current.
 - **Original**
-  - `getBacklinksForFile.originalFn(file)` calls Obsidian's built-in implementation, bypassing the cache (handy for comparison).
+  - `api.getBacklinksForFileOriginal(file)` calls Obsidian's built-in implementation, bypassing the cache (handy for comparison).
+
+The fast and safe versions answer `null` while the **Backlinks** module is off, so a caller knows to fall back to the core method.
 
 ## Try it
 
@@ -17,17 +19,7 @@ The button runs all three against [Central topic](<./Topics/Central topic.md>) a
 ---
 caption: Compare fast, safe, and original backlinks
 ---
-import { Notice } from 'obsidian';
-const path = 'Topics/Central topic.md';
-const getBacklinksForFile = app.metadataCache.getBacklinksForFile;
-const fast = getBacklinksForFile(path).count();
-const safe = (await getBacklinksForFile.safe(path)).count();
-const original = getBacklinksForFile.originalFn(app.vault.getFileByPath(path)).count();
-new Notice([
-  `fast:     ${fast.toString()}`,
-  `safe:     ${safe.toString()}`,
-  `original: ${original.toString()}`
-].join('\n'));
+await require('/demoSetup.ts').compareBacklinks(app);
 ```
 
 See [04 Settings](<./04 Settings.md>) for the options that control refresh behavior.

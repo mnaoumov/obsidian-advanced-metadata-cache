@@ -29,9 +29,10 @@ Obsidian's own `getLinkSuggestions`, so there is no window in which a caller is 
 answer. The patch reads `isBuilt` on every call to decide.
 
 The cost is that the presence of the patch says nothing about whether the index is ready — which is what
-`safe()` and `getPathsByNameSafe()` are for, and what the README tells consumers to use when they may be
-asked early. A test that waits for `originalFn` to appear and then measures is measuring Obsidian; the
-tripwire suite in this module was written that way once and reported a speedup of exactly 1.0.
+the API's `getLinkSuggestionsSafe()` and `getPathsByNameSafe()` are for, and what the README tells
+consumers to use when they may be asked early. A test that waits for the patch to appear and then
+measures is measuring Obsidian; the tripwire suite in this module was written that way once and reported
+a speedup of exactly 1.0.
 
 What is memoized is the per-file half: a file's display path, its alias entries and its names, keyed by
 path and dropped when that path changes. The flat array is rebuilt by walking `vault.getFiles()`, which
@@ -110,25 +111,34 @@ is inside the scrolled area at two consecutive polls. Polling rather than a Code
 module's whole footprint inside its component, which is the module contract above. The integration
 suite does not drive `seen`, because the window cannot be given focus reliably over the transport.
 
-## Two kinds of public surface, and which one a new module takes
+## Public surface: the core call answers, the API offers everything else
 
-`backlinks` and `names` answer by **replacing a core method**, so a consumer calls
-`app.metadataCache.…` and never learns the plugin is installed. Their widened signatures are
-`GetBacklinksForFileFn` and `GetLinkSuggestionsFn`, and there is nothing to version-negotiate — a member
-is pinned against the plugin version it arrived in, which is what the README records.
+`backlinks` and `names` **replace a core method** — `getBacklinksForFile`, `getLinkSuggestions` — keeping
+Obsidian's own signature, so every consumer of core gets the faster answer and never learns the plugin is
+installed. Everything a consumer asks for BEYOND that answer (the `Safe` and `Original` variants, a path
+instead of a `TFile`, the reverse name lookup) goes through the `obsidian-dev-utils` plugin registry, as
+does everything `titles` and `headings` know: the API object is `PluginApiImpl`, and its contract and
+version are in `src/plugin-api.ts`. The declaration goes through `getPluginApis()` rather than a hand
+`publishPluginApi` call, because the `plugin-loaded` broadcast derives its `apiVersions` from that method
+alone.
 
-`titles` and `headings` have no core method to replace, so they publish through the `obsidian-dev-utils` plugin
-registry: the API object is `PluginApiImpl`, and its contract and version are in `src/plugin-api.ts`. The
-declaration goes through `getPluginApis()` rather than a hand `publishPluginApi` call, because the
-`plugin-loaded` broadcast derives its `apiVersions` from that method alone.
-
+**Nothing of this plugin's own is ever hung on an Obsidian function or object.** Until contract `1.3.0` the backlinks and names extras were grafted onto the
+patched core methods (`.safe`, `.originalFn`, `.getPathsByName`, `.getPathsByNameSafe`); they are still
+there, deprecated, so a published consumer that reads them keeps working until the libraries that read
+them release their switch to the API, and `2.0.0` removes them. The `Original` members are answered from
+a field each patch component keeps (`getBacklinksForFileOriginal`, `getLinkSuggestionsOriginal`), never
+from the graft. `PluginApiImpl` finds the module components through `ModulesComponent.getModuleComponent`
+per call, because a module switched off and on again is a fresh component; a module that is off answers
+`null` from every member backed by it, while the `Original` members fall back to core, which is then the
+original.
 The same API also RECEIVES: `migrateSettings` (contract `1.1.0`) is `obsidian-dev-utils`'s
 `SettingsMigrationApi` envelope, through which a plugin that used to own a title property hands it over.
 `api.d.ts` restates that envelope instead of importing it, and `PluginApiImpl` `implements` the library's
 interface too, so the restatement can only drift into a compile error. The merge is additive and
 case-insensitive, because a proposal that replaced the list would take `title` away from a user who had it.
 
-**Both kinds are declared in the single root `api.d.ts`**, which is the file a consumer reads, and
+**Both the API and the deprecated graft types are declared in the single root `api.d.ts`**, which is the
+file a consumer reads, and
 `src/plugin-api.ts` re-exports `AdvancedMetadataCacheApi` from it rather than re-declaring it, so there
 is one declaration of each and nothing to drift. The file **imports from `obsidian` and nothing else**
 — that is what makes it copyable by a plugin which has never heard of `obsidian-dev-utils`, and it is
@@ -136,9 +146,8 @@ the property to protect when adding a member. `CustomArrayDict` and `LinkSuggest
 rather than imported from `@obsidian-typings/obsidian-public-latest` for exactly that reason; the file
 records which typings version they were copied from, and the trade behind the copy.
 
-Ask which kind a new module is before writing either file: the two are not interchangeable, and a
-core-widening surface published through the registry would ask consumers to negotiate a version for a
-method they are going to call on `app` regardless.
+A new module that makes a core method faster replaces it with Obsidian's signature intact; anything it
+offers beyond that answer is a new API member, added under a minor contract bump.
 
 ## Invariant: a self-link is never indexed as a re-resolution source
 

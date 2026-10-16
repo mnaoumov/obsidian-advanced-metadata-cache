@@ -81,9 +81,10 @@ enum Action {
 
 export class BacklinkCacheComponent extends LayoutReadyComponent {
   private readonly abortSignalComponent: AbortSignalComponent;
+  private backlinksForFilePatchComponent: MetadataCacheGetBacklinksForFilePatchComponent | null = null;
   private readonly backlinksMap = new Map<string, Map<string, Set<Reference>>>();
-  private readonly consoleDebugComponent: ConsoleDebugComponent;
 
+  private readonly consoleDebugComponent: ConsoleDebugComponent;
   private debouncedProcessPendingActions?: Debouncer<[], Promise<void>>;
   private readonly linksMap = new Map<string, Set<string>>();
   private readonly pendingActions = new Map<string, Action>();
@@ -116,6 +117,42 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
 
     invokeAsyncSafely(this.processPendingActions.bind(this));
     return dict;
+  }
+
+  /**
+   * Answers `getBacklinksForFile()` the way a caller of the core method is answered right now: from this
+   * cache once the patch is installed, and from Obsidian's own implementation until then, when the cache
+   * has not been filled yet.
+   *
+   * @param pathOrFile - The path or file to get the backlinks for.
+   * @returns The backlinks for the file. Empty for a path no file answers to, before the patch is
+   *   installed.
+   */
+  public getBacklinksForFileAsCore(pathOrFile: PathOrFile): CustomArrayDict<Reference> {
+    return this.backlinksForFilePatchComponent ? this.getBacklinksForFile(pathOrFile) : this.getBacklinksForFileOriginalOrEmpty(pathOrFile);
+  }
+
+  /**
+   * {@link getBacklinksForFileAsCore}, waiting for pending changes to be processed first once the patch is
+   * installed.
+   *
+   * @param pathOrFile - The path or file to get the backlinks for.
+   * @returns The backlinks for the file.
+   */
+  public async getBacklinksForFileAsCoreSafe(pathOrFile: PathOrFile): Promise<CustomArrayDict<Reference>> {
+    return this.backlinksForFilePatchComponent
+      ? await this.getBacklinksForFileSafe(pathOrFile)
+      : this.getBacklinksForFileOriginalOrEmpty(pathOrFile);
+  }
+
+  /**
+   * Calls Obsidian's own `getBacklinksForFile()`, bypassing this cache.
+   *
+   * @param file - The file to get the backlinks for.
+   * @returns The backlinks for the file.
+   */
+  public getBacklinksForFileOriginal(file: TFile): CustomArrayDict<Reference> {
+    return this.backlinksForFilePatchComponent?.getBacklinksForFileOriginal(file) ?? this.app.metadataCache.getBacklinksForFile(file);
   }
 
   public async getBacklinksForFileSafe(pathOrFile: PathOrFile): Promise<CustomArrayDict<Reference>> {
@@ -157,7 +194,7 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
   }
 
   protected override async onLayoutReady(): Promise<void> {
-    this.addChild(
+    this.backlinksForFilePatchComponent = this.addChild(
       new MetadataCacheGetBacklinksForFilePatchComponent({
         backlinkCacheComponent: this,
         metadataCache: this.app.metadataCache
@@ -212,6 +249,11 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
 
     linkSet.add(link);
     this.linksMap.get(sourcePath)?.add(targetPath);
+  }
+
+  private getBacklinksForFileOriginalOrEmpty(pathOrFile: PathOrFile): CustomArrayDict<Reference> {
+    const file = getFileOrNull({ app: this.app, pathOrFile });
+    return file ? this.getBacklinksForFileOriginal(file) : new CustomArrayDictImpl<Reference>();
   }
 
   private getSourcePathsToReResolve(fileNames: string[]): Set<string> {
