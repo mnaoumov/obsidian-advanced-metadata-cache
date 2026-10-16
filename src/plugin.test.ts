@@ -21,10 +21,8 @@ import type { HeadingTimesIndex } from './modules/headings/heading-times-index.t
 import type { ModuleDefinition } from './modules/modules-component.ts';
 import type { TitleIndex } from './modules/titles/title-index.ts';
 
-import {
-  PLUGIN_API_CONTRACT,
-  PLUGIN_API_VERSION
-} from './plugin-api.ts';
+import { PLUGIN_API_VERSION } from './plugin-api-version.ts';
+import { PLUGIN_API_CONTRACT } from './plugin-api.ts';
 import { PluginSettings } from './plugin-settings.ts';
 
 // --- Mocks for the plugin's OWN sibling modules (allowed: not obsidian-dev-utils / obsidian-test-mocks) ---

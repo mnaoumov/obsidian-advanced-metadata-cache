@@ -17,10 +17,8 @@ import { NameIndexComponent } from './modules/names/name-index-component.ts';
 import { TitleIndexComponent } from './modules/titles/title-index-component.ts';
 import { TitleIndex } from './modules/titles/title-index.ts';
 import { PluginApiImpl } from './plugin-api-impl.ts';
-import {
-  PLUGIN_API_CONTRACT,
-  PLUGIN_API_VERSION
-} from './plugin-api.ts';
+import { PLUGIN_API_VERSION } from './plugin-api-version.ts';
+import { PLUGIN_API_CONTRACT } from './plugin-api.ts';
 import { PluginSettingsComponent } from './plugin-settings-component.ts';
 import { PluginSettingsTab } from './plugin-settings-tab.ts';
 

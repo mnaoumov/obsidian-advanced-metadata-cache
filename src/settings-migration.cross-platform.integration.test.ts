@@ -26,7 +26,7 @@ import {
 } from 'vitest';
 
 import { applyPluginSettings } from '../scripts/helpers/names-module.ts';
-import { PLUGIN_API_VERSION } from './plugin-api.ts';
+import { PLUGIN_API_VERSION } from './plugin-api-version.ts';
 
 interface MigratableSettingsLike {
   readonly titlePropertyNames?: readonly string[];
