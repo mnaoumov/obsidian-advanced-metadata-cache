@@ -126,7 +126,7 @@ export function refreshBacklinkPanels(app: App): void {
 /**
  * Applies a settings patch, live, through the plugin's own settings component.
  *
- * Manual equivalent: change the same option in **Settings -> Community plugins -> Advanced Metadata Cache**.
+ * Manual equivalent: change the same option in **Settings -> Community plugins -> `Advanced Metadata Cache`**.
  */
 export async function changeSettings(app: App, patch: DemoSettingsPatch): Promise<void> {
   await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: patch });
@@ -179,7 +179,7 @@ export async function showNamesFor(app: App, name: string, patch: DemoSettingsPa
  * end of Obsidian's own list, never interleaved with it.
  *
  * Manual equivalent: turn **Names module**, **Titles module** and **Offer titles in the [[
- * autocomplete** on in **Settings -> Community plugins -> Advanced Metadata Cache**, then type `[[`
+ * autocomplete** on in **Settings -> Community plugins -> `Advanced Metadata Cache`**, then type `[[`
  * followed by the start of a title.
  *
  * @param app - The Obsidian app.

@@ -19,7 +19,7 @@ plugin would stay in the palette calling into a torn-down index.
 Adding a module means adding its folder, its toggle to `PluginSettings`, its row to
 `getSettingDefinitionItems`, and one entry to the array in `Plugin.onloadImpl`. Nothing else knows how
 many modules there are. The `backlinks` module defaults **on**, because it is the behavior this plugin
-inherited wholesale from Backlink Cache; a module added later defaults **off**.
+inherited wholesale from `Backlink Cache`; a module added later defaults **off**.
 
 ## The `names` module: the patch goes in BEFORE the index is built
 
@@ -85,7 +85,7 @@ be the same note offered twice under the same text.
 
 ## The `headings` module: identity is worked out, and nothing is written into the note
 
-Obsidian has no identity for a heading, and the task this module exists for (Advanced Note Composer's
+Obsidian has no identity for a heading, and the task this module exists for (`Advanced Note Composer`'s
 time sorts) forbids writing one into the note. So `matchHeadings` in `heading-snapshot.ts` pairs each
 parse with the previous one in four passes: same text, then same non-empty own body (a rename, even
 after a move), then same gap between paired neighbors (a rename plus an edit), and only the rest is new.
@@ -159,7 +159,7 @@ Including the changed note itself is vacuous — whatever produced the change al
 is actively harmful here, because this plugin **replaces** `metadataCache.updateRelatedLinks` rather than
 calling through. A self-entry makes that replacement queue the note for re-resolution in response to its
 own change, which fires `changed`, which refreshes its backlinks, which queues it again. That feedback
-cycle is Backlink Cache issue #17: a note with 72 self-links stalled the editor for 20-30 seconds. Each
+cycle is `Backlink Cache` issue #17: a note with 72 self-links stalled the editor for 20-30 seconds. Each
 pass is linear in the self-link count, so the cost is the number of passes, not a quadratic per pass.
 
 This is the **one deliberate departure** from the original Obsidian algorithm. The differential-parity

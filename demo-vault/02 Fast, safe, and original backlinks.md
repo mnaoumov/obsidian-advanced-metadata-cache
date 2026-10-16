@@ -1,6 +1,6 @@
 # Fast, safe, and original backlinks
 
-Advanced Metadata Cache answers `app.metadataCache.getBacklinksForFile(file)` from its cache, so every plugin that asks for backlinks gets the faster answer without doing anything. A plugin that wants more asks this plugin's API, which offers three ways to read them. The fast and safe versions accept a `TFile` **or** a vault path string; the original accepts a `TFile`.
+`Advanced Metadata Cache` answers `app.metadataCache.getBacklinksForFile(file)` from its cache, so every plugin that asks for backlinks gets the faster answer without doing anything. A plugin that wants more asks this plugin's API, which offers three ways to read them. The fast and safe versions accept a `TFile` **or** a vault path string; the original accepts a `TFile`.
 
 - **Fast**
   - `api.getBacklinksForFile(pathOrFile)` reads straight from the cache. It is the fastest, and may be momentarily stale if a note changed a split second ago.

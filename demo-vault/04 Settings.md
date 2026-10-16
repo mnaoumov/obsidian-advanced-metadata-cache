@@ -1,6 +1,6 @@
 # Settings
 
-Open **Settings -> Community plugins -> Advanced Metadata Cache** to configure the plugin. Each option below lists the setting key stored in the plugin's `data.json`.
+Open **Settings -> Community plugins -> `Advanced Metadata Cache`** to configure the plugin. Each option below lists the setting key stored in the plugin's `data.json`.
 
 - `isBacklinksModuleEnabled`
   - when on, the **Backlinks** module maintains the backlink index and answers `app.metadataCache.getBacklinksForFile()` from it. When off, the module is unloaded outright - its index, its listeners and its **Refresh backlink panels** command all go with it, and Obsidian's own implementation answers again. Every index this plugin maintains is a module of its own, so switching one off leaves the others running.

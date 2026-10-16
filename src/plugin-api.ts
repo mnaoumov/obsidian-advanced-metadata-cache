@@ -46,7 +46,7 @@ export const PLUGIN_API_CONTRACT: PluginApiContract = {
  * has no method of its own for. `1.1.0` adds `migrateSettings`, purely additively, so a plugin handing
  * its title property over asks for `'^1'` with a contract naming that member, and against `1.0.0` its
  * offer simply waits. `1.2.0` adds `getHeadingTimes`, as additively: the `Headings` module's answer,
- * which Advanced Note Composer sorts headings by. `1.3.0` adds what the `Backlinks` and `Names` modules
+ * which `Advanced Note Composer` sorts headings by. `1.3.0` adds what the `Backlinks` and `Names` modules
  * offer beyond the core method each replaces — the `Safe` and `Original` variants and the reverse name
  * lookup — which until then were grafted onto the patched core methods themselves. A consumer that asks
  * for `'^1.3.0'` with a contract naming them finds the module through the registry instead of by probing

@@ -19,7 +19,7 @@ import {
  * This guards the bulk-deletion fix. The patch previously
  * decided canvas routing with `isCanvasFile(app, path)`, which resolves the path via a
  * case-insensitive `getAbstractFileByPath` lookup. That lookup is O(1) on a HIT but does
- * an O(vault) scan on a MISS — and during/after deletion (real or Advanced Exclude's
+ * an O(vault) scan on a MISS — and during/after deletion (real or `Advanced Exclude`'s
  * synthetic hide) the path is exactly a miss, so `getCache` became O(vault) per call
  * (measured ~4.5 ms/call at 20k files vs ~0.0005 ms native). The fix routes by the path's
  * `.canvas` extension string instead, so both hits and misses are O(1).

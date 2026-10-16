@@ -1,6 +1,6 @@
 # Canvas backlinks
 
-Advanced Metadata Cache includes **canvas** (`.canvas`) files in the backlink index, so a note referenced from a canvas card shows up in its backlinks just like a note referenced from Markdown.
+`Advanced Metadata Cache` includes **canvas** (`.canvas`) files in the backlink index, so a note referenced from a canvas card shows up in its backlinks just like a note referenced from Markdown.
 
 This vault ships [Canvas map](<./Topics/Canvas map.canvas>) - a canvas whose cards reference [Central topic](<./Topics/Central topic.md>): one **file card** that embeds the note and one **text card** that contains a `[[Central topic]]` link.
 
@@ -22,7 +22,7 @@ Open the core **Backlinks** pane on [Central topic](<./Topics/Central topic.md>)
 
 > [!NOTE] getCache for canvas
 >
-> Obsidian resolves canvas backlinks natively (Backlinks pane, graph, `getBacklinksForFile`, `resolvedLinks`), but it leaves `app.metadataCache.getCache()` empty for a canvas file. Advanced Metadata Cache additionally fills that per-file cache, so tools that read `getCache()` for a canvas still see its links.
+> Obsidian resolves canvas backlinks natively (Backlinks pane, graph, `getBacklinksForFile`, `resolvedLinks`), but it leaves `app.metadataCache.getCache()` empty for a canvas file. `Advanced Metadata Cache` additionally fills that per-file cache, so tools that read `getCache()` for a canvas still see its links.
 
 ```code-button
 ---
