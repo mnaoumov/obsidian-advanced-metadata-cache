@@ -105,6 +105,8 @@ The module has no user interface of its own: it is there for other plugins to re
 
 Everything this plugin offers another plugin is declared in one hand-written file — [api.d.ts](./api.d.ts) at the repository root. It imports from `obsidian` and nothing else, so you can copy it into your own code or reference it where it sits, with no build-time dependency on this repository.
 
+Beside it, [api-contract.ts](./api-contract.ts) holds the published API's contract, `ADVANCED_METADATA_CACHE_API_CONTRACT`: for every method, a schema over its arguments and a schema over what it returns. It is the constant this plugin publishes with the API, so copy it next to `api.d.ts` and pass it as the `contract`, and both sides check the same definition. It imports from `obsidian` and `./api.d.ts` alone, its schemas being hand-written [Standard Schema](https://standardschema.dev) objects. (It is not named `api.ts`: TypeScript would read `api.d.ts` as that file's own declarations.)
+
 ### The faster core calls
 
 While the **Backlinks** module is on, `app.metadataCache.getBacklinksForFile(file)` is answered from this plugin's cache, and while the **Names** module is on, `app.metadataCache.getLinkSuggestions()` is answered from the name index instead of from a full vault walk. Both keep Obsidian's own signature and answer what Obsidian would, so every plugin that calls them gets the faster answer without knowing this plugin exists. There is nothing to do to use them.
@@ -116,10 +118,15 @@ Everything beyond that — the titles and heading times core has no method for, 
 ```ts
 import { watchPluginApi } from 'obsidian-dev-utils/obsidian/plugin/plugin-api';
 
+import type { AdvancedMetadataCacheApi } from './api.d.ts';
+
+import { ADVANCED_METADATA_CACHE_API_CONTRACT } from './api-contract.ts';
+
 const apiRef = watchPluginApi<AdvancedMetadataCacheApi>({
   apiVersionRange: '^1.3',
   app: this.app,
   component: this,
+  contract: ADVANCED_METADATA_CACHE_API_CONTRACT,
   pluginId: 'advanced-metadata-cache'
 });
 
