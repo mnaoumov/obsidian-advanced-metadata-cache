@@ -144,13 +144,15 @@ the property to protect when adding a member. `CustomArrayDict` and `LinkSuggest
 rather than imported from `@obsidian-typings/obsidian-public-latest` for exactly that reason; the file
 records which typings version they were copied from, and the trade behind the copy.
 
-**The contract lives in the root `api-contract.ts`**, beside `api.d.ts` and copyable on the same terms:
-it imports from `obsidian` and `./api.d.ts` only, so its schemas are hand-written Standard Schema
-objects and its type is structural rather than a library's. `src/plugin-api.ts` publishes that same
-constant, and assigning it to `PluginApiContract` there is what checks it is a schema the registry
-accepts. Every method has both an `input` and an `output` schema; a new API member needs both, or the
-mapped `AdvancedMetadataCacheApiContract` type refuses to compile. It is not `api.ts` because
-TypeScript would resolve `./api.d.ts` to that file's own declarations.
+**The contract lives in the root `api-contract.ts`**, beside `api.d.ts`, and is copyable on slightly
+weaker terms: it imports from `obsidian`, `./api.d.ts` and `@mnaoumov/typescript-lib` (the
+`api-contract` subpath's builders, guards and `TypedApiContract`, plus `type-guards`), so a consumer
+copying it needs that one package. The file is the constant plus the guards only this API has; nothing
+generic is restated in it. `src/plugin-api.ts` publishes that same constant, and assigning it to
+`PluginApiContract` there is what checks it is a schema the registry accepts. Every method has both an
+`input` and an `output` schema; `defineApiContract<AdvancedMetadataCacheApi>` refuses a missing,
+extra or one-sided entry. It is not `api.ts` because TypeScript would resolve `./api.d.ts` to that
+file's own declarations.
 
 A new module that makes a core method faster replaces it with Obsidian's signature intact; anything it
 offers beyond that answer is a new API member, added under a minor contract bump.
