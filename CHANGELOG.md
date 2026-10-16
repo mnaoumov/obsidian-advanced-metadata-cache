@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2.0.1
+
+- chore(demo-vault): import demoSetup helpers from @mnaoumov/obsidian-lib
+- refactor: merge the move off obsidian-dev-utils onto the @mnaoumov packages
+- refactor(backlinks): merge dropping the subkey cast on obsidian-typings 6.48.0
+- refactor(api): merge building the API contract on @mnaoumov/typescript-lib/api-contract
+
 ## 2.0.0
 
 - feat(api)!: remove the members grafted onto the patched core methods. `app.metadataCache.getBacklinksForFile` and `app.metadataCache.getLinkSuggestions` keep Obsidian's own signature and carry nothing else. Each removed member has a replacement on the plugin API (contract 1.3.0), published since 1.3.0:
