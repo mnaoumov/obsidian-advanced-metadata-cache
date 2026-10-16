@@ -8,8 +8,8 @@ import {
   Component,
   Notice
 } from 'obsidian';
-import { configureCommunityPlugin } from 'obsidian-dev-utils/obsidian/community-plugins';
-import { watchPluginApi } from 'obsidian-dev-utils/obsidian/plugin/plugin-api';
+import { configureCommunityPlugin } from '@mnaoumov/obsidian-lib/community-plugins';
+import { watchPluginApi } from '@mnaoumov/obsidian-lib/plugin/plugin-api';
 
 const PLUGIN_ID = 'advanced-metadata-cache';
 const CENTRAL_TOPIC_PATH = 'Topics/Central topic.md';
