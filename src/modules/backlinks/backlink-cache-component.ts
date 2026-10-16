@@ -155,11 +155,6 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
     return this.backlinksForFilePatchComponent?.getBacklinksForFileOriginal(file) ?? this.app.metadataCache.getBacklinksForFile(file);
   }
 
-  public async getBacklinksForFileSafe(pathOrFile: PathOrFile): Promise<CustomArrayDict<Reference>> {
-    await this.processPendingActions();
-    return this.getBacklinksForFile(pathOrFile);
-  }
-
   public async refreshBacklinkPanels(): Promise<void> {
     await reloadBacklinksView(this.app);
 
@@ -254,6 +249,11 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
   private getBacklinksForFileOriginalOrEmpty(pathOrFile: PathOrFile): CustomArrayDict<Reference> {
     const file = getFileOrNull({ app: this.app, pathOrFile });
     return file ? this.getBacklinksForFileOriginal(file) : new CustomArrayDictImpl<Reference>();
+  }
+
+  private async getBacklinksForFileSafe(pathOrFile: PathOrFile): Promise<CustomArrayDict<Reference>> {
+    await this.processPendingActions();
+    return this.getBacklinksForFile(pathOrFile);
   }
 
   private getSourcePathsToReResolve(fileNames: string[]): Set<string> {

@@ -13,23 +13,16 @@ import {
 
 import type { NameIndexComponent } from '../name-index-component.ts';
 import type { NameIndex } from '../name-index.ts';
-import type { GetLinkSuggestionsWrapper } from './metadata-cache-get-link-suggestions-patch-component.ts';
 
 import { MetadataCacheGetLinkSuggestionsPatchComponent } from './metadata-cache-get-link-suggestions-patch-component.ts';
 
-type PatchedGetLinkSuggestions = GetLinkSuggestionsWrapper & MetadataCache['getLinkSuggestions'];
-
 const NATIVE_SUGGESTIONS: LinkSuggestion[] = [{ file: null, path: 'native' }];
 const INDEXED_SUGGESTIONS: LinkSuggestion[] = [{ file: null, path: 'indexed' }];
-const SAFE_SUGGESTIONS: LinkSuggestion[] = [{ file: null, path: 'safe' }];
 
 describe('MetadataCacheGetLinkSuggestionsPatchComponent', () => {
   let component: MetadataCacheGetLinkSuggestionsPatchComponent;
   let getLinkSuggestions: Mock<() => LinkSuggestion[]>;
-  let getPathsByName: Mock<(name: string) => string[]>;
-  let getPathsByNameSafe: Mock<(name: string) => Promise<string[]>>;
   let getSuggestions: Mock<() => LinkSuggestion[]>;
-  let getSuggestionsSafe: Mock<() => Promise<LinkSuggestion[]>>;
   let isBuilt: boolean;
   let metadataCache: MetadataCache;
 
@@ -37,20 +30,15 @@ describe('MetadataCacheGetLinkSuggestionsPatchComponent', () => {
     vi.clearAllMocks();
     isBuilt = false;
     getLinkSuggestions = vi.fn<() => LinkSuggestion[]>().mockReturnValue(NATIVE_SUGGESTIONS);
-    getPathsByName = vi.fn<(name: string) => string[]>().mockReturnValue(['Indexed.md']);
-    getPathsByNameSafe = vi.fn<(name: string) => Promise<string[]>>().mockResolvedValue(['Safe.md']);
     getSuggestions = vi.fn<() => LinkSuggestion[]>().mockReturnValue(INDEXED_SUGGESTIONS);
-    getSuggestionsSafe = vi.fn<() => Promise<LinkSuggestion[]>>().mockResolvedValue(SAFE_SUGGESTIONS);
 
     metadataCache = strictProxy<MetadataCache>({ getLinkSuggestions });
 
     const nameIndexComponent = strictProxy<NameIndexComponent>({
-      getPathsByNameSafe,
-      getSuggestionsSafe,
       get isBuilt(): boolean {
         return isBuilt;
       },
-      nameIndex: strictProxy<NameIndex>({ getPathsByName, getSuggestions })
+      nameIndex: strictProxy<NameIndex>({ getSuggestions })
     });
 
     component = new MetadataCacheGetLinkSuggestionsPatchComponent({ metadataCache, nameIndexComponent });
@@ -72,14 +60,6 @@ describe('MetadataCacheGetLinkSuggestionsPatchComponent', () => {
     expect(getLinkSuggestions).not.toHaveBeenCalled();
   });
 
-  it('should keep Obsidian implementation reachable as `originalFn`', async () => {
-    await component.loadWithPromises();
-    isBuilt = true;
-
-    expect(asPatched().originalFn()).toBe(NATIVE_SUGGESTIONS);
-    expect(getLinkSuggestions).toHaveBeenCalledOnce();
-  });
-
   it('should call Obsidian implementation as the original, before and after the patch is installed', async () => {
     expect(component.getLinkSuggestionsOriginal()).toBe(NATIVE_SUGGESTIONS);
 
@@ -91,20 +71,14 @@ describe('MetadataCacheGetLinkSuggestionsPatchComponent', () => {
     expect(getSuggestions).not.toHaveBeenCalled();
   });
 
-  it('should expose the waiting variants as `safe` and `getPathsByNameSafe`', async () => {
+  it('should graft nothing onto the patched method', async () => {
     await component.loadWithPromises();
 
-    await expect(asPatched().safe()).resolves.toBe(SAFE_SUGGESTIONS);
-    await expect(asPatched().getPathsByNameSafe('alpha')).resolves.toEqual(['Safe.md']);
-    expect(getSuggestionsSafe).toHaveBeenCalledOnce();
-    expect(getPathsByNameSafe).toHaveBeenCalledWith('alpha');
-  });
+    const patched = metadataCache.getLinkSuggestions;
 
-  it('should expose the reverse lookup as `getPathsByName`', async () => {
-    await component.loadWithPromises();
-
-    expect(asPatched().getPathsByName('alpha')).toEqual(['Indexed.md']);
-    expect(getPathsByName).toHaveBeenCalledWith('alpha');
+    for (const member of ['getPathsByName', 'getPathsByNameSafe', 'originalFn', 'safe']) {
+      expect(patched).not.toHaveProperty(member);
+    }
   });
 
   it('should restore Obsidian implementation when unloaded', async () => {
@@ -113,8 +87,4 @@ describe('MetadataCacheGetLinkSuggestionsPatchComponent', () => {
 
     expect(metadataCache.getLinkSuggestions).toBe(getLinkSuggestions);
   });
-
-  function asPatched(): PatchedGetLinkSuggestions {
-    return metadataCache.getLinkSuggestions as PatchedGetLinkSuggestions;
-  }
 });

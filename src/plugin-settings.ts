@@ -23,7 +23,7 @@ export class PluginSettings {
    *
    * **Off by default, and that default is the contract.** `getLinkSuggestions()` is published as a
    * REPLACEMENT for Obsidian's own — the README says so, the demo vault says so, and
-   * `readme-name-calls.cross-platform.integration.test.ts` asserts the two arrays are the same length.
+   * `plugin-api-calls.cross-platform.integration.test.ts` asserts the two arrays are the same length.
    * Offering titles makes it answer a DIFFERENT question, which is a user-visible feature rather than a
    * faster answer to the same one, so it is something a user asks for rather than something they get.
    *

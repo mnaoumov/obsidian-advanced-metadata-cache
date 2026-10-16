@@ -35,8 +35,7 @@ describe('MetadataCacheGetBacklinksForFilePatchComponent', () => {
     metadataCache = strictProxy<MetadataCache>({ getBacklinksForFile });
 
     const backlinkCacheComponent = strictProxy<BacklinkCacheComponent>({
-      getBacklinksForFile: () => CACHED_BACKLINKS,
-      getBacklinksForFileSafe: () => Promise.resolve(CACHED_BACKLINKS)
+      getBacklinksForFile: () => CACHED_BACKLINKS
     });
 
     component = new MetadataCacheGetBacklinksForFilePatchComponent({ backlinkCacheComponent, metadataCache });
@@ -57,6 +56,13 @@ describe('MetadataCacheGetBacklinksForFilePatchComponent', () => {
     expect(component.getBacklinksForFileOriginal(file)).toBe(NATIVE_BACKLINKS);
     expect(getBacklinksForFile).toHaveBeenCalledTimes(2);
     expect(getBacklinksForFile).toHaveBeenLastCalledWith(file);
+  });
+
+  it('should graft nothing onto the patched method', async () => {
+    await component.loadWithPromises();
+
+    expect(metadataCache.getBacklinksForFile).not.toHaveProperty('originalFn');
+    expect(metadataCache.getBacklinksForFile).not.toHaveProperty('safe');
   });
 
   it('should restore Obsidian implementation when unloaded', async () => {

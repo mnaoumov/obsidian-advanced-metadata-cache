@@ -1,4 +1,3 @@
-import type { LinkSuggestion } from '@obsidian-typings/obsidian-public-latest';
 import type { Plugin } from 'obsidian';
 
 import { evalInObsidian } from 'obsidian-integration-testing';
@@ -14,43 +13,10 @@ export interface ModuleSwitchResult {
 }
 
 /**
- * The shape `app.metadataCache.getLinkSuggestions` takes while the `names` module is on — the same
- * shape `GetLinkSuggestionsFn` in the root `api.d.ts` ships for consumers, with every grafted member
- * optional so a suite can ask whether the patch is there yet.
- *
- * Declared here rather than in each suite because an `evalInObsidian` closure cannot import a value
- * but is type-checked in its own module's scope, so TYPES are free to be shared.
- */
-export interface PatchedGetLinkSuggestions {
-  (): LinkSuggestion[];
-  getPathsByName?: (name: string) => string[];
-  getPathsByNameSafe?: (name: string) => Promise<string[]>;
-  // eslint-disable-next-line unicorn/name-replacements -- `originalFn` is this plugin's documented public API - the README tells users to call it.
-  originalFn?: () => LinkSuggestion[];
-  safe?: () => Promise<LinkSuggestion[]>;
-}
-
-/**
  * The settings component, seen through the one method a suite needs.
  */
 export interface PluginSettingsEditor {
   editAndSave: (editor: (settings: SwitchablePluginSettings) => void) => Promise<void>;
-}
-
-/**
- * {@link PatchedGetLinkSuggestions} once the patch is known to be installed — every grafted member
- * present.
- *
- * A separate interface rather than `Required<PatchedGetLinkSuggestions>`, because that mapped type
- * drops the call signature and leaves the result with nothing to call.
- */
-export interface ReadyGetLinkSuggestions {
-  (): LinkSuggestion[];
-  getPathsByName: (name: string) => string[];
-  getPathsByNameSafe: (name: string) => Promise<string[]>;
-  // eslint-disable-next-line unicorn/name-replacements -- `originalFn` is this plugin's documented public API - the README tells users to call it.
-  originalFn: () => LinkSuggestion[];
-  safe: () => Promise<LinkSuggestion[]>;
 }
 
 /**

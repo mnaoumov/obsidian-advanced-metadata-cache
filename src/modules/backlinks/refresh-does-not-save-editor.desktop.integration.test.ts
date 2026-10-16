@@ -1,4 +1,3 @@
-import type { TFile } from 'obsidian';
 import type { CommonArguments } from 'obsidian-integration-testing';
 
 import {
@@ -11,6 +10,8 @@ import {
   expect,
   it
 } from 'vitest';
+
+import type { PluginApiRegistryHolder } from '../../../scripts/helpers/plugin-api-registry.ts';
 
 /*
  * The backlink index refreshes on AUTOMATIC triggers: a `modify`, a `changed`, a backlinks-pane
@@ -30,11 +31,6 @@ import {
 
 interface BacklinkStatus {
   hasBacklink: boolean;
-}
-
-interface SafeGetBacklinksForFile {
-  (pathOrFile: string | TFile): unknown;
-  safe: (pathOrFile: string | TFile) => Promise<unknown>;
 }
 
 const SOURCE_PATH = 'refresh-source.md';
@@ -121,7 +117,8 @@ describe('backlink refresh reads the held cache and never saves the editor', () 
         // What `modify` does to the index, run to completion now rather than after the 500 ms debounce,
         // and well inside Obsidian's own ~2 s autosave, so any save seen here is the refresh's.
         app.vault.trigger('modify', sourceFile);
-        await (app.metadataCache.getBacklinksForFile as SafeGetBacklinksForFile).safe(targetFile);
+        const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+        await (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked)?.api.getBacklinksForFileSafe(targetFile);
         const diskAfterRefresh = await app.vault.adapter.read(sourcePath);
 
         // Put the editor back to what is on disk, so the autosave cannot leave the marker behind.
