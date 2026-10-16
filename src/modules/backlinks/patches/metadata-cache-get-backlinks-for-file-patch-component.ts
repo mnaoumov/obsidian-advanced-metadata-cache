@@ -2,7 +2,6 @@ import type {
   MetadataCache,
   TFile
 } from 'obsidian';
-import type { GetBacklinksForFileSafeWrapper } from 'obsidian-dev-utils/obsidian/metadata-cache';
 
 import { MonkeyAroundComponent } from 'obsidian-dev-utils/obsidian/components/monkey-around-component';
 
@@ -49,17 +48,8 @@ export class MetadataCacheGetBacklinksForFilePatchComponent extends MonkeyAround
       }) => {
         return this.backlinkCacheComponent.getBacklinksForFile(file);
       },
-      postPatchHandler: ({
-        originalMethod,
-        patchedMethod
-      }): GetBacklinksForFileFunction & GetBacklinksForFileSafeWrapper => {
+      postPatchHandler: ({ originalMethod }) => {
         this.originalMethod = originalMethod;
-        // Deprecated since 1.3.0, which publishes the same calls through the plugin API; removed in 2.0.0.
-        return Object.assign(patchedMethod, {
-          // eslint-disable-next-line unicorn/name-replacements -- `originalFn` is this plugin's documented public API - the README tells users to call it.
-          originalFn: originalMethod.bind(this.metadataCache),
-          safe: this.backlinkCacheComponent.getBacklinksForFileSafe.bind(this.backlinkCacheComponent)
-        });
       }
     });
   }

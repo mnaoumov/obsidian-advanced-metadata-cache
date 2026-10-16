@@ -5,45 +5,6 @@ import { MonkeyAroundComponent } from 'obsidian-dev-utils/obsidian/components/mo
 
 import type { NameIndexComponent } from '../name-index-component.ts';
 
-/**
- * The members this patch grafts onto `metadataCache.getLinkSuggestions`.
- *
- * `originalFn` and `safe` follow the convention the `getBacklinksForFile` patch established, and
- * `getPathsByName` / `getPathsByNameSafe` are the reverse lookup — a question Obsidian's flat,
- * unkeyed array can only answer by being scanned, and the reason this index exists at all beyond
- * making the autocomplete cheap.
- */
-export interface GetLinkSuggestionsWrapper {
-  /**
-   * Finds every note that answers to a name — its basename, or one of its `aliases`.
-   *
-   * @param name - A basename or alias, in any casing and spacing.
-   * @returns The vault-relative paths of the notes carrying that name, unranked and complete.
-   */
-  getPathsByName: (name: string) => string[];
-
-  /**
-   * {@link GetLinkSuggestionsWrapper.getPathsByName}, waiting for the index to be built first.
-   *
-   * @param name - A basename or alias, in any casing and spacing.
-   * @returns The vault-relative paths of the notes carrying that name.
-   */
-  getPathsByNameSafe: (name: string) => Promise<string[]>;
-
-  /**
-   * Obsidian's own implementation, which rebuilds the whole array from a full vault walk.
-   */
-  // eslint-disable-next-line unicorn/name-replacements -- `originalFn` is this plugin's documented public API - the README tells users to call it.
-  originalFn: () => LinkSuggestion[];
-
-  /**
-   * The indexed answer, waiting for the index to be built first.
-   *
-   * @returns The link suggestions.
-   */
-  safe: () => Promise<LinkSuggestion[]>;
-}
-
 type GetLinkSuggestionsFunction = MetadataCache['getLinkSuggestions'];
 
 interface MetadataCacheGetLinkSuggestionsPatchComponentConstructorParams {
@@ -91,19 +52,8 @@ export class MetadataCacheGetLinkSuggestionsPatchComponent extends MonkeyAroundC
         // event to complete it — so the original answer is the only correct one.
         return this.nameIndexComponent.isBuilt ? this.nameIndexComponent.nameIndex.getSuggestions() : fallback();
       },
-      postPatchHandler: ({
-        originalMethod,
-        patchedMethod
-      }): GetLinkSuggestionsFunction & GetLinkSuggestionsWrapper => {
+      postPatchHandler: ({ originalMethod }) => {
         this.originalMethod = originalMethod;
-        // Deprecated since 1.3.0, which publishes the same calls through the plugin API; removed in 2.0.0.
-        return Object.assign(patchedMethod, {
-          getPathsByName: (name: string): string[] => this.nameIndexComponent.nameIndex.getPathsByName(name),
-          getPathsByNameSafe: (name: string): Promise<string[]> => this.nameIndexComponent.getPathsByNameSafe(name),
-          // eslint-disable-next-line unicorn/name-replacements -- `originalFn` is this plugin's documented public API - the README tells users to call it.
-          originalFn: originalMethod.bind(this.metadataCache),
-          safe: (): Promise<LinkSuggestion[]> => this.nameIndexComponent.getSuggestionsSafe()
-        });
       }
     });
   }

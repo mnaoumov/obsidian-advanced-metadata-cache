@@ -14,6 +14,8 @@
  * none of this is platform-specific, and the API is the one a consumer calls on either.
  */
 
+import type { LinkSuggestion } from '@obsidian-typings/obsidian-public-latest';
+
 import { evalInObsidian } from 'obsidian-integration-testing';
 import { getTemporaryVault } from 'obsidian-integration-testing/vitest-global-setup-plugin';
 import {
@@ -24,8 +26,6 @@ import {
   it
 } from 'vitest';
 
-import type { ReadyGetLinkSuggestions } from '../../../scripts/helpers/names-module.ts';
-
 import { applyPluginSettings } from '../../../scripts/helpers/names-module.ts';
 
 /**
@@ -35,6 +35,9 @@ import { applyPluginSettings } from '../../../scripts/helpers/names-module.ts';
  * module's scope but cannot carry a value across.
  */
 interface AdvancedMetadataCacheApi {
+  getLinkSuggestionsOriginal: () => LinkSuggestion[];
+  getLinkSuggestionsSafe: () => Promise<LinkSuggestion[] | null>;
+  getPathsByName: (name: string) => null | string[];
   getTitlePropertyNames: () => string[];
   getTitles: (pathOrFile: string) => string[];
 }
@@ -263,15 +266,24 @@ async function runScenario(): Promise<TitlesResult> {
         }
 
         const api = record.api;
-        const getLinkSuggestions = app.metadataCache.getLinkSuggestions as ReadyGetLinkSuggestions;
 
-        await getLinkSuggestions.safe();
+        /**
+         * Asks the name index which notes answer to a name, reading a switched-off module as none.
+         *
+         * @param name - A basename, alias or title.
+         * @returns The paths of the notes carrying it.
+         */
+        function getPathsByName(name: string): string[] {
+          return api.getPathsByName(name) ?? [];
+        }
+
+        await api.getLinkSuggestionsSafe();
 
         // The note is created after the eager build, so its entry arrives with the `changed` event.
         await waitUntil({
           intervalInMilliseconds: pollMs,
           message: 'the name index to pick up the newly created note',
-          predicate: () => getLinkSuggestions.getPathsByName(noteBasename).includes(notePath),
+          predicate: () => getPathsByName(noteBasename).includes(notePath),
           timeoutInMilliseconds: indexWaitMs
         });
 
@@ -289,17 +301,17 @@ async function runScenario(): Promise<TitlesResult> {
           timeoutInMilliseconds: frontmatterWaitMs
         });
 
-        const fast = getLinkSuggestions();
+        const fast = app.metadataCache.getLinkSuggestions();
         const titleSuggestionIndex = fast.findIndex((suggestion) => suggestion.alias === noteTitle);
 
         return {
           ...empty,
           fastCount: fast.length,
           isTitleOfferedAsSuggestion: titleSuggestionIndex !== -1,
-          originalCount: getLinkSuggestions.originalFn().length,
-          pathsByHeading: getLinkSuggestions.getPathsByName(noteHeading),
-          pathsByOwnName: getLinkSuggestions.getPathsByName(noteBasename),
-          pathsByTitle: getLinkSuggestions.getPathsByName(noteTitle),
+          originalCount: api.getLinkSuggestionsOriginal().length,
+          pathsByHeading: getPathsByName(noteHeading),
+          pathsByOwnName: getPathsByName(noteBasename),
+          pathsByTitle: getPathsByName(noteTitle),
           propertyNames: api.getTitlePropertyNames(),
           titles: api.getTitles(notePath),
           titleSuggestionIndex

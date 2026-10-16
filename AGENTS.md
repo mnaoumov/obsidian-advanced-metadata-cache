@@ -122,12 +122,11 @@ version are in `src/plugin-api.ts`. The declaration goes through `getPluginApis(
 `publishPluginApi` call, because the `plugin-loaded` broadcast derives its `apiVersions` from that method
 alone.
 
-**Nothing of this plugin's own is ever hung on an Obsidian function or object.** Until contract `1.3.0` the backlinks and names extras were grafted onto the
-patched core methods (`.safe`, `.originalFn`, `.getPathsByName`, `.getPathsByNameSafe`); they are still
-there, deprecated, so a published consumer that reads them keeps working until the libraries that read
-them release their switch to the API, and `2.0.0` removes them. The `Original` members are answered from
-a field each patch component keeps (`getBacklinksForFileOriginal`, `getLinkSuggestionsOriginal`), never
-from the graft. `PluginApiImpl` finds the module components through `ModulesComponent.getModuleComponent`
+**Nothing of this plugin's own is ever hung on an Obsidian function or object.** Each patch's
+`postPatchHandler` only records the method it replaced; it returns nothing, so the patched method is
+Obsidian's signature and nothing more. (Before `2.0.0` the backlinks and names extras were grafted onto
+it as well; the README's "Removed in 2.0.0" table maps each to its API member.) The `Original` members
+are answered from that recorded field (`getBacklinksForFileOriginal`, `getLinkSuggestionsOriginal`). `PluginApiImpl` finds the module components through `ModulesComponent.getModuleComponent`
 per call, because a module switched off and on again is a fresh component; a module that is off answers
 `null` from every member backed by it, while the `Original` members fall back to core, which is then the
 original.
@@ -137,8 +136,7 @@ The same API also RECEIVES: `migrateSettings` (contract `1.1.0`) is `obsidian-de
 interface too, so the restatement can only drift into a compile error. The merge is additive and
 case-insensitive, because a proposal that replaced the list would take `title` away from a user who had it.
 
-**Both the API and the deprecated graft types are declared in the single root `api.d.ts`**, which is the
-file a consumer reads, and
+**The API is declared in the single root `api.d.ts`**, which is the file a consumer reads, and
 `src/plugin-api.ts` re-exports `AdvancedMetadataCacheApi` from it rather than re-declaring it, so there
 is one declaration of each and nothing to drift. The file **imports from `obsidian` and nothing else**
 — that is what makes it copyable by a plugin which has never heard of `obsidian-dev-utils`, and it is

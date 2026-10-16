@@ -1,5 +1,3 @@
-import type { GetBacklinksForFileSafeWrapper } from 'obsidian-dev-utils/obsidian/metadata-cache';
-
 import {
   evalInObsidian,
   pollInObsidian
@@ -11,6 +9,8 @@ import {
   it
 } from 'vitest';
 
+import type { PluginApiRegistryHolder } from '../../../scripts/helpers/plugin-api-registry.ts';
+
 /*
  * Guards the signal this plugin learns "the core Canvas plugin was toggled" from. It used to be two monkey
  * patches - `onUserEnable` and `onUserDisable` on the `CanvasPluginInstance` prototype, an object every vault
@@ -19,8 +19,8 @@ import {
  * `onCanvasCorePluginDisable` and `onCanvasCorePluginEnable` - the whole reason either mechanism exists -
  * measured across a real disable/enable of the core plugin rather than against a mock.
  *
- * The observable is the plugin's own backlink index, read through the `safe` wrapper so no pending action is
- * raced: a canvas file linking to a note is one of that note's backlink sources. Disabling canvas runs
+ * The observable is the plugin's own backlink index, read through the API's `getBacklinksForFileSafe`
+ * so no pending action is raced: a canvas file linking to a note is one of that note's backlink sources. Disabling canvas runs
  * `removeCanvasMetadataCache`, which drops the canvas from the index; enabling it runs
  * `processAllCanvasFiles`, which puts it back. The synthetic `getCache` entry is deliberately NOT the
  * observable - the per-path map outlives a disable, so it cannot tell the two states apart.
@@ -58,9 +58,10 @@ describe('core Canvas plugin toggle', () => {
             return false;
           }
 
-          const getBacklinksForFile = app.metadataCache.getBacklinksForFile as GetBacklinksForFileSafeWrapper & typeof app.metadataCache.getBacklinksForFile;
-          const backlinks = await getBacklinksForFile.safe(targetFile);
-          return backlinks.keys().includes(canvasPath);
+          const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+          const api = (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked)?.api;
+          const backlinks = await api?.getBacklinksForFileSafe(targetFile);
+          return backlinks?.keys().includes(canvasPath) ?? false;
         }
 
         await app.vault.create(targetPath, '');

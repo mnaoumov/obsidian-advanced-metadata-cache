@@ -6,10 +6,8 @@ import {
   it
 } from 'vitest';
 
-import type {
-  PatchedGetLinkSuggestions,
-  SettingsEditorPlugin
-} from '../../../scripts/helpers/names-module.ts';
+import type { SettingsEditorPlugin } from '../../../scripts/helpers/names-module.ts';
+import type { PluginApiRegistryHolder } from '../../../scripts/helpers/plugin-api-registry.ts';
 
 /*
  * The one claim about the name index that only a real Obsidian can settle: a FOLDER rename leaves
@@ -70,7 +68,9 @@ describe('the name index survives a folder rename', () => {
         }
 
         function getPathsByName(name: string): string[] {
-          return (app.metadataCache.getLinkSuggestions as PatchedGetLinkSuggestions).getPathsByName?.(name) ?? [];
+          const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+          const api = (records?.[pluginId] ?? []).find((record) => !record.isRevoked)?.api;
+          return api?.getPathsByName(name) ?? [];
         }
 
         try {

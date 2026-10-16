@@ -172,11 +172,11 @@ const safePaths = await api.getPathsByNameSafe('Some Alias');
 
 **Use the `Safe` variants when you may be asked early.** The index is built once the metadata cache can answer; until then `getLinkSuggestions()` falls through to Obsidian's implementation and `getPathsByName` answers with nothing. `getLinkSuggestionsSafe()` / `getPathsByNameSafe()` wait for the build. All four answer **`null` while the Names module is off**; `getLinkSuggestionsOriginal` always answers. [05 Name index](<./demo-vault/05 Name index.md>) runs them.
 
-#### Deprecated: the members on the core methods
+#### Removed in 2.0.0: the members on the core methods
 
-Before `1.3.0` these calls were reached through members this plugin added to the patched core methods. They still work while their module is on, are typed in [api.d.ts](./api.d.ts) as `GetBacklinksForFileFn` and `GetLinkSuggestionsFn`, and **are removed in 2.0.0**, because nothing of this plugin's own belongs on an Obsidian function:
+Before `1.3.0` these calls were reached through members this plugin added to the patched core methods. `1.3.0` deprecated them and **2.0.0 removed them**, because nothing of this plugin's own belongs on an Obsidian function: the patched methods now keep Obsidian's own signature and carry nothing else. Each has a replacement on the API:
 
-| Deprecated                                                  | Use instead                                  |
+| Removed                                                     | Use instead                                  |
 |-------------------------------------------------------------|----------------------------------------------|
 | `app.metadataCache.getBacklinksForFile(path)`, with a path  | `api.getBacklinksForFile(path)`              |
 | `app.metadataCache.getBacklinksForFile.safe(pathOrFile)`    | `api.getBacklinksForFileSafe(pathOrFile)`    |

@@ -13,7 +13,7 @@
  *
  * The numbers in frame are measured in that vault, in the same run, on the same
  * note: the patched lookup, then Obsidian's own implementation reached through
- * `getBacklinksForFile.originalFn`. Nothing is quoted from a benchmark elsewhere,
+ * the API's `getBacklinksForFileOriginal`. Nothing is quoted from a benchmark elsewhere,
  * and the assertion requires the patched path to actually be faster before the
  * frame claiming so is written.
  *
@@ -46,27 +46,11 @@ import {
   it
 } from 'vitest';
 
+import type { PluginApiRegistryHolder } from '../scripts/helpers/plugin-api-registry.ts';
+
 import { assertNoForeignEmulator } from '../scripts/helpers/android-emulator-contention.ts';
 import { computeCaptureDeadline } from '../scripts/helpers/capture-budget.ts';
 import { SCREENSHOT_AVD_NAME } from '../scripts/helpers/screenshot-avd.ts';
-
-/**
- * The dictionary either implementation answers with, reduced to its keys.
- */
-interface BacklinkDictionary {
-  keys: (this: void) => string[];
-}
-
-/**
- * The backlink lookup as this plugin leaves it: callable as before, plus the
- * `originalFn` handle onto Obsidian's own implementation, which is what makes a
- * fair side-by-side measurement possible at all.
- */
-interface PatchedGetBacklinksForFile {
-  (this: void, file: unknown): BacklinkDictionary;
-  // eslint-disable-next-line unicorn/name-replacements -- `originalFn` is the plugin's own public property name, not ours to rename.
-  originalFn: (this: void, file: unknown) => BacklinkDictionary;
-}
 
 const WIDTH_IN_PIXELS = 900;
 const HEIGHT_IN_PIXELS = 1600;
@@ -388,10 +372,14 @@ async function compareBacklinkCounts(): Promise<BacklinkCounts> {
         throw new Error(`Note is missing from the vault: ${hubNotePath}`);
       }
 
-      const lookup: unknown = app.metadataCache.getBacklinksForFile;
-      const getBacklinksForFile = lookup as PatchedGetBacklinksForFile;
-      const cached = getBacklinksForFile(file).keys().length;
-      const original = getBacklinksForFile.originalFn(file).keys().length;
+      const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+      const api = (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked)?.api;
+      if (!api) {
+        throw new Error('The plugin has not published its API');
+      }
+
+      const cached = app.metadataCache.getBacklinksForFile(file).keys().length;
+      const original = api.getBacklinksForFileOriginal(file).keys().length;
 
       await writeResultNote([
         '# Backlinks for Website redesign',
@@ -498,8 +486,11 @@ async function measureBacklinkLookups(): Promise<BacklinkMeasurement> {
         throw new Error(`Note is missing from the vault: ${hubNotePath}`);
       }
 
-      const lookup: unknown = app.metadataCache.getBacklinksForFile;
-      const getBacklinksForFile = lookup as PatchedGetBacklinksForFile;
+      const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+      const api = (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked)?.api;
+      if (!api) {
+        throw new Error('The plugin has not published its API');
+      }
 
       function measure(run: () => void): number {
         const start = performance.now();
@@ -511,10 +502,10 @@ async function measureBacklinkLookups(): Promise<BacklinkMeasurement> {
       }
 
       const cachedInMilliseconds = measure(() => {
-        getBacklinksForFile(file);
+        app.metadataCache.getBacklinksForFile(file);
       });
       const originalInMilliseconds = measure(() => {
-        getBacklinksForFile.originalFn(file);
+        api.getBacklinksForFileOriginal(file);
       });
 
       await writeResultNote([

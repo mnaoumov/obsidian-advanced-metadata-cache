@@ -6,11 +6,8 @@ import {
   it
 } from 'vitest';
 
-import type {
-  PatchedGetLinkSuggestions,
-  ReadyGetLinkSuggestions,
-  SettingsEditorPlugin
-} from '../../../scripts/helpers/names-module.ts';
+import type { SettingsEditorPlugin } from '../../../scripts/helpers/names-module.ts';
+import type { PluginApiRegistryHolder } from '../../../scripts/helpers/plugin-api-registry.ts';
 
 import { waitForPerformanceVaultScan } from '../../../scripts/helpers/wait-for-performance-vault-scan.ts';
 
@@ -24,8 +21,9 @@ import { waitForPerformanceVaultScan } from '../../../scripts/helpers/wait-for-p
  * pass trivially at the small size this normally runs at, or fail on a slower machine at the large
  * one. The ratio holds at both, because both sides move together.
  *
- * `originalFn` is what makes this measurable at all: the patch keeps Obsidian's own implementation
- * reachable, so the comparison needs no plugin disable and no second vault.
+ * The API's `getLinkSuggestionsOriginal` is what makes this measurable at all: the patch keeps
+ * Obsidian's own implementation reachable, so the comparison needs no plugin disable and no second
+ * vault.
  */
 
 const PLUGIN_ID = 'advanced-metadata-cache';
@@ -75,31 +73,36 @@ describe('the names module makes getLinkSuggestions cheaper', () => {
 
           /*
            * Two steps, and both are needed. The module loads asynchronously off the settings save,
-           * so the patch is not there yet; and the patch is installed BEFORE the index is built, so
-           * its mere presence says nothing about whether an ordinary call is yet answered from the
-           * index. `safe()` is the documented way to wait for the second — this is the README's own
-           * recipe, run as written.
+           * so the API answers `null` until it is there; and the patch is installed BEFORE the index
+           * is built, so the module being there says nothing about whether an ordinary call is yet
+           * answered from the index. `getLinkSuggestionsSafe()` is the documented way to wait for the
+           * second — this is the README's own recipe, run as written.
            */
+          const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+          const api = (records?.[pluginId] ?? []).find((record) => !record.isRevoked)?.api;
+
+          if (!api) {
+            return { error: 'No live API record', fileCount: 0, indexedCount: 0, indexedPerCallMs: 0, nativeCount: 0, nativePerCallMs: 0 };
+          }
+
           await waitUntil({
             intervalInMilliseconds: indexPollMs,
-            message: 'the names module to install its patch',
-            predicate: () => (metadataCache.getLinkSuggestions as PatchedGetLinkSuggestions).safe !== undefined,
+            message: 'the names module to load',
+            predicate: () => api.getLinkSuggestions() !== null,
             timeoutInMilliseconds: indexWaitMs
           });
 
-          const patched = metadataCache.getLinkSuggestions as ReadyGetLinkSuggestions;
-          await patched.safe();
-          const builtIn = patched.originalFn.bind(metadataCache);
+          await api.getLinkSuggestionsSafe();
 
           const indexedMs = measure(() => metadataCache.getLinkSuggestions());
-          const nativeMs = measure(builtIn);
+          const nativeMs = measure(() => api.getLinkSuggestionsOriginal());
 
           return {
             error: null,
             fileCount: app.vault.getFiles().length,
             indexedCount: metadataCache.getLinkSuggestions().length,
             indexedPerCallMs: indexedMs / iterations,
-            nativeCount: builtIn().length,
+            nativeCount: api.getLinkSuggestionsOriginal().length,
             nativePerCallMs: nativeMs / iterations
           };
         } finally {

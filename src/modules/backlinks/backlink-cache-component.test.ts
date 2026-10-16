@@ -125,12 +125,7 @@ interface EventHandlers {
   rename: (file: TAbstractFile, oldPath: string) => void;
 }
 
-interface GetBacklinksForFileFunction {
-  (path: string): CustomArrayDict<Reference>;
-  // eslint-disable-next-line unicorn/name-replacements -- `originalFn` is this plugin's documented public API - the README tells users to call it.
-  originalFn: (...$arguments: unknown[]) => unknown;
-  safe: (path: string) => Promise<CustomArrayDict<Reference>>;
-}
+type GetBacklinksForFileFunction = (path: string) => CustomArrayDict<Reference>;
 
 type LinkGraph = Map<string, SourceLinks>;
 
@@ -394,7 +389,7 @@ describe('BacklinkCacheComponent', () => {
     it('should return backlinks via getBacklinksForFileSafe', async () => {
       await setupOnLayoutReady();
 
-      const result = await getBacklinksForFileFunction(context.app).safe('test.md');
+      const result = await context.component.getBacklinksForFileAsCoreSafe('test.md');
       expect(result.keys()).toEqual([]);
     });
 
@@ -426,10 +421,12 @@ describe('BacklinkCacheComponent', () => {
       expect(originalGetBacklinksForFile).toHaveBeenCalledWith(noteFile);
     });
 
-    it('should expose originalFn', async () => {
+    it('should graft nothing onto the patched method', async () => {
       await setupOnLayoutReady();
 
-      expect(getBacklinksForFileFunction(context.app).originalFn).toBeDefined();
+      const patched = getBacklinksForFileFunction(context.app);
+      expect(patched).not.toHaveProperty('originalFn');
+      expect(patched).not.toHaveProperty('safe');
     });
 
     it('should process refresh action via pending actions', async () => {
