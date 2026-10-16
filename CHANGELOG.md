@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2.0.0
+
+- feat(api)!: remove the members grafted onto the patched core methods. `app.metadataCache.getBacklinksForFile` and `app.metadataCache.getLinkSuggestions` keep Obsidian's own signature and carry nothing else. Each removed member has a replacement on the plugin API (contract 1.3.0), published since 1.3.0:
+  - `getBacklinksForFile(path)`, called with a path: `api.getBacklinksForFile(path)`
+  - `getBacklinksForFile.safe(pathOrFile)`: `api.getBacklinksForFileSafe(pathOrFile)`
+  - `getBacklinksForFile.originalFn(file)`: `api.getBacklinksForFileOriginal(file)`
+  - `getLinkSuggestions.safe()`: `api.getLinkSuggestionsSafe()`
+  - `getLinkSuggestions.originalFn()`: `api.getLinkSuggestionsOriginal()`
+  - `getLinkSuggestions.getPathsByName(name)`: `api.getPathsByName(name)`
+  - `getLinkSuggestions.getPathsByNameSafe(name)`: `api.getPathsByNameSafe(name)`
+- `api.d.ts` no longer declares `GetBacklinksForFileFn` or `GetLinkSuggestionsFn`
+- fix(test): read the API contract version from a module Node can load
+
 ## 1.3.0
 
 - feat(api): publish the backlinks and names extras through the plugin API (contract 1.3.0)
