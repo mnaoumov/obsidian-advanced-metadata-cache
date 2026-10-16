@@ -47,14 +47,6 @@ interface BacklinkDictionary {
 }
 
 /**
- * `App`, reduced to the inline-title toggle that `obsidian-typings` does not
- * declare. Setting the config alone changes nothing on screen.
- */
-interface InlineTitleApp {
-  updateInlineTitleDisplay: (this: void) => void;
-}
-
-/**
  * The backlink lookup as this plugin leaves it: callable as before, plus the
  * `originalFn` handle onto Obsidian's own implementation, which is what makes a
  * fair side-by-side measurement possible at all.
@@ -183,8 +175,7 @@ beforeAll(async () => {
       });
 
       app.vault.setConfig('showInlineTitle', false);
-      const inlineTitleApp: unknown = app;
-      (inlineTitleApp as InlineTitleApp).updateInlineTitleDisplay();
+      app.updateInlineTitleDisplay();
 
       await sleep(SETTLE_DELAY_IN_MILLISECONDS);
 
