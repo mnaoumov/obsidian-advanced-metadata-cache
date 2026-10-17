@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2.0.2
+
+- fix(canvas): merge keeping the canvas metadata entry out of Obsidian's persisted cache
+- ci: merge attesting release assets through the toolkit's reusable workflow
+- build(demo-vault): require CodeScript Toolkit 13.8.0 for the obsidian-lib demo script
+
 ## 2.0.1
 
 - chore(demo-vault): import demoSetup helpers from @mnaoumov/obsidian-lib
