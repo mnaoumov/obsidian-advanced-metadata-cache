@@ -108,7 +108,7 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
     for (const methodName of castTo<MethodName[]>(Object.keys(ADVANCED_METADATA_CACHE_API_CONTRACT))) {
       const methodContract = ADVANCED_METADATA_CACHE_API_CONTRACT[methodName];
       for (const schema of [methodContract.input, methodContract.output]) {
-        expect(schema['~standard']).toMatchObject({ vendor: '@mnaoumov/typescript-lib', version: 1 });
+        expect(schema['~standard']).toMatchObject({ vendor: 'advanced-metadata-cache', version: 1 });
       }
     }
   });

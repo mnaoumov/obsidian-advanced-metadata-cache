@@ -24,9 +24,8 @@ import {
   isPathOrFile
 } from '@mnaoumov/obsidian-lib/file-system';
 import {
-  createArgumentsSchema,
+  createApiContractSchemaBuilders,
   createExpectedTypeGuard,
-  createTypeGuardSchema,
   defineApiContract,
   nullableGuard
 } from '@mnaoumov/typescript-lib/api-contract';
@@ -58,6 +57,8 @@ import type {
  * {@link AdvancedMetadataCacheApi}, each typed against that method's parameters and awaited return value.
  */
 export type AdvancedMetadataCacheApiContract = TypedApiContract<AdvancedMetadataCacheApi>;
+
+const { createArgumentsSchema, createTypeGuardSchema } = createApiContractSchemaBuilders('advanced-metadata-cache');
 
 type BacklinksDict = CustomArrayDict<Reference>;
 
