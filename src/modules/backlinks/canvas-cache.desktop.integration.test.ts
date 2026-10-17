@@ -17,7 +17,8 @@ import {
  *
  * It also asserts resolvedLinks for the canvas is NOT double-counted: Obsidian owns
  * resolvedLinks/unresolvedLinks for canvas natively, and the plugin must not mirror into
- * them on top (which would inflate the count from 1 to 2).
+ * them on top (which would inflate the count from 1 to 2). And it asserts the cache is never
+ * written into Obsidian's persisted fileCache/metadataCache.
  */
 
 const TARGET_PATH = 'target.md';
@@ -41,6 +42,7 @@ describe('getCache exposes canvas node links', () => {
         const cache = app.metadataCache.getCache(canvasPath);
         const links = cache?.frontmatterLinks ?? [];
         return {
+          fileInfoHash: app.metadataCache.getFileInfo(canvasPath)?.hash ?? null,
           hasCache: !!cache,
           hasTargetLink: links.some((link) => link.link === targetLink),
           linkCount: links.length,
@@ -68,5 +70,8 @@ describe('getCache exposes canvas node links', () => {
     // Obsidian owns resolvedLinks for canvas natively; the plugin no longer mirrors into it,
     // so the single `[[target]]` reference must resolve to a count of 1, not 2 (double-counted).
     expect(result.resolvedTargetCount).toBe(1);
+    // ...and the links-only entry stays in memory. Obsidian keeps a canvas's persisted hash empty; a real one
+    // there is the partial entry `Advanced Canvas` adopted in place of its own, frontmatter and all.
+    expect(result.fileInfoHash).toBe('');
   }, SCENARIO_TIMEOUT_IN_MS);
 });

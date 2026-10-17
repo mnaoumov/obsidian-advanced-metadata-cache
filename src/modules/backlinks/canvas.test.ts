@@ -6,7 +6,10 @@ import type {
   CanvasReference,
   CanvasTextNodeReference
 } from '@mnaoumov/obsidian-lib/reference';
-import type { CanvasPlugin } from '@obsidian-typings/obsidian-public-latest';
+import type {
+  CanvasPlugin,
+  FileCacheEntry
+} from '@obsidian-typings/obsidian-public-latest';
 import type {
   App,
   CachedMetadata,
@@ -133,8 +136,10 @@ function createMockApp(): App {
       })
     },
     metadataCache: {
+      computeFileMetadataAsync: vi.fn().mockResolvedValue(undefined),
       deletePath: vi.fn(),
       getCache: vi.fn(),
+      getFileInfo: vi.fn().mockReturnValue(undefined),
       // eslint-disable-next-line unicorn/name-replacements -- `getFirstLinkpathDest` is an Obsidian `MetadataCache` method name.
       getFirstLinkpathDest: vi.fn().mockReturnValue(null),
       saveFileCache: vi.fn(),
@@ -152,6 +157,7 @@ function createMockApp(): App {
   });
   app.metadataCache.resolvedLinks = {};
   app.metadataCache.unresolvedLinks = {};
+
   app.metadataCache.app = app;
   return app;
 }
@@ -517,7 +523,8 @@ describe('CanvasComponent.onload', () => {
   it('should return cached metadata for canvas files via getCache patch', () => {
     const { app, component } = createComponent();
     const originalGetCache = vi.mocked(app.metadataCache.getCache);
-    originalGetCache.mockReturnValue(castTo<CachedMetadata>({ sections: [] }));
+    // Obsidian answers `{}` for a canvas.
+    originalGetCache.mockImplementation((path) => castTo<CachedMetadata>(path.endsWith('.md') ? { sections: [] } : {}));
 
     component.load();
 
@@ -530,11 +537,38 @@ describe('CanvasComponent.onload', () => {
     const result = app.metadataCache.getCache('uncached.canvas');
     expect(result).toBeNull();
   });
+
+  it('should defer to a full canvas entry another plugin answers from getCache', async () => {
+    vi.mocked(isCanvasFile).mockReturnValue(true);
+    vi.mocked(getCanvasReferences).mockResolvedValue([{
+      isCanvas: true,
+      key: 'nodes.0.file',
+      link: 'target.md',
+      nodeIndex: 0,
+      original: 'target.md',
+      type: 'file'
+    }]);
+    const { app, component } = createComponent();
+    // The shape `Advanced Canvas` answers: the `frontmatter` and the node links.
+    const advancedCanvasEntry = castTo<CachedMetadata>({ frontmatter: { status: 'draft' }, frontmatterLinks: [], v: 1 });
+    vi.mocked(app.metadataCache.getCache).mockReturnValue(advancedCanvasEntry);
+
+    component.load();
+    const file = strictProxy<TFile>({ path: 'test.canvas', stat: { ctime: 0, mtime: 0, size: 0 } });
+    await castTo<CanvasInternals>(component).initCanvasMetadataCache(file);
+
+    expect(app.metadataCache.getCache('test.canvas')).toBe(advancedCanvasEntry);
+  });
 });
 
 describe('CanvasComponent.initCanvasMetadataCache', () => {
   function createCanvasApp(): App {
+    const fileCache: Record<string, FileCacheEntry> = {};
     const metadataCache = {
+      computeFileMetadataAsync: vi.fn().mockResolvedValue(undefined),
+      fileCache,
+      getFileInfo: vi.fn((path: string) => fileCache[path]),
+      metadataCache: {},
       saveFileCache: vi.fn(),
       saveMetaCache: vi.fn()
     };
@@ -573,7 +607,7 @@ describe('CanvasComponent.initCanvasMetadataCache', () => {
     expect(getCanvasReferences).not.toHaveBeenCalled();
   });
 
-  it('should save an empty cache when the canvas has no references', async () => {
+  it('should keep an empty cache in memory when the canvas has no references', async () => {
     vi.mocked(isCanvasFile).mockReturnValue(true);
     vi.mocked(getCanvasReferences).mockResolvedValue([]);
 
@@ -588,8 +622,8 @@ describe('CanvasComponent.initCanvasMetadataCache', () => {
     await castTo<CanvasInternals>(component).initCanvasMetadataCache(file);
 
     expect(getCanvasReferences).toHaveBeenCalledWith(app, file);
-    expect(app.metadataCache.saveFileCache).toHaveBeenCalled();
-    expect(app.metadataCache.saveMetaCache).toHaveBeenCalled();
+    expect(app.metadataCache.saveFileCache).not.toHaveBeenCalled();
+    expect(app.metadataCache.saveMetaCache).not.toHaveBeenCalled();
     expect(component.getCache('test.canvas')?.frontmatterLinks).toEqual([]);
   });
 
@@ -608,8 +642,8 @@ describe('CanvasComponent.initCanvasMetadataCache', () => {
 
     await castTo<CanvasInternals>(component).initCanvasMetadataCache(file);
 
-    expect(app.metadataCache.saveFileCache).toHaveBeenCalled();
-    expect(app.metadataCache.saveMetaCache).toHaveBeenCalled();
+    expect(app.metadataCache.saveFileCache).not.toHaveBeenCalled();
+    expect(app.metadataCache.saveMetaCache).not.toHaveBeenCalled();
     // Obsidian natively resolves canvas backlinks (Backlinks pane / graph /
     // `getBacklinksForFile` / `resolvedLinks`) since 1.12.4. The plugin no longer mirrors into
     // `resolvedLinks`/`unresolvedLinks`; it only fills the per-file `getCache` Obsidian leaves empty.
@@ -639,7 +673,7 @@ describe('CanvasComponent.initCanvasMetadataCache', () => {
 
     await castTo<CanvasInternals>(component).initCanvasMetadataCache(file);
 
-    expect(app.metadataCache.saveMetaCache).toHaveBeenCalled();
+    expect(app.metadataCache.saveMetaCache).not.toHaveBeenCalled();
     expect(component.getCache('test.canvas')?.frontmatterLinks).toEqual([textReference]);
   });
 
@@ -659,5 +693,67 @@ describe('CanvasComponent.initCanvasMetadataCache', () => {
     await castTo<CanvasInternals>(component).initCanvasMetadataCache(file);
 
     expect(component.getCache('test.canvas')?.frontmatterLinks).toEqual(references);
+  });
+
+  describe('the entry earlier versions persisted', () => {
+    const LEGACY_HASH = 'legacy-hash';
+
+    function createCanvasFile(): TFile {
+      return strictProxy<TFile>({
+        path: 'test.canvas',
+        stat: { ctime: 0, mtime: 100, size: 50 }
+      });
+    }
+
+    function seedPersistedEntry(app: App, entry: CachedMetadata): void {
+      app.metadataCache.fileCache['test.canvas'] = { hash: LEGACY_HASH, mtime: 100, size: 50 };
+      app.metadataCache.metadataCache[LEGACY_HASH] = entry;
+    }
+
+    beforeEach(() => {
+      vi.mocked(isCanvasFile).mockReturnValue(true);
+    });
+
+    it('should drop a links-only entry, put the hash back to empty and recompute the canvas', async () => {
+      const app = createCanvasApp();
+      seedPersistedEntry(app, { frontmatterLinks: [] });
+      const file = createCanvasFile();
+
+      await castTo<CanvasInternals>(createComponentForApp(app)).initCanvasMetadataCache(file);
+
+      expect(app.metadataCache.saveMetaCache).toHaveBeenCalledWith(LEGACY_HASH, null);
+      expect(app.metadataCache.saveFileCache).toHaveBeenCalledWith('test.canvas', { hash: '', mtime: 100, size: 50 });
+      expect(app.metadataCache.computeFileMetadataAsync).toHaveBeenCalledWith(file);
+    });
+
+    it('should leave an Advanced Canvas entry alone', async () => {
+      const app = createCanvasApp();
+      seedPersistedEntry(app, castTo<CachedMetadata>({ frontmatter: {}, frontmatterLinks: [], v: 1 }));
+
+      await castTo<CanvasInternals>(createComponentForApp(app)).initCanvasMetadataCache(createCanvasFile());
+
+      expect(app.metadataCache.saveMetaCache).not.toHaveBeenCalled();
+      expect(app.metadataCache.computeFileMetadataAsync).not.toHaveBeenCalled();
+    });
+
+    it('should leave a hash with no metadata entry behind it alone', async () => {
+      const app = createCanvasApp();
+      app.metadataCache.fileCache['test.canvas'] = { hash: LEGACY_HASH, mtime: 100, size: 50 };
+
+      await castTo<CanvasInternals>(createComponentForApp(app)).initCanvasMetadataCache(createCanvasFile());
+
+      expect(app.metadataCache.saveMetaCache).not.toHaveBeenCalled();
+      expect(app.metadataCache.computeFileMetadataAsync).not.toHaveBeenCalled();
+    });
+
+    it('should leave the empty hash Obsidian keeps for a canvas alone', async () => {
+      const app = createCanvasApp();
+      app.metadataCache.fileCache['test.canvas'] = { hash: '', mtime: 100, size: 50 };
+
+      await castTo<CanvasInternals>(createComponentForApp(app)).initCanvasMetadataCache(createCanvasFile());
+
+      expect(app.metadataCache.saveFileCache).not.toHaveBeenCalled();
+      expect(app.metadataCache.computeFileMetadataAsync).not.toHaveBeenCalled();
+    });
   });
 });

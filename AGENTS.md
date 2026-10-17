@@ -190,3 +190,17 @@ A `modify` refresh may read the pre-edit cache; the `changed` Obsidian fires aft
 note again and fixes it. That is why the listeners are registered before the initial walk, which also
 waits for `ensureMetadataCacheReady`. `refresh-does-not-save-editor.desktop.integration.test.ts` pins
 both halves in a real Obsidian and fails on the old code.
+
+## Invariant: the canvas entry lives in memory only
+
+`CanvasComponent` answers `getCache()` for a canvas from its own map, through
+`MetadataCacheGetCachePatchComponent`, and must never `saveFileCache` / `saveMetaCache` it. Obsidian keeps
+a canvas's persisted hash empty. A real hash there makes core `iterateAllRefs` count each canvas reference
+twice, once from the cache and once from the canvas link updater. It also hands `Advanced Canvas`, which keys
+its full entry on that same content hash, a links-only entry with no `frontmatter`. It reuses that entry until
+the vault cache is rebuilt (`Backlink Cache` issue #15). Versions up to `2.0.1` did persist it, so
+`removeLegacyPersistedEntry` drops that exact `{ frontmatterLinks }` shape when it finds it and recomputes the
+file. The patch returns a non-empty answer from below it unchanged, so the result is the same whichever of the
+two patches was installed first.
+
+`canvas-cache.desktop.integration.test.ts` asserts the persisted hash stays empty, and it fails on the old code.
