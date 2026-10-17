@@ -58,7 +58,8 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
     const nullableBacklinks: PayloadCase = { invalid: [{}, { ...BACKLINKS_DICT, data: {} }, { ...BACKLINKS_DICT, keys: 1 }, undefined], valid: [null, BACKLINKS_DICT] };
     const nullableSuggestions: PayloadCase = {
       invalid: [undefined, [null], [{ file: null }], [{ file: {}, path: 'a' }], [{ alias: 1, file: null, path: 'a' }]],
-      valid: [null, [], [{ file: null, path: 'a' }, { alias: 'b', file, path: 'Alpha.md' }]]
+      // An `alias` of `undefined` and a key the suggestion does not name both pass, as before the guards moved to `@mnaoumov/typescript-lib`.
+      valid: [null, [], [{ file: null, path: 'a' }, { alias: 'b', file, path: 'Alpha.md' }], [{ alias: undefined, file: null, path: 'a', unknownKey: true }]]
     };
     const nullableStrings: PayloadCase = { invalid: [undefined, [1]], valid: [null, ['a']] };
     const strings: PayloadCase = { invalid: [null, ['a', 1]], valid: [[], ['a']] };
@@ -90,9 +91,14 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
             proposedSettings: { titlePropertyNames: [1] },
             sourcePluginId: 'x'
           }]],
-          valid: [[{ proposedSettings: {}, sourcePluginId: 'x' }], [{ proposedSettings: { titlePropertyNames: ['subtitle'] }, sourcePluginId: 'x' }]]
+          // An optional key of `undefined` and a key the params do not name both pass, as before the guards moved to `@mnaoumov/typescript-lib`.
+          valid: [[{ proposedSettings: {}, sourcePluginId: 'x' }], [{ proposedSettings: { titlePropertyNames: ['subtitle'] }, sourcePluginId: 'x' }], [{
+            proposedSettings: { titlePropertyNames: undefined, unknownKey: true },
+            sourcePluginId: 'x',
+            unknownKey: true
+          }]]
         },
-        output: { invalid: [null, {}, { isApplied: 'yes' }], valid: [{ isApplied: true }] }
+        output: { invalid: [null, {}, { isApplied: 'yes' }], valid: [{ isApplied: true }, { isApplied: false, unknownKey: true }] }
       }
     };
   }

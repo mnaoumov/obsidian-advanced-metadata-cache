@@ -145,9 +145,10 @@ rather than imported from `@obsidian-typings/obsidian-public-latest` for exactly
 records which typings version they were copied from, and the trade behind the copy.
 
 **The contract lives in the root `api-contract.ts`**, beside `api.d.ts`, and is copyable on slightly
-weaker terms: it imports from `obsidian`, `./api.d.ts` and `@mnaoumov/typescript-lib` (the
-`api-contract` subpath's builders, guards and `TypedApiContract`, plus `type-guards`), so a consumer
-copying it needs that one package. The file is the constant plus the guards only this API has; nothing
+weaker terms: it imports from `obsidian`, `./api.d.ts`, `@mnaoumov/typescript-lib` (the schema
+builders, `TypedApiContract` and the guard builders, in its `api-contract` and `type-guards` entry
+points) and `@mnaoumov/obsidian-lib` (the file guards, in its `file-system` entry point), so a consumer
+copying it needs those two packages. The file is the constant plus the guards only this API has; nothing
 generic is restated in it. `src/plugin-api.ts` publishes that same constant, and assigning it to
 `PluginApiContract` there is what checks it is a schema the registry accepts. Every method has both an
 `input` and an `output` schema; `defineApiContract<AdvancedMetadataCacheApi>` refuses a missing,
