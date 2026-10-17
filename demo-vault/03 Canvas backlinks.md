@@ -22,7 +22,7 @@ Open the core **Backlinks** pane on [Central topic](<./Topics/Central topic.md>)
 
 > [!NOTE] getCache for canvas
 >
-> Obsidian resolves canvas backlinks natively (Backlinks pane, graph, `getBacklinksForFile`, `resolvedLinks`), but it leaves `app.metadataCache.getCache()` empty for a canvas file. `Advanced Metadata Cache` additionally fills that per-file cache, so tools that read `getCache()` for a canvas still see its links.
+> Obsidian resolves canvas backlinks natively (Backlinks pane, graph, `getBacklinksForFile`, `resolvedLinks`), but it leaves `app.metadataCache.getCache()` empty for a canvas file. `Advanced Metadata Cache` additionally fills that per-file cache, so tools that read `getCache()` for a canvas still see its links. When another plugin such as `Advanced Canvas` already answers a full entry for the canvas, with its `frontmatter`, that entry is returned unchanged.
 
 ```code-button
 ---

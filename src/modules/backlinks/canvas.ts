@@ -12,6 +12,7 @@ import { CorePluginToggleComponent } from '@mnaoumov/obsidian-lib/components/cor
 import { isCanvasFile } from '@mnaoumov/obsidian-lib/file-system';
 import { loop } from '@mnaoumov/obsidian-lib/loop';
 import { invokeAsyncSafely } from '@mnaoumov/typescript-lib/async';
+import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { InternalPluginName } from '@obsidian-typings/obsidian-public-latest/implementations';
 import { TFile } from 'obsidian';
 
@@ -138,14 +139,15 @@ export class CanvasComponent extends ComponentEx {
       cachedMetadata.frontmatterLinks?.push(reference);
     }
 
+    /*
+     * Kept in memory only, and served through the `getCache` patch. It is never written into Obsidian's own
+     * `fileCache` / `metadataCache`, which are persisted: Obsidian keeps a canvas's hash empty there, a real
+     * hash made core `iterateAllRefs` count every canvas reference twice (once from the cache, once from the
+     * canvas link updater), and `Advanced Canvas` keys its full canvas entry on that same content hash, so it
+     * adopted this partial one - without the `frontmatter` - and kept it until the vault cache was rebuilt.
+     */
     canvasMetadataCacheMap.set(file.path, cachedMetadata);
-    const hash = await getFileHash(this.app, file);
-    this.app.metadataCache.saveFileCache(file.path, {
-      hash,
-      mtime: file.stat.mtime,
-      size: file.stat.size
-    });
-    this.app.metadataCache.saveMetaCache(hash, cachedMetadata);
+    await this.removeLegacyPersistedEntry(file);
   }
 
   private onCanvasCorePluginDisable(): void {
@@ -191,6 +193,29 @@ export class CanvasComponent extends ComponentEx {
   }
 
   /*
+   * Before this was fixed, the entry above was also persisted, as a `{ frontmatterLinks }` object at the
+   * canvas's content hash, and a vault keeps it across updates. Nothing else writes that shape for a canvas:
+   * Obsidian writes no metadata entry for one and `Advanced Canvas` stamps `v` on its own. So it is dropped, the hash is put
+   * back to the empty one Obsidian keeps, and the file is recomputed, which lets `Advanced Canvas` (when
+   * installed) build its own entry instead of the one it adopted.
+   */
+  private async removeLegacyPersistedEntry(file: TFile): Promise<void> {
+    const metadataCache = this.app.metadataCache;
+    const hash = metadataCache.getFileInfo(file.path)?.hash;
+    if (!hash || !isLegacyCanvasEntry(metadataCache.metadataCache[hash])) {
+      return;
+    }
+
+    metadataCache.saveMetaCache(hash, castTo<CachedMetadata>(null));
+    metadataCache.saveFileCache(file.path, {
+      hash: '',
+      mtime: file.stat.mtime,
+      size: file.stat.size
+    });
+    await metadataCache.computeFileMetadataAsync(file);
+  }
+
+  /*
    * Works around Obsidian's own defect, measured in 1.14.2 with this plugin disabled: disabling the core Canvas
    * plugin unloads its canvas index, and enabling it again never loads that same object back. The index registers
    * the vault handlers in its `onload`, so every canvas created after the toggle gets no `resolvedLinks` until a
@@ -205,21 +230,10 @@ export class CanvasComponent extends ComponentEx {
   }
 }
 
-function arrayBufferToHexString(buffer: ArrayBuffer): string {
-  const uint8Array = new Uint8Array(buffer);
-  const hexArray = [];
-
-  for (const byte of uint8Array) {
-    // eslint-disable-next-line no-bitwise, no-magic-numbers -- Magic numbers are OK in this case.
-    hexArray.push((byte >>> 4).toString(16), (byte & 0x0F).toString(16));
+function isLegacyCanvasEntry(cachedMetadata: CachedMetadata | undefined): boolean {
+  if (!cachedMetadata) {
+    return false;
   }
-
-  return hexArray.join('');
-}
-
-async function getFileHash(app: App, file: TFile): Promise<string> {
-  const bytes = await app.vault.readBinary(file);
-  // eslint-disable-next-line n/no-unsupported-features/node-builtins -- crypto.subtle is the Web Crypto API, available in Obsidian's Electron renderer; the rule incorrectly flags it as a Node experimental builtin.
-  const cryptoBytes = await crypto.subtle.digest('SHA-256', new Uint8Array(bytes));
-  return arrayBufferToHexString(cryptoBytes);
+  const keys = Object.keys(cachedMetadata);
+  return keys.length === 1 && keys[0] === 'frontmatterLinks';
 }
