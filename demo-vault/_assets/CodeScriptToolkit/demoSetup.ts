@@ -1,11 +1,13 @@
 import type { LinkSuggestion } from '@obsidian-typings/obsidian-public-latest';
 import type {
   App,
+  Editor,
   TFile
 } from 'obsidian';
 
 import {
   Component,
+  MarkdownView,
   Notice
 } from 'obsidian';
 import { configureCommunityPlugin } from '@mnaoumov/obsidian-lib/community-plugins';
@@ -16,6 +18,18 @@ const CENTRAL_TOPIC_PATH = 'Topics/Central topic.md';
 
 const HEADING_TIMES_WAIT_ATTEMPTS = 50;
 const HEADING_TIMES_POLL_IN_MILLISECONDS = 100;
+
+const PLAYGROUND_PATH = 'Materials/05 Name index/Autocomplete playground.md';
+const PLAYGROUND_CONTENT = `# Autocomplete playground
+
+The **Try it in the editor** button in [05 Name index](<../../05 Name index.md>) types into this note. Type below
+as well: \`[[\` opens the autocomplete, and the reset button there puts the note back.
+`;
+const RESEARCH_NOTE_PATH = 'Topics/Research note.md';
+const EXPECTED_ALIAS = 'Literature review';
+const TYPED_LINK_START = '[[Lit';
+const SUGGESTION_WAIT_ATTEMPTS = 50;
+const SUGGESTION_POLL_IN_MILLISECONDS = 100;
 
 /**
  * The slice of the plugin API these buttons call. The same shape `AdvancedMetadataCacheApi` in the root
@@ -167,6 +181,94 @@ export async function showNamesFor(app: App, name: string, patch: DemoSettingsPa
     `indexed link targets: ${indexed.length.toString()}`,
     `built-in link targets: ${api.getLinkSuggestionsOriginal().length.toString()}`
   ].join('\n'));
+}
+
+/**
+ * Switches the Names module on, opens the autocomplete playground and types `[[Lit` at its end, so the
+ * `[[` autocomplete opens on the list the index answered with.
+ *
+ * The text goes in as a typed input rather than a plain edit, because Obsidian opens the autocomplete
+ * only for what the reader typed. The button then checks the popover it opened, and throws when the
+ * popover does not offer the expected alias.
+ *
+ * Manual equivalent: turn **Names module** on in **Settings -> Community plugins -> `Advanced Metadata
+ * Cache`**, open any note and type `[[Lit`.
+ *
+ * @param app - The Obsidian app.
+ */
+export async function typeLinkInPlayground(app: App): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isNamesModuleEnabled: true } });
+
+  const api = await getApi(app);
+  // The safe variant waits for the index to be built, so the popover is answered from it.
+  const indexed = await api.getLinkSuggestionsSafe();
+
+  if (!indexed?.some((suggestion) => suggestion.alias === EXPECTED_ALIAS && suggestion.file?.path === RESEARCH_NOTE_PATH)) {
+    throw new Error(`The name index does not offer "${EXPECTED_ALIAS}" for ${RESEARCH_NOTE_PATH}.`);
+  }
+
+  const editor = await openPlaygroundEditor(app);
+  const end = editor.cm.state.doc.length;
+  const typed = `\n${TYPED_LINK_START}`;
+  editor.cm.dispatch({
+    changes: { from: end, insert: typed },
+    selection: { anchor: end + typed.length },
+    userEvent: 'input.type'
+  });
+
+  for (let attempt = 0; attempt < SUGGESTION_WAIT_ATTEMPTS; attempt++) {
+    const offered = Array.from(activeDocument.querySelectorAll('.suggestion-container .suggestion-item'))
+      .some((item) => item.textContent.includes(EXPECTED_ALIAS));
+
+    if (offered) {
+      new Notice(`The [[ autocomplete offers "${EXPECTED_ALIAS}", answered from the name index.`);
+      return;
+    }
+
+    await sleep(SUGGESTION_POLL_IN_MILLISECONDS);
+  }
+
+  throw new Error(`The [[ autocomplete did not offer "${EXPECTED_ALIAS}".`);
+}
+
+/**
+ * Puts the autocomplete playground back as it shipped, dropping whatever the button or the reader typed
+ * into it.
+ *
+ * Manual equivalent: delete the lines you typed at the end of the playground note.
+ *
+ * @param app - The Obsidian app.
+ */
+export async function resetPlayground(app: App): Promise<void> {
+  const file = app.vault.getFileByPath(PLAYGROUND_PATH);
+
+  if (!file) {
+    throw new Error(`${PLAYGROUND_PATH} is missing from this vault.`);
+  }
+
+  app.workspace.editorSuggest.close();
+  await app.vault.process(file, () => PLAYGROUND_CONTENT);
+  new Notice('The playground is back as it shipped.');
+}
+
+async function openPlaygroundEditor(app: App): Promise<Editor> {
+  const file = app.vault.getFileByPath(PLAYGROUND_PATH);
+
+  if (!file) {
+    throw new Error(`${PLAYGROUND_PATH} is missing from this vault.`);
+  }
+
+  await app.vault.process(file, () => PLAYGROUND_CONTENT);
+  const leaf = app.workspace.getLeaf(false);
+  await leaf.openFile(file, { state: { mode: 'source' } });
+
+  if (!(leaf.view instanceof MarkdownView)) {
+    throw new Error(`${PLAYGROUND_PATH} did not open in an editor.`);
+  }
+
+  const editor = leaf.view.editor;
+  editor.focus();
+  return editor;
 }
 
 /**
