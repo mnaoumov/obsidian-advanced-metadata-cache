@@ -50,6 +50,24 @@ The answer is a **list**, and deliberately an unranked one. Several notes may de
 
 With the module on, open any note and type `[[Lit` — [Research note](<./Topics/Research note.md>) is offered under its alias, exactly as it was before. That is the point: nothing about the autocomplete changes except where the list came from.
 
+```code-button
+---
+caption: Type [[Lit in the autocomplete playground
+---
+await require('/demoSetup.ts').typeLinkInPlayground(app);
+```
+
+The button switches the **Names** module on, opens [Autocomplete playground](<./Materials/05 Name index/Autocomplete playground.md>) and types `[[Lit` at its end, so the popover opens with **Literature review** in it. Keep typing there, or pick the entry to see the link it writes.
+
+```code-button
+---
+caption: Reset the autocomplete playground
+---
+await require('/demoSetup.ts').resetPlayground(app);
+```
+
+The reset puts the playground back as it shipped. By hand, delete the lines you typed at its end.
+
 ## Switching it off
 
 ```code-button
