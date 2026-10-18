@@ -31,6 +31,7 @@ import {
   ensureMetadataCacheReady,
   getLinks
 } from '@mnaoumov/obsidian-lib/metadata-cache';
+import { noopAsync } from '@mnaoumov/typescript-lib/function';
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { CustomArrayDictImpl } from '@obsidian-typings/obsidian-public-latest/implementations';
@@ -476,6 +477,26 @@ describe('BacklinkCacheComponent', () => {
       await processPendingActions();
 
       expect(reloadBacklinksView).toHaveBeenCalled();
+    });
+
+    it('should also process actions queued while the backlink panels refresh', async () => {
+      context.settings.shouldAutomaticallyRefreshBacklinkPanels = true;
+
+      vi.mocked(getFileOrNull).mockReturnValue(null);
+
+      await setupOnLayoutReady();
+
+      vi.mocked(reloadBacklinksView).mockImplementationOnce(async () => {
+        context.component.triggerRefresh('queued-during-refresh.md');
+        await noopAsync();
+      });
+
+      context.component.triggerRefresh('test.md');
+      await processPendingActions();
+
+      expect(getFileOrNull).toHaveBeenCalledWith(expect.objectContaining({ pathOrFile: 'queued-during-refresh.md' }));
+      expect(asInternals(context.component).pendingActions.size).toBe(0);
+      expect(reloadBacklinksView).toHaveBeenCalledTimes(2);
     });
 
     it('should handle non-existent file in refreshBacklinks', async () => {

@@ -315,31 +315,36 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
   }
 
   private async processPendingActions(): Promise<void> {
-    const pathActions = [...this.pendingActions];
-    this.pendingActions.clear();
+    // Drained until it stays empty, not processed as one snapshot: the panel refresh awaits, and a vault or
+    // metadata event that fires meanwhile queues another action. With a single snapshot that action waited
+    // for the next call, so `getBacklinksForFileSafe()` could answer from a cache it had promised was current.
+    while (this.pendingActions.size > 0) {
+      const pathActions = [...this.pendingActions];
+      this.pendingActions.clear();
 
-    for (const [path, action] of pathActions) {
-      if (this.abortSignalComponent.abortSignal.aborted) {
-        return;
+      for (const [path, action] of pathActions) {
+        if (this.abortSignalComponent.abortSignal.aborted) {
+          return;
+        }
+
+        switch (action) {
+          case Action.Refresh: {
+            this.refreshBacklinks(path);
+            break;
+          }
+          case Action.Remove: {
+            this.removeBacklinks(path);
+            break;
+          }
+          default: {
+            throw new Error('Unknown action');
+          }
+        }
       }
 
-      switch (action) {
-        case Action.Refresh: {
-          this.refreshBacklinks(path);
-          break;
-        }
-        case Action.Remove: {
-          this.removeBacklinks(path);
-          break;
-        }
-        default: {
-          throw new Error('Unknown action');
-        }
+      if (this.pluginSettingsComponent.settings.shouldAutomaticallyRefreshBacklinkPanels) {
+        await this.refreshBacklinkPanels();
       }
-    }
-
-    if (pathActions.length > 0 && this.pluginSettingsComponent.settings.shouldAutomaticallyRefreshBacklinkPanels) {
-      await this.refreshBacklinkPanels();
     }
   }
 
