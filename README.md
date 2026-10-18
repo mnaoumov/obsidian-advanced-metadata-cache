@@ -37,7 +37,7 @@ Each index is a **module** that is switched on or off on its own, so a vault onl
 
 A copy of the vault ships with every release. You can access it via any of the following:
 
-1. Running the **Advanced Metadata Cache: Open demo vault** command.
+1. Running the **`Advanced Metadata Cache`: Open demo vault** command.
 2. Downloading `advanced-metadata-cache-demo-vault.zip` from the [Releases](https://github.com/mnaoumov/obsidian-advanced-metadata-cache/releases). It unzips into a single `advanced-metadata-cache-demo-vault-<version>` folder.
 3. Browsing its source in [`demo-vault/`](./demo-vault/README.md) in this repository.
 

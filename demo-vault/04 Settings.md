@@ -15,11 +15,11 @@ Open **Settings -> Community plugins -> `Advanced Metadata Cache`** to configure
 - `shouldOfferTitlesInLinkSuggestions`
   - when on, the `[[` autocomplete offers a note under its titles as well as under its own name and its `aliases`. Off by default, and only visible in the settings while both the **Names** and the **Titles** modules are on, since it does nothing without either. With it off, the list this plugin answers with is the one Obsidian would have built, only faster; with it on, the title entries are appended to that list rather than ranked against it, and accepting one writes a link like `[[Notes/some-note|The Real Name]]` that keeps working even if this plugin is switched off later. [06 Titles](<./06 Titles.md>) demonstrates both sides.
 - `shouldAutomaticallyRefreshBacklinkPanels`
-  - when on, open **Backlinks** panes refresh automatically as the cache updates, so they always reflect the latest links. When off, refresh them yourself with the **Advanced Metadata Cache: Refresh backlink panels** command.
+  - when on, open **Backlinks** panes refresh automatically as the cache updates, so they always reflect the latest links. When off, refresh them yourself with the **`Advanced Metadata Cache`: Refresh backlink panels** command.
 - `shouldShowProgressBarOnLoad`
   - when on, a progress bar is shown while the cache is built as the vault loads. This is reassuring in large vaults where the initial build takes a moment; turn it off for a quieter startup.
 
-There is also a command, **Advanced Metadata Cache: Refresh backlink panels**, that rebuilds the visible Backlinks panes on demand.
+There is also a command, **`Advanced Metadata Cache`: Refresh backlink panels**, that rebuilds the visible Backlinks panes on demand.
 
 ## See the difference
 
@@ -39,7 +39,7 @@ caption: Refresh backlink panels now
 require('/demoSetup.ts').refreshBacklinkPanels(app);
 ```
 
-Manual equivalent: **Advanced Metadata Cache: Refresh backlink panels** in the Command Palette.
+Manual equivalent: **`Advanced Metadata Cache`: Refresh backlink panels** in the Command Palette.
 
 Then turn automatic refreshing on and make the same edit - the pane keeps itself current and the command becomes unnecessary:
 
