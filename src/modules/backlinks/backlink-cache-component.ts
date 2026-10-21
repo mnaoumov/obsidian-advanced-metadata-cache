@@ -308,7 +308,7 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
       processItem: (note) => {
         this.refreshBacklinks(note.path);
       },
-      progressBarTitle: 'Advanced Metadata Cache: Initializing...',
+      progressBarTitle: 'Initializing...',
       shouldContinueOnError: true,
       shouldShowNotice: this.pluginSettingsComponent.settings.shouldShowProgressBarOnLoad
     });
