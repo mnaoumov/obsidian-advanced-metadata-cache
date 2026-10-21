@@ -58,7 +58,7 @@ describe('core Canvas plugin toggle', () => {
             return false;
           }
 
-          const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+          const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
           const api = (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked)?.api;
           const backlinks = await api?.getBacklinksForFileSafe(targetFile);
           return backlinks?.keys().includes(canvasPath) ?? false;

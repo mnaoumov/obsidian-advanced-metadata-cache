@@ -42,7 +42,7 @@ interface AdvancedMetadataCacheApi {
   getTitles: (pathOrFile: string) => string[];
 }
 
-interface ObsidianDevUtilsStateBag {
+interface ObsidianLibStateBag {
   readonly pluginApiRegistry?: PluginApiRegistryWrapper;
 }
 
@@ -64,7 +64,7 @@ interface PluginApiRegistry {
 }
 
 interface PluginApiRegistryHolder {
-  readonly __obsidianDevUtils?: ObsidianDevUtilsStateBag;
+  readonly __obsidianLib?: ObsidianLibStateBag;
 }
 
 interface PluginApiRegistryWrapper {
@@ -243,7 +243,7 @@ async function runScenario(): Promise<TitlesResult> {
        * @returns The record, or nothing while none is published.
        */
       function readLiveRecord(): PluginApiRecord | undefined {
-        const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+        const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
         return (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked);
       }
 

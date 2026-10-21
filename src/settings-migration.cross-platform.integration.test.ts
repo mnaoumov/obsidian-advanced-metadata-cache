@@ -50,7 +50,7 @@ interface MigrationApiLike {
   migrateSettings: (params: MigrateSettingsParamsLike) => Promise<MigrateSettingsResultLike>;
 }
 
-interface ObsidianDevUtilsStateBag {
+interface ObsidianLibStateBag {
   readonly pluginApiRegistry?: PluginApiRegistryWrapper;
 }
 
@@ -65,7 +65,7 @@ interface PluginApiRegistry {
 }
 
 interface PluginApiRegistryHolder {
-  readonly __obsidianDevUtils?: ObsidianDevUtilsStateBag;
+  readonly __obsidianLib?: ObsidianLibStateBag;
 }
 
 interface PluginApiRegistryWrapper {
@@ -112,7 +112,7 @@ async function runScenario(buttonText: string): Promise<SettingsMigrationProbeRe
         throw new Error(`${pluginId} is not loaded`);
       }
 
-      const apiRecord = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records?.[pluginId]
+      const apiRecord = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records?.[pluginId]
         ?.find((candidate) => !candidate.isRevoked);
       if (!apiRecord) {
         throw new Error(`${pluginId} has published no API`);
