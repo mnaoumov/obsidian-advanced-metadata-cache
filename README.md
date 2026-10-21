@@ -139,7 +139,7 @@ if (api) {
 }
 ```
 
-The handle comes from the `@mnaoumov/obsidian-lib` plugin registry; [Cross-plugin APIs](https://mnaoumov.dev/obsidian-dev-utils/guides/cross-plugin-apis/) covers `watchPluginApi` and the registry from the library's side. The contract version moves independently of the plugin's own, so ask for a range, and ask for the lowest version that has every member you call — each one below says which it arrived in.
+The handle comes from the `@mnaoumov/obsidian-lib` plugin registry; [Cross-plugin APIs](https://mnaoumov.dev/obsidian-lib/guides/cross-plugin-apis/) covers `watchPluginApi` and the registry from the library's side. The contract version moves independently of the plugin's own, so ask for a range, and ask for the lowest version that has every member you call — each one below says which it arrived in.
 
 #### Backlinks
 
@@ -210,7 +210,7 @@ for (const { created, heading, level, modified, seen } of api.getHeadingTimes('N
 
 A time is `null` when the plugin did not see the event happen, so sort `null` as the oldest and keep document order among equals. It is synchronous and current as of the last parse Obsidian announced: if you have just edited the note, await `getCacheSafe` from `@mnaoumov/obsidian-lib` first. It answers empty while the **Headings** module is off, and a note that is not tracked yet answers its current headings with every time `null`. Ask for the range `^1.2`.
 
-If you would rather not depend on `@mnaoumov/obsidian-lib` for the handle, the registry is a documented wire protocol you can read directly — see [Plugin API protocol](https://mnaoumov.dev/obsidian-dev-utils/guides/plugin-api-protocol/).
+If you would rather not depend on `@mnaoumov/obsidian-lib` for the handle, the registry is a documented wire protocol you can read directly — see [Plugin API protocol](https://mnaoumov.dev/obsidian-lib/guides/plugin-api-protocol/).
 
 ## Installation
 
@@ -236,7 +236,7 @@ Without `Advanced Debug Mode`, run the following command in the `DevTools Consol
 window.DEBUG.enable('advanced-metadata-cache');
 ```
 
-For more details, refer to the [documentation](https://mnaoumov.dev/obsidian-dev-utils/guides/debugging/).
+For more details, refer to the [documentation](https://mnaoumov.dev/obsidian-lib/guides/debugging/).
 
 ## Contributing
 
