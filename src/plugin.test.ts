@@ -39,7 +39,7 @@ const hoisted = vi.hoisted(() => ({
   titleIndexComponentConstructor: vi.fn()
 }));
 
-// `PluginDataHandler` and `PluginEventSourceImpl` are NOT stubbed: since obsidian-dev-utils 93.2 (now @mnaoumov/obsidian-lib) the base
+// `PluginDataHandler` and `PluginEventSourceImpl` are NOT stubbed: the base
 // builds its own settings component out of them during `onload`, and that component really calls
 // `pluginEventSource.on`, so a bare `vi.fn()` double makes the base throw before `onloadImpl` runs.
 vi.mock('./plugin-settings-component.ts', () => ({
