@@ -175,7 +175,7 @@ export class CanvasComponent extends ComponentEx {
         await this.initCanvasMetadataCache(canvasFile);
         this.backlinkCacheComponent.triggerRefresh(canvasFile.path);
       },
-      progressBarTitle: 'Advanced Metadata Cache: Processing canvas files...',
+      progressBarTitle: 'Processing canvas files...',
       shouldContinueOnError: true,
       shouldShowNotice: this.pluginSettingsComponent.settings.shouldShowProgressBarOnLoad
     });
