@@ -78,7 +78,7 @@ describe('the names module makes getLinkSuggestions cheaper', () => {
            * answered from the index. `getLinkSuggestionsSafe()` is the documented way to wait for the
            * second — this is the README's own recipe, run as written.
            */
-          const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+          const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
           const api = (records?.[pluginId] ?? []).find((record) => !record.isRevoked)?.api;
 
           if (!api) {

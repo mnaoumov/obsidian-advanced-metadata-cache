@@ -66,7 +66,7 @@ interface HeadingTimes {
   readonly seen: null | number;
 }
 
-interface ObsidianDevUtilsStateBag {
+interface ObsidianLibStateBag {
   readonly pluginApiRegistry?: PluginApiRegistryWrapper;
 }
 
@@ -81,7 +81,7 @@ interface PluginApiRegistry {
 }
 
 interface PluginApiRegistryHolder {
-  readonly __obsidianDevUtils?: ObsidianDevUtilsStateBag;
+  readonly __obsidianLib?: ObsidianLibStateBag;
 }
 
 interface PluginApiRegistryWrapper {
@@ -194,7 +194,7 @@ async function runScenario(): Promise<HeadingsResult> {
       }
 
       function readLiveRecord(): PluginApiRecord | undefined {
-        const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+        const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
         return (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked);
       }
 

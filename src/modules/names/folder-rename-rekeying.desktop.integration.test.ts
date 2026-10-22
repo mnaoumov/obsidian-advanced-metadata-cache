@@ -68,7 +68,7 @@ describe('the name index survives a folder rename', () => {
         }
 
         function getPathsByName(name: string): string[] {
-          const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+          const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
           const api = (records?.[pluginId] ?? []).find((record) => !record.isRevoked)?.api;
           return api?.getPathsByName(name) ?? [];
         }

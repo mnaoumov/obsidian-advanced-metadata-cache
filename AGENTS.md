@@ -150,7 +150,7 @@ builders, `TypedApiContract` and the guard builders, in its `api-contract` and `
 points) and `@mnaoumov/obsidian-lib` (the file guards, in its `file-system` entry point), so a consumer
 copying it needs those two packages. The file is the constant plus the guards only this API has; nothing
 generic is restated in it. `src/plugin-api.ts` publishes that same constant, and assigning it to
-`PluginApiContract` there is what checks it is a schema the registry accepts. Every method has both an
+`ApiContract` there is what checks it is a schema the registry accepts. Every method has both an
 `input` and an `output` schema; `defineApiContract<AdvancedMetadataCacheApi>` refuses a missing,
 extra or one-sided entry. It is not `api.ts` because TypeScript would resolve `./api.d.ts` to that
 file's own declarations.

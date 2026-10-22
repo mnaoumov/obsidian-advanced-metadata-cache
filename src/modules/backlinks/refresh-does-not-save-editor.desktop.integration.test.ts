@@ -117,7 +117,7 @@ describe('backlink refresh reads the held cache and never saves the editor', () 
         // What `modify` does to the index, run to completion now rather than after the 500 ms debounce,
         // and well inside Obsidian's own ~2 s autosave, so any save seen here is the refresh's.
         app.vault.trigger('modify', sourceFile);
-        const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+        const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
         await (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked)?.api.getBacklinksForFileSafe(targetFile);
         const diskAfterRefresh = await app.vault.adapter.read(sourcePath);
 

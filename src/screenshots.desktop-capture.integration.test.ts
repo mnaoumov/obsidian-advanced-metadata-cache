@@ -308,7 +308,7 @@ async function compareBacklinkCounts(): Promise<BacklinkCounts> {
         throw new Error(`Note is missing from the vault: ${hubNotePath}`);
       }
 
-      const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+      const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
       const api = (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked)?.api;
       if (!api) {
         throw new Error('The plugin has not published its API');
@@ -385,7 +385,7 @@ async function measureBacklinkLookups(): Promise<BacklinkMeasurement> {
         throw new Error(`Note is missing from the vault: ${hubNotePath}`);
       }
 
-      const records = (window as PluginApiRegistryHolder).__obsidianDevUtils?.pluginApiRegistry?.value?.records;
+      const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
       const api = (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked)?.api;
       if (!api) {
         throw new Error('The plugin has not published its API');
