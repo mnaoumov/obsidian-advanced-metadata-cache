@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2.0.3
+
+- test(demo-vault): require `CodeScript Toolkit` 15.0.0, its first release on obsidian-lib 6
+- build(deps): move to obsidian-lib 6 and obsidian-dev-toolkit 5
+- fix: drop the plugin name from notice text
+- docs: shorten the debugging section
+- chore: replace leftover obsidian-dev-utils references with @mnaoumov/obsidian-lib
+- docs(readme): lead the Debugging section with `Advanced Debug Mode`
+- build(deps): float brace-expansion, sharp and fast-uri past their advisories
+- fix(backlinks): drain pending actions until the queue stays empty
+- docs: mark plugin names as code
+- chore(github): link Discussions from the issue chooser
+- build(deps): merge taking obsidian-lib 4.3.0 and its validation debug switch
+- test(api-contract): verify the contract with verifyApiContract from typescript-lib 1.5.0
+- fix(api-contract): merge reporting the plugin id as the schemas' vendor
+- docs(demo-vault): merge driving the name index's autocomplete demo from a button
+- refactor(api-contract): merge building the contract guards from typescript-lib and obsidian-lib
+
 ## 2.0.2
 
 - fix(canvas): merge keeping the canvas metadata entry out of Obsidian's persisted cache
