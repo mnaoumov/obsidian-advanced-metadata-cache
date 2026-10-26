@@ -107,10 +107,17 @@ export class NameIndexComponent extends LayoutReadyComponent {
     return this.nameIndex.getSuggestions();
   }
 
-  protected override async onLayoutReady(): Promise<void> {
+  public override onload(): void {
+    super.onload();
+
     /*
      * Installed BEFORE the build, not after: while the index is empty the patch falls through to
      * Obsidian's implementation, so there is no window in which a caller gets an incomplete answer.
+     *
+     * And installed at load rather than on layout ready, because a `Safe` call can start the build
+     * first: its promise could then settle before the layout-ready handler ran, and a caller that
+     * awaited it and then asked core would be answered by Obsidian. The performance tripwire caught
+     * exactly that, reporting a speedup of 1.0 on a vault whose cache settled quickly.
      */
     this.linkSuggestionsPatchComponent = this.addChild(
       new MetadataCacheGetLinkSuggestionsPatchComponent({
@@ -118,7 +125,9 @@ export class NameIndexComponent extends LayoutReadyComponent {
         nameIndexComponent: this
       })
     );
+  }
 
+  protected override async onLayoutReady(): Promise<void> {
     await this.ensureBuilt();
 
     this.registerEvent(this.app.metadataCache.on('changed', (file) => {
