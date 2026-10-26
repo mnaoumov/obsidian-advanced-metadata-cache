@@ -29,7 +29,8 @@ import type { PluginSettingsComponent } from '../../plugin-settings-component.ts
 import { isDatePropertyName } from './date-properties.ts';
 import {
   DatedValueIndex,
-  isDateValue
+  isDateValue,
+  isReducedPrecisionDateValue
 } from './dated-value-index.ts';
 
 interface PersistedPropertyValues {
@@ -196,7 +197,23 @@ export class PropertyValueIndex {
 
     const propertyNames = query.propertyNames ? new Set(query.propertyNames) : null;
 
-    return propertyNames && [...propertyNames].some((propertyName) => !this.propertyValuesByName.has(propertyName)) ? null : this.datedValueIndex.getDatedValues(query, (propertyName) => propertyNames?.has(propertyName) ?? true);
+    if (propertyNames && [...propertyNames].some((propertyName) => !this.propertyValuesByName.has(propertyName))) {
+      return null;
+    }
+
+    // Asked per query, so a type or setting changed since a value was indexed needs no re-index.
+    const datePropertyFlags = new Map<string, boolean>();
+
+    return this.datedValueIndex.getDatedValues(query, (propertyName) => propertyNames?.has(propertyName) ?? true, (propertyName) => {
+      let isDateProperty = datePropertyFlags.get(propertyName);
+
+      if (isDateProperty === undefined) {
+        isDateProperty = isDatePropertyName(this.app, this.pluginSettingsComponent.settings, propertyName);
+        datePropertyFlags.set(propertyName, isDateProperty);
+      }
+
+      return isDateProperty;
+    });
   }
 
   /**
@@ -222,7 +239,7 @@ export class PropertyValueIndex {
 
       for (const [path, values] of propertyValues.valuesByPath) {
         for (const value of values) {
-          if (!isDateValue(value)) {
+          if (!isDateValue(value) && !isReducedPrecisionDateValue(value)) {
             nonDateValues.push({ path, propertyName, value });
           }
         }

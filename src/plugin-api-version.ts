@@ -16,6 +16,7 @@
  * additively: the module's ordered index of date-shaped values, by range and by recurring month and day.
  * `1.6.0` adds `getNonDateValues` and its `Safe` variant, and widens what `getDatedValues` answers without
  * changing its shape: properties are picked by name as well as by type, and a datetime may carry an offset or
- * a time zone annotation, ordered by its local part.
+ * a time zone annotation, ordered by its local part, and a date property's year or month of reduced precision
+ * is a date standing for its whole period.
  */
 export const PLUGIN_API_VERSION = '1.6.0';

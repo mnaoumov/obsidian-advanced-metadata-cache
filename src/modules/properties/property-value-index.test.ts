@@ -62,7 +62,8 @@ describe('PropertyValueIndex', () => {
     for (const propertyName of ['due', 'startDate', 'date', 'keys']) {
       index.register(propertyName);
     }
-    index.refresh({ frontmatter: { date: ['soon', '2026-10-26', 'later'], due: '14:30', keys: 'abc', startDate: 'never' }, path: 'Beta.md' });
+    // A year and a month are dates of reduced precision, so they are not listed.
+    index.refresh({ frontmatter: { date: ['soon', '2026-10-26', 'later', 2019, '2019-05'], due: '14:30', keys: 'abc', startDate: 'never' }, path: 'Beta.md' });
     index.refresh({ frontmatter: { due: 'tomorrow' }, path: 'Alpha.md' });
 
     expect(index.getNonDateValues()).toEqual([
@@ -231,6 +232,32 @@ describe('PropertyValueIndex', () => {
       ]);
       expect(index.getDatedValues({ from: '10-26', isRecurring: true, propertyNames: ['birthday'], to: '10-26' })).toEqual([
         { path: 'Alpha.md', propertyName: 'birthday', value: '1990-10-26' }
+      ]);
+    });
+
+    it('should count a year or a month as a date in a date property only, asking afresh on every query', () => {
+      let dateTypedPropertyName = 'closed';
+      castTo<Record<'metadataTypeManager', unknown>>(app).metadataTypeManager = {
+        getAssignedWidget: (propertyName: string): null | string => propertyName === dateTypedPropertyName ? 'date' : null
+      };
+      for (const propertyName of ['closed', 'endDate', 'pages']) {
+        index.register(propertyName);
+      }
+      // Unquoted YAML `2019` reaches the index as a number.
+      index.refresh({ frontmatter: { closed: 2019, endDate: '2019-05', pages: 1500 }, path: 'Alpha.md' });
+      index.refresh({ frontmatter: { closed: '2019-05' }, path: 'Beta.md' });
+
+      expect(index.getDatedValues({ from: '2019-05-10', to: '2019-05-20' })).toEqual([
+        { path: 'Alpha.md', propertyName: 'closed', value: '2019' },
+        { path: 'Beta.md', propertyName: 'closed', value: '2019-05' },
+        { path: 'Alpha.md', propertyName: 'endDate', value: '2019-05' }
+      ]);
+
+      dateTypedPropertyName = 'pages';
+
+      expect(index.getDatedValues({})).toEqual([
+        { path: 'Alpha.md', propertyName: 'pages', value: '1500' },
+        { path: 'Alpha.md', propertyName: 'endDate', value: '2019-05' }
       ]);
     });
 

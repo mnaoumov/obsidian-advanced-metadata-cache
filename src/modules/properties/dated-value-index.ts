@@ -15,6 +15,13 @@
  * both orderings be sorted arrays of strings. Ordering by the UTC instant instead would move a note dated
  * `2026-10-26T23:00-06:00` to the 27th, and would have no instant at all for the values without a zone it sits among.
  *
+ * A value of REDUCED precision, `YYYY` or `YYYY-MM` as ISO 8601 writes a year or a month, is kept too, keyed
+ * as written: it stands for its whole year or month, never for that period's first day. String order puts
+ * it at the start of its period (`2019` before `2019-01-01`), and a range matches it when the two OVERLAP. The
+ * upper bound, compared over its own length, already does; the lower bound adds the reduced keys that are a
+ * prefix of it. A year alone has no month and day, so it stays out of the recurring view. Whether such a
+ * value counts as a date at all depends on its property, which the caller decides per query.
+ *
  * Kept current entry by entry from `PropertyValues.set` and `delete`: an insertion or a removal is a binary
  * search and one `splice`.
  */
@@ -37,6 +44,7 @@ type KeySelector = (entry: LocalDatedValue) => string;
  * An entry with its local part worked out once, rather than on every comparison of a binary search.
  */
 interface LocalDatedValue extends DatedValue {
+  readonly isReduced: boolean;
   readonly localValue: string;
 }
 
@@ -50,8 +58,14 @@ const TIME_ZONE_ANNOTATION_PATTERN = String.raw`\[!?(?:${TIME_ZONE_NAME_PART_PAT
  * have it.
  */
 const DATE_VALUE_REGEXP = new RegExp(`^(?<date>${DATE_PATTERN})(?:(?<time>${TIME_PATTERN})(?:${OFFSET_PATTERN})?(?:${TIME_ZONE_ANNOTATION_PATTERN})?)?$`);
+/**
+ * A year, or a year and a month: never with a time or a zone, which need a day.
+ */
+const REDUCED_DATE_VALUE_REGEXP = /^\d{4}(?:-(?:0[1-9]|1[0-2]))?$/;
 const HALVING_DIVISOR = 2;
 const YEAR_LENGTH = 'YYYY-'.length;
+const REDUCED_VALUE_KEY_LENGTHS = ['YYYY'.length, 'YYYY-MM'.length];
+const REDUCED_MONTH_DAY_KEY_LENGTHS = ['MM'.length];
 
 /**
  * Entries sorted by a key, then by value, then by property name, then by path, so each entry has exactly one
@@ -61,9 +75,15 @@ class SortedDatedEntries {
   private readonly compare: DatedEntryComparer;
   private entries: LocalDatedValue[] = [];
   private readonly getKey: KeySelector;
+  private readonly reducedKeyLengths: readonly number[];
 
-  public constructor(getKey: KeySelector) {
+  /**
+   * @param getKey - The key an entry is sorted by.
+   * @param reducedKeyLengths - The lengths a reduced-precision entry's key can have, shortest first.
+   */
+  public constructor(getKey: KeySelector, reducedKeyLengths: readonly number[]) {
     this.getKey = getKey;
+    this.reducedKeyLengths = reducedKeyLengths;
     this.compare = (entry1, entry2): number =>
       compareStrings(getKey(entry1), getKey(entry2))
       || compareStrings(entry1.value, entry2.value)
@@ -84,7 +104,8 @@ class SortedDatedEntries {
   }
 
   /**
-   * Lists the entries whose key is at least `from` and, compared over `to`'s length, at most `to`.
+   * Lists the entries whose key is at least `from` and, compared over `to`'s length, at most `to`, and the
+   * reduced-precision entries whose key is a prefix of `from`, whose period `from` falls in.
    *
    * @param from - The inclusive lower bound.
    * @param to - The inclusive upper bound, as a prefix; no bound when `undefined`.
@@ -95,8 +116,15 @@ class SortedDatedEntries {
     const end = to === undefined
       ? this.entries.length
       : this.findFirst((entry) => compareStrings(this.getKey(entry).slice(0, to.length), to) > 0);
+    // Each such key sorts before `from` and after the shorter one, so the slices stay in order.
+    const periodSlices = this.reducedKeyLengths.filter((length) => length < from.length).map((length) => {
+      const key = from.slice(0, length);
+      const keyStart = this.findFirst((entry) => compareStrings(this.getKey(entry), key) >= 0);
+      const keyEnd = this.findFirst((entry) => compareStrings(this.getKey(entry), key) > 0);
+      return this.entries.slice(keyStart, Math.max(keyStart, Math.min(keyEnd, end)));
+    });
 
-    return this.entries.slice(start, Math.max(start, end));
+    return [...periodSlices.flat(), ...this.entries.slice(start, Math.max(start, end))];
   }
 
   public remove(entry: LocalDatedValue): void {
@@ -148,11 +176,11 @@ class SortedDatedEntries {
  * Two sorted views of the same entries.
  */
 export class DatedValueIndex {
-  private readonly byMonthDay = new SortedDatedEntries(getMonthDayKey);
-  private readonly byValue = new SortedDatedEntries(getValueKey);
+  private readonly byMonthDay = new SortedDatedEntries(getMonthDayKey, REDUCED_MONTH_DAY_KEY_LENGTHS);
+  private readonly byValue = new SortedDatedEntries(getValueKey, REDUCED_VALUE_KEY_LENGTHS);
 
   /**
-   * Records one value, when it is a date.
+   * Records one value, when it is a date, of full or reduced precision.
    *
    * @param entry - The note, the property and the value.
    */
@@ -164,7 +192,10 @@ export class DatedValueIndex {
     }
 
     this.byValue.add(localEntry);
-    this.byMonthDay.add(localEntry);
+
+    if (getMonthDayKey(localEntry)) {
+      this.byMonthDay.add(localEntry);
+    }
   }
 
   /**
@@ -180,10 +211,12 @@ export class DatedValueIndex {
    *
    * @param query - The query.
    * @param isIncluded - Whether an entry's property is among those asked about.
+   * @param isDateProperty - Whether a property holds dates, so that its reduced-precision values count as
+   *   dates too.
    * @returns The entries, ordered by value — by month and day first when the query is recurring — then by
    *   property name, then by path.
    */
-  public getDatedValues(query: DatedValuesQuery, isIncluded: (propertyName: string) => boolean): DatedValue[] {
+  public getDatedValues(query: DatedValuesQuery, isIncluded: (propertyName: string) => boolean, isDateProperty: (propertyName: string) => boolean): DatedValue[] {
     const entries = query.isRecurring ? this.byMonthDay : this.byValue;
     const from = query.from ?? '';
     const to = query.to;
@@ -193,7 +226,9 @@ export class DatedValueIndex {
       ? [entries.getRange(from, undefined), entries.getRange('', to)]
       : [entries.getRange(from, to)];
 
-    return slices.flat().filter((entry) => isIncluded(entry.propertyName)).map(({ path, propertyName, value }) => ({ path, propertyName, value }));
+    return slices.flat()
+      .filter((entry) => isIncluded(entry.propertyName) && (!entry.isReduced || isDateProperty(entry.propertyName)))
+      .map(({ path, propertyName, value }) => ({ path, propertyName, value }));
   }
 
   /**
@@ -209,17 +244,25 @@ export class DatedValueIndex {
     }
 
     this.byValue.remove(localEntry);
-    this.byMonthDay.remove(localEntry);
+
+    if (getMonthDayKey(localEntry)) {
+      this.byMonthDay.remove(localEntry);
+    }
   }
 }
 
 /**
- * Reads the local part of a date-shaped value: its date and time as written, without the zone.
+ * Reads the local part of a date-shaped value: its date and time as written, without the zone. A
+ * reduced-precision value is its own local part.
  *
  * @param value - The value.
- * @returns The local part, or `null` when the value does not count as a date.
+ * @returns The local part, or `null` when the value does not count as a date of either precision.
  */
 export function getLocalDateValue(value: string): null | string {
+  if (isReducedPrecisionDateValue(value)) {
+    return value;
+  }
+
   const groups = DATE_VALUE_REGEXP.exec(value)?.groups;
   return groups?.['date'] === undefined ? null : `${groups['date']}${groups['time'] ?? ''}`;
 }
@@ -232,6 +275,16 @@ export function getLocalDateValue(value: string): null | string {
  */
 export function isDateValue(value: string): boolean {
   return DATE_VALUE_REGEXP.test(value);
+}
+
+/**
+ * Whether a value is a date of reduced precision: a year (`2019`) or a year and a month (`2019-05`).
+ *
+ * @param value - The value.
+ * @returns Whether the value counts as a date in a date property.
+ */
+export function isReducedPrecisionDateValue(value: string): boolean {
+  return REDUCED_DATE_VALUE_REGEXP.test(value);
 }
 
 /**
@@ -260,5 +313,5 @@ function getValueKey(entry: LocalDatedValue): string {
 
 function toLocalDatedValue(entry: DatedValue): LocalDatedValue | null {
   const localValue = getLocalDateValue(entry.value);
-  return localValue === null ? null : { ...entry, localValue };
+  return localValue === null ? null : { ...entry, isReduced: isReducedPrecisionDateValue(entry.value), localValue };
 }
