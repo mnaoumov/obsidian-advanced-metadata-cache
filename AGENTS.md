@@ -111,6 +111,25 @@ is inside the scrolled area at two consecutive polls. Polling rather than a Code
 module's whole footprint inside its component, which is the module contract above. The integration
 suite does not drive `seen`, because the window cannot be given focus reliably over the transport.
 
+## The `properties` module: registered names only, durable, answered from disk first
+
+`PropertyValueIndex` indexes only the frontmatter properties a consumer names through the API's
+`registerPropertyName`, which is why the module is the one added after `backlinks` that defaults **on**:
+with nothing registered it holds nothing, and off would make every consumer send its user here first. Like
+`HeadingTimesIndex` it is owned by the plugin, because a registration must outlive the module being
+switched off, and it gates itself on `isPropertiesModuleEnabled`.
+
+A registration is **durable**: the names are saved with the values in `property-values.json`, so the next
+startup indexes and answers them before the consumer has loaded. `PropertyValueIndexComponent` loads that
+file on layout ready, then rebuilds from `metadataCache.getFileCache` (never a file read) once
+`ensureMetadataCacheReady` resolves, and only then resolves the promise the `Safe` members wait on. Two
+guards keep the file from being overwritten with a names-only state: a registration before the build
+requests no save, and the unload save is skipped until the load has finished.
+
+Matching is exact, name and value. A scalar string, number or boolean is one value in its string form, a
+list contributes each such member, and `null` or an object contributes nothing — while the note still
+counts as CARRYING the property, which is what `getPathsWithProperty` answers.
+
 ## Public surface: the core call answers, the API offers everything else
 
 `backlinks` and `names` **replace a core method** — `getBacklinksForFile`, `getLinkSuggestions` — keeping

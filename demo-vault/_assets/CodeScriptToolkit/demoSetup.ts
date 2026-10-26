@@ -44,8 +44,11 @@ interface AdvancedMetadataCacheApi {
   getLinkSuggestionsOriginal(): LinkSuggestion[];
   getLinkSuggestionsSafe(): Promise<LinkSuggestion[] | null>;
   getPathsByNameSafe(name: string): Promise<null | string[]>;
+  getPathsByPropertyValueSafe(propertyName: string, value: string): Promise<null | string[]>;
+  getPathsWithPropertySafe(propertyName: string): Promise<null | string[]>;
   getTitlePropertyNames(): string[];
   getTitles(pathOrFile: string): string[];
+  registerPropertyName(propertyName: string): void;
 }
 
 interface BacklinksDict {
@@ -56,6 +59,7 @@ interface DemoSettingsPatch {
   isBacklinksModuleEnabled?: boolean;
   isHeadingsModuleEnabled?: boolean;
   isNamesModuleEnabled?: boolean;
+  isPropertiesModuleEnabled?: boolean;
   isTitlesModuleEnabled?: boolean;
   shouldAutomaticallyRefreshBacklinkPanels?: boolean;
   shouldOfferTitlesInLinkSuggestions?: boolean;
@@ -461,6 +465,47 @@ async function editAndShowHeadingTimes(app: App, path: string, edit: (content: s
   }
 
   await showHeadingTimesFor(app, path);
+}
+
+/**
+ * Registers a property, then reports which notes carry it and which of them hold one value of it.
+ *
+ * Manual equivalent: none - Obsidian has no index of notes by property value, which is what this module
+ * is for. The closest is searching for `[status:reading]`, which reads every note.
+ *
+ * @param app - The Obsidian app.
+ * @param propertyName - The property to register and ask about.
+ * @param value - The value to look for.
+ */
+export async function showPathsByPropertyValue(app: App, propertyName: string, value: string): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isPropertiesModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.4',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    api.registerPropertyName(propertyName);
+    const pathsWithProperty = await api.getPathsWithPropertySafe(propertyName) ?? [];
+    const pathsWithValue = await api.getPathsByPropertyValueSafe(propertyName, value) ?? [];
+
+    new Notice([
+      `Notes carrying "${propertyName}": ${formatPaths(pathsWithProperty)}`,
+      `Notes where "${propertyName}" holds "${value}": ${formatPaths(pathsWithValue)}`
+    ].join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+
+function formatPaths(paths: readonly string[]): string {
+  return paths.length === 0 ? 'none' : [...paths].sort().join(', ');
 }
 
 function formatTime(time: null | number, fallback: string): string {

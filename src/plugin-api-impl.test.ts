@@ -9,6 +9,7 @@ import type {
   TFile
 } from 'obsidian';
 
+import { noop } from '@mnaoumov/typescript-lib/function';
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { App } from 'obsidian-test-mocks/obsidian';
@@ -23,6 +24,7 @@ import {
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
 import type { NameIndexComponent } from './modules/names/name-index-component.ts';
 import type { NameIndex } from './modules/names/name-index.ts';
+import type { PropertyValueIndexComponent } from './modules/properties/property-value-index-component.ts';
 import type { PluginSettingsComponent } from './plugin-settings-component.ts';
 import type {
   ApprovedSettingsMigration,
@@ -30,6 +32,7 @@ import type {
 } from './settings-migration-modal.ts';
 
 import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
+import { PropertyValueIndex } from './modules/properties/property-value-index.ts';
 import { TitleIndex } from './modules/titles/title-index.ts';
 import { PluginApiImpl } from './plugin-api-impl.ts';
 import { PLUGIN_API_CONTRACT } from './plugin-api.ts';
@@ -60,6 +63,8 @@ describe('PluginApiImpl', () => {
   let editAndSaveCallCount: number;
   let nameIndexComponent: NameIndexComponent | null;
   let pluginApi: PluginApiImpl;
+  let propertyValueIndex: PropertyValueIndex;
+  let propertyValueIndexComponent: null | PropertyValueIndexComponent;
   let settings: PluginSettings;
 
   beforeEach(() => {
@@ -70,6 +75,7 @@ describe('PluginApiImpl', () => {
     editAndSaveCallCount = 0;
     backlinkCacheComponent = null;
     nameIndexComponent = null;
+    propertyValueIndexComponent = null;
 
     const pluginSettingsComponent = strictProxy<PluginSettingsComponent>({
       async editAndSave(settingsEditor: (settingsToEdit: PluginSettings) => Promise<void> | void): Promise<void> {
@@ -90,12 +96,20 @@ describe('PluginApiImpl', () => {
       pluginSettingsComponent
     });
 
+    propertyValueIndex = new PropertyValueIndex({
+      app: castTo<AppOriginal>(app),
+      getDataFilePath: (): string => 'property-values.json',
+      pluginSettingsComponent
+    });
+
     pluginApi = new PluginApiImpl({
       app: castTo<AppOriginal>(app),
       getBacklinkCacheComponent: (): BacklinkCacheComponent | null => backlinkCacheComponent,
       getNameIndexComponent: (): NameIndexComponent | null => nameIndexComponent,
+      getPropertyValueIndexComponent: (): null | PropertyValueIndexComponent => propertyValueIndexComponent,
       headingTimesIndex,
       pluginSettingsComponent,
+      propertyValueIndex,
       titleIndex
     });
   });
@@ -229,6 +243,58 @@ describe('PluginApiImpl', () => {
     titles.length = 0;
 
     expect(pluginApi.getTitles('Alpha.md')).toEqual(['The Real Name']);
+  });
+
+  describe('properties', () => {
+    it('should answer null for a property nobody registered', async () => {
+      expect(pluginApi.getPathsByPropertyValue('keys', 'a')).toBeNull();
+      expect(pluginApi.getPathsWithProperty('keys')).toBeNull();
+      expect(await pluginApi.getPathsByPropertyValueSafe('keys', 'a')).toBeNull();
+      expect(await pluginApi.getPathsWithPropertySafe('keys')).toBeNull();
+    });
+
+    it('should register into the index while the module is off, and answer null until it is on', () => {
+      settings.isPropertiesModuleEnabled = false;
+      pluginApi.registerPropertyName('keys');
+      propertyValueIndex.refresh({ frontmatter: { keys: ['a'] }, path: 'Alpha.md' });
+
+      expect(pluginApi.getPathsByPropertyValue('keys', 'a')).toBeNull();
+
+      settings.isPropertiesModuleEnabled = true;
+      expect(pluginApi.getPathsByPropertyValue('keys', 'a')).toEqual(['Alpha.md']);
+      expect(pluginApi.getPathsWithProperty('keys')).toEqual(['Alpha.md']);
+    });
+
+    it('should register through the module component while the module is on', () => {
+      const registerPropertyName = vi.fn();
+      propertyValueIndexComponent = strictProxy<PropertyValueIndexComponent>({ registerPropertyName });
+
+      pluginApi.registerPropertyName('keys');
+
+      expect(registerPropertyName).toHaveBeenCalledWith('keys');
+      expect(propertyValueIndex.getPropertyNames()).toEqual([]);
+    });
+
+    it('should wait for the build before a safe answer', async () => {
+      pluginApi.registerPropertyName('keys');
+      let resolveBuild: () => void = noop;
+      const buildPromise = new Promise<void>((resolve) => {
+        resolveBuild = resolve;
+      });
+      propertyValueIndexComponent = strictProxy<PropertyValueIndexComponent>({
+        waitForBuild: async (): Promise<void> => {
+          await buildPromise;
+        }
+      });
+
+      const byValuePromise = pluginApi.getPathsByPropertyValueSafe('keys', 'a');
+      const withPropertyPromise = pluginApi.getPathsWithPropertySafe('keys');
+      propertyValueIndex.refresh({ frontmatter: { keys: 'a' }, path: 'Alpha.md' });
+      resolveBuild();
+
+      expect(await byValuePromise).toEqual(['Alpha.md']);
+      expect(await withPropertyPromise).toEqual(['Alpha.md']);
+    });
   });
 
   describe('migrateSettings', () => {

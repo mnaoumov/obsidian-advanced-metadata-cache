@@ -12,8 +12,8 @@
  *   plugin's own belongs on an Obsidian function, and each has a replacement on the published API below.
  * - **A published API.** {@link AdvancedMetadataCacheApi} is published through the plugin registry
  *   under the plugin id `advanced-metadata-cache` and carries a contract version of its own. It
- *   answers what the `Titles` and `Headings` modules know, which core has no method for, and since
- *   contract `1.3.0` every extra the `Backlinks` and `Names` modules offer beyond the core call.
+ *   answers what the `Titles`, `Headings` and `Properties` modules know, which core has no method for, and
+ *   since contract `1.3.0` every extra the `Backlinks` and `Names` modules offer beyond the core call.
  *
  * Hand-written and self-contained on purpose: it imports from `obsidian` and nothing else, so a
  * plugin that has never heard of `@mnaoumov/obsidian-lib` can copy this file, or reference it, and depend
@@ -161,6 +161,67 @@ export interface AdvancedMetadataCacheApi {
   getPathsByNameSafe(name: string): Promise<null | string[]>;
 
   /**
+   * Finds every note whose frontmatter property holds a value: the property itself, when it is a scalar,
+   * or one of its members, when it is a list.
+   *
+   * Only a property registered through {@link AdvancedMetadataCacheApi.registerPropertyName} is indexed.
+   * Matched exactly, name and value alike; a number or a boolean is matched by its string form, so `7`
+   * finds `key: 7`. `null` and objects are never matched.
+   *
+   * Answers from the index as it stands. At startup that is the index saved by the previous session, which
+   * answers at once but does not yet know what changed while Obsidian was closed; use
+   * {@link AdvancedMetadataCacheApi.getPathsByPropertyValueSafe} when that matters.
+   *
+   * Added in contract `1.4.0`.
+   *
+   * @param propertyName - The property name.
+   * @param value - The value to look for.
+   * @returns The vault-relative paths of the notes holding it, unordered; `null` for a property nobody
+   *   registered and while the `Properties` module is off — walk the vault then.
+   */
+  getPathsByPropertyValue(propertyName: string, value: string): null | string[];
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getPathsByPropertyValue}, waiting first for the index to be rebuilt
+   * from the metadata cache.
+   *
+   * Added in contract `1.4.0`.
+   *
+   * @param propertyName - The property name.
+   * @param value - The value to look for.
+   * @returns The vault-relative paths; `null` for a property nobody registered and while the `Properties`
+   *   module is off.
+   */
+  getPathsByPropertyValueSafe(propertyName: string, value: string): Promise<null | string[]>;
+
+  /**
+   * Finds every note carrying a frontmatter property at all, whatever its value — `null` and an empty list
+   * included.
+   *
+   * Answers from the index as it stands, as {@link AdvancedMetadataCacheApi.getPathsByPropertyValue} does.
+   *
+   * Added in contract `1.4.0`.
+   *
+   * @param propertyName - The property name, registered through
+   *   {@link AdvancedMetadataCacheApi.registerPropertyName}.
+   * @returns The vault-relative paths, unordered; `null` for a property nobody registered and while the
+   *   `Properties` module is off.
+   */
+  getPathsWithProperty(propertyName: string): null | string[];
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getPathsWithProperty}, waiting first for the index to be rebuilt from
+   * the metadata cache.
+   *
+   * Added in contract `1.4.0`.
+   *
+   * @param propertyName - The property name.
+   * @returns The vault-relative paths; `null` for a property nobody registered and while the `Properties`
+   *   module is off.
+   */
+  getPathsWithPropertySafe(propertyName: string): Promise<null | string[]>;
+
+  /**
    * The frontmatter properties whose values currently count as a note's title.
    *
    * There to be READ rather than re-typed: the point of the setting living in this plugin is that a
@@ -209,6 +270,24 @@ export interface AdvancedMetadataCacheApi {
    * @returns Whether the user applied it. On `false` nothing was written, and the offer should come back.
    */
   migrateSettings(params: MigrateSettingsParams): Promise<MigrateSettingsResult>;
+
+  /**
+   * Asks the `Properties` module to index a frontmatter property, so
+   * {@link AdvancedMetadataCacheApi.getPathsByPropertyValue} and
+   * {@link AdvancedMetadataCacheApi.getPathsWithProperty} can answer about it.
+   *
+   * Call it once on load; a name already registered is left as it is. The registration is DURABLE: it is
+   * saved with the index, so at the next startup the property is answered from disk before the
+   * registering plugin has even loaded. There is no unregister — a property nobody asks about any more
+   * costs a map entry per note that carries it.
+   *
+   * Registering while the `Properties` module is off is kept, and indexed once the module is switched on.
+   *
+   * Added in contract `1.4.0`.
+   *
+   * @param propertyName - The property name, matched exactly.
+   */
+  registerPropertyName(propertyName: string): void;
 }
 
 /**

@@ -12,6 +12,13 @@ export class PluginSettings {
   public isNamesModuleEnabled = false;
 
   /**
+   * ON by default, unlike every other module added after the one this plugin was created for, because it
+   * costs nothing until another plugin registers a property for it to index — and off, every such plugin
+   * would first have to ask its user to come here and switch it on.
+   */
+  public isPropertiesModuleEnabled = true;
+
+  /**
    * Off by default, like every module added after the one this plugin was created for.
    */
   public isTitlesModuleEnabled = false;

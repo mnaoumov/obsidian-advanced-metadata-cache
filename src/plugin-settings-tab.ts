@@ -51,6 +51,19 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         }
       }),
       this.settingEx({
+        desc: 'Whether other plugins may ask which notes carry a frontmatter property, or a given value of it, without scanning the whole vault. Only the properties another plugin registers are indexed, so with none registered this costs nothing. The index is kept in a file in the plugin folder, so it answers at startup straight away. When off, those plugins scan the vault themselves.',
+        name: 'Properties module',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            // No `onChanged` refresh: no other row depends on this module.
+            this.bind({
+              propertyName: 'isPropertiesModuleEnabled',
+              valueComponent: toggle
+            });
+          });
+        }
+      }),
+      this.settingEx({
         desc: 'Whether to treat a frontmatter property as a name for the note carrying it, alongside its own name and its `aliases`. Nothing is indexed up front: the properties are read per note, on demand, and they join what the `Names` module answers about. Other plugins can read the same list and the same per-note answer, so the property is named here once rather than in each of them.',
         name: 'Titles module',
         render: (setting) => {

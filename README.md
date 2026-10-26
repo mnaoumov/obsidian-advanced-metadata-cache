@@ -50,16 +50,18 @@ A copy of the vault ships with every release. You can access it via any of the f
 - **A name index behind the `[[` autocomplete**, so opening it stops rescanning every note in the vault for its name and aliases. [05 Name index](<./demo-vault/05 Name index.md>)
 - **A frontmatter property can name a note too**, so a note titled in its `title` property is found under that title — and, if you ask for it, offered under that title by the `[[` autocomplete. [06 Titles](<./demo-vault/06 Titles.md>)
 - **When each heading was created, modified and seen**, recorded per heading without touching the note, so other plugins can sort a note's headings by time. [07 Heading times](<./demo-vault/07 Heading times.md>)
+- **Notes by frontmatter property value**, for other plugins to ask which notes carry a property, or a given value of it, without scanning the vault, answered straight from disk at startup. [08 Property index](<./demo-vault/08 Property index.md>)
 - **Every index is a module of its own**, switched on or off without touching the others, and refresh behavior is configurable. [04 Settings](<./demo-vault/04 Settings.md>)
 
 ## Modules
 
-| Module    | What it indexes                                                                           | Default |
-|-----------|-------------------------------------------------------------------------------------------|---------|
-| Backlinks | Which notes link to a note, answering `getBacklinksForFile()`.                            | On      |
-| Names     | What each note is called - its name and its `aliases` - answering `getLinkSuggestions()`. | Off     |
-| Titles    | What a note's own frontmatter says it is called, read per note and on demand.             | Off     |
-| Headings  | When each heading of a note was created, last modified and last seen.                     | Off     |
+| Module     | What it indexes                                                                               | Default |
+|------------|-----------------------------------------------------------------------------------------------|---------|
+| Backlinks  | Which notes link to a note, answering `getBacklinksForFile()`.                                | On      |
+| Names      | What each note is called - its name and its `aliases` - answering `getLinkSuggestions()`.     | Off     |
+| Titles     | What a note's own frontmatter says it is called, read per note and on demand.                 | Off     |
+| Headings   | When each heading of a note was created, last modified and last seen.                         | Off     |
+| Properties | Which notes carry the frontmatter properties other plugins registered, and with which values. | On      |
 
 Switching a module off unloads it completely — its index, its listeners and the commands it registers all go with it, and the built-in implementation answers again. Switching one back on rebuilds its index from scratch.
 
@@ -100,6 +102,14 @@ Obsidian keeps no identity for a heading, so the module works one out by compari
 Nothing is written into the note. The times live in `heading-times.json` in the plugin folder, for notes opened, created or changed while the module is on, so a vault nobody is working in costs nothing. They are what this device saw: a change made on another device is stamped when it arrives here. A heading that was already there when its note started being tracked has no `created` or `modified` time, rather than a guessed one.
 
 The module has no user interface of its own: it is there for other plugins to read, through the API below. [Advanced Note Composer](https://github.com/mnaoumov/obsidian-advanced-note-composer) sorts headings by these times.
+
+### Properties
+
+Some plugins need to find notes by a frontmatter value: which note holds the key `abc123`, which notes carry a `keys` property at all. Obsidian has no index for that, so every such plugin scans the vault, and at startup it scans it before it can answer anything.
+
+The **Properties** module keeps that index for them. It indexes only the properties another plugin registers, so with none registered it costs nothing, and it is **on by default** for that reason. The index lives in `property-values.json` in the plugin folder, so at the next startup it answers straight from disk, and it is brought up to date from Obsidian's own metadata cache once that is ready, never by reading the notes themselves.
+
+The module has no user interface of its own: it is there for other plugins to read, through the API below.
 
 ## For plugin developers
 
@@ -209,6 +219,26 @@ for (const { created, heading, level, modified, seen } of api.getHeadingTimes('N
 ```
 
 A time is `null` when the plugin did not see the event happen, so sort `null` as the oldest and keep document order among equals. It is synchronous and current as of the last parse Obsidian announced: if you have just edited the note, await `getCacheSafe` from `@mnaoumov/obsidian-lib` first. It answers empty while the **Headings** module is off, and a note that is not tracked yet answers its current headings with every time `null`. Ask for the range `^1.2`.
+
+#### Notes by property value
+
+Added in contract `1.4.0`. Register the property once on load, then ask:
+
+```ts
+api.registerPropertyName('keys');
+
+const paths = api.getPathsByPropertyValue('keys', 'abc123');
+const withKeys = api.getPathsWithProperty('keys');
+
+const safePaths = await api.getPathsByPropertyValueSafe('keys', 'abc123');
+const safeWithKeys = await api.getPathsWithPropertySafe('keys');
+```
+
+`getPathsByPropertyValue` finds the notes whose property holds the value — the property itself when it is a scalar, or one of its members when it is a list. Names and values are matched exactly. A number or a boolean is matched by its string form, so `'7'` finds `keys: 7`, and `null` or an object is never matched. `getPathsWithProperty` finds every note carrying the property at all, `null` and an empty list included. Both answer unordered paths.
+
+**A registration is durable**: it is saved with the index, so at the next startup the property is answered from disk before your plugin has even loaded. There is no unregister; registering again is harmless.
+
+**Use the `Safe` variants when the answer must be current.** At startup the index answers with what the previous session saved, at once, but it does not know yet what changed while Obsidian was closed — a note synced or edited outside Obsidian. Once the metadata cache is ready the index is rebuilt from it, and the `Safe` variants wait for that. All four answer **`null` for a property nobody registered and while the Properties module is off** — scan the vault yourself then. Ask for the range `^1.4`.
 
 If you would rather not depend on `@mnaoumov/obsidian-lib` for the handle, the registry is a documented wire protocol you can read directly — see [Plugin API protocol](https://mnaoumov.dev/obsidian-lib/guides/plugin-api-protocol/).
 

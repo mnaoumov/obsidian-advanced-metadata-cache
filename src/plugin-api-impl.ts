@@ -18,6 +18,8 @@ import {
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
 import type { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import type { NameIndexComponent } from './modules/names/name-index-component.ts';
+import type { PropertyValueIndexComponent } from './modules/properties/property-value-index-component.ts';
+import type { PropertyValueIndex } from './modules/properties/property-value-index.ts';
 import type { TitleIndex } from './modules/titles/title-index.ts';
 import type {
   AdvancedMetadataCacheApi,
@@ -46,8 +48,14 @@ interface PluginApiImplConstructorParams {
    * same reason.
    */
   readonly getNameIndexComponent: () => NameIndexComponent | null;
+  /**
+   * Finds the `Properties` module's component, or `null` while the module is off. Asked per call, for the
+   * same reason.
+   */
+  readonly getPropertyValueIndexComponent: () => null | PropertyValueIndexComponent;
   readonly headingTimesIndex: HeadingTimesIndex;
   readonly pluginSettingsComponent: PluginSettingsComponent;
+  readonly propertyValueIndex: PropertyValueIndex;
   readonly titleIndex: TitleIndex;
 }
 
@@ -55,11 +63,10 @@ interface PluginApiImplConstructorParams {
  * The published API, implemented over the indexes the modules own.
  *
  * It is published for the plugin's whole life rather than for a module's, and answers emptily, or with
- *
-ull where empty would be a real answer, while the module behind it is off. A registry record that came and went with a toggle would make "the plugin is
- * not installed" and "you switched a module off" the same observation for a consumer — the first is
- * something to repair, the second is a setting, and telling them apart is most of what the registry is
- * for.
+ * `null` where empty would be a real answer, while the module behind it is off. A registry record that
+ * came and went with a toggle would make "the plugin is not installed" and "you switched a module off"
+ * the same observation for a consumer — the first is something to repair, the second is a setting, and
+ * telling them apart is most of what the registry is for.
  *
  * It implements the library's `SettingsMigrationApi` as well as `AdvancedMetadataCacheApi`, which is the
  * compile-time tether between the two: `api.d.ts` restates that envelope rather than importing it, so it
@@ -70,8 +77,10 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   private readonly app: App;
   private readonly getBacklinkCacheComponent: () => BacklinkCacheComponent | null;
   private readonly getNameIndexComponent: () => NameIndexComponent | null;
+  private readonly getPropertyValueIndexComponent: () => null | PropertyValueIndexComponent;
   private readonly headingTimesIndex: HeadingTimesIndex;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
+  private readonly propertyValueIndex: PropertyValueIndex;
 
   /**
    * The tail of the dialog queue. Two proposals arriving at once would otherwise stack two dialogs, and the
@@ -85,8 +94,10 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
     this.app = params.app;
     this.getBacklinkCacheComponent = params.getBacklinkCacheComponent;
     this.getNameIndexComponent = params.getNameIndexComponent;
+    this.getPropertyValueIndexComponent = params.getPropertyValueIndexComponent;
     this.headingTimesIndex = params.headingTimesIndex;
     this.pluginSettingsComponent = params.pluginSettingsComponent;
+    this.propertyValueIndex = params.propertyValueIndex;
     this.titleIndex = params.titleIndex;
   }
 
@@ -181,6 +192,54 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   }
 
   /**
+   * Finds every note whose frontmatter property holds a value.
+   *
+   * @param propertyName - The property name.
+   * @param value - The value to look for.
+   * @returns The vault-relative paths, or `null` for an unregistered property and while the `Properties`
+   *   module is off.
+   */
+  public getPathsByPropertyValue(propertyName: string, value: string): null | string[] {
+    return this.propertyValueIndex.getPathsByPropertyValue(propertyName, value);
+  }
+
+  /**
+   * Finds every note whose frontmatter property holds a value, once the index is rebuilt.
+   *
+   * @param propertyName - The property name.
+   * @param value - The value to look for.
+   * @returns The vault-relative paths, or `null` for an unregistered property and while the `Properties`
+   *   module is off.
+   */
+  public async getPathsByPropertyValueSafe(propertyName: string, value: string): Promise<null | string[]> {
+    await this.getPropertyValueIndexComponent()?.waitForBuild();
+    return this.propertyValueIndex.getPathsByPropertyValue(propertyName, value);
+  }
+
+  /**
+   * Finds every note carrying a frontmatter property.
+   *
+   * @param propertyName - The property name.
+   * @returns The vault-relative paths, or `null` for an unregistered property and while the `Properties`
+   *   module is off.
+   */
+  public getPathsWithProperty(propertyName: string): null | string[] {
+    return this.propertyValueIndex.getPathsWithProperty(propertyName);
+  }
+
+  /**
+   * Finds every note carrying a frontmatter property, once the index is rebuilt.
+   *
+   * @param propertyName - The property name.
+   * @returns The vault-relative paths, or `null` for an unregistered property and while the `Properties`
+   *   module is off.
+   */
+  public async getPathsWithPropertySafe(propertyName: string): Promise<null | string[]> {
+    await this.getPropertyValueIndexComponent()?.waitForBuild();
+    return this.propertyValueIndex.getPathsWithProperty(propertyName);
+  }
+
+  /**
    * The frontmatter properties whose values currently count as a note's title.
    *
    * @returns The configured property names, empty while the `Titles` module is off.
@@ -221,6 +280,22 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
       return await this.migrateSettingsWithoutQueueing(params);
     } finally {
       releaseQueue();
+    }
+  }
+
+  /**
+   * Asks the `Properties` module to index a frontmatter property.
+   *
+   * @param propertyName - The property name.
+   */
+  public registerPropertyName(propertyName: string): void {
+    const propertyValueIndexComponent = this.getPropertyValueIndexComponent();
+
+    if (propertyValueIndexComponent) {
+      propertyValueIndexComponent.registerPropertyName(propertyName);
+    } else {
+      // Kept for when the module is switched on, which loads the saved index and rebuilds it.
+      this.propertyValueIndex.register(propertyName);
     }
   }
 

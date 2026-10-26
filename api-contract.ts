@@ -38,6 +38,7 @@ import {
   isNumber,
   isString,
   isStringArray,
+  isUndefined,
   nullableTypeGuard,
   objectTypeGuard,
   optionalTypeGuard
@@ -105,6 +106,8 @@ const LINK_SUGGESTION_ARRAY_GUARD = createExpectedTypeGuard('an array of link su
 const NAME_GUARD = createExpectedTypeGuard('a name', isString);
 const PATH_OR_FILE_GUARD = createExpectedTypeGuard('a path or a file', isPathOrFile);
 const PATHS_GUARD = createExpectedTypeGuard('an array of paths', isStringArray);
+const PROPERTY_NAME_GUARD = createExpectedTypeGuard('a property name', isString);
+const PROPERTY_VALUE_GUARD = createExpectedTypeGuard('a property value', isString);
 
 /**
  * The contract this plugin publishes with {@link AdvancedMetadataCacheApi}, for a consumer to pass as the
@@ -147,6 +150,22 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
     input: createArgumentsSchema([NAME_GUARD]),
     output: createTypeGuardSchema(nullableGuard(PATHS_GUARD))
   },
+  getPathsByPropertyValue: {
+    input: createArgumentsSchema([PROPERTY_NAME_GUARD, PROPERTY_VALUE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(PATHS_GUARD))
+  },
+  getPathsByPropertyValueSafe: {
+    input: createArgumentsSchema([PROPERTY_NAME_GUARD, PROPERTY_VALUE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(PATHS_GUARD))
+  },
+  getPathsWithProperty: {
+    input: createArgumentsSchema([PROPERTY_NAME_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(PATHS_GUARD))
+  },
+  getPathsWithPropertySafe: {
+    input: createArgumentsSchema([PROPERTY_NAME_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(PATHS_GUARD))
+  },
   getTitlePropertyNames: {
     input: createArgumentsSchema([]),
     output: createTypeGuardSchema(createExpectedTypeGuard('an array of property names', isStringArray))
@@ -158,6 +177,10 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
   migrateSettings: {
     input: createArgumentsSchema([createExpectedTypeGuard('migrate settings params', isMigrateSettingsParams)]),
     output: createTypeGuardSchema(createExpectedTypeGuard('a migrate settings result', isMigrateSettingsResult))
+  },
+  registerPropertyName: {
+    input: createArgumentsSchema([PROPERTY_NAME_GUARD]),
+    output: createTypeGuardSchema(createExpectedTypeGuard('nothing', isUndefined))
   }
 });
 
