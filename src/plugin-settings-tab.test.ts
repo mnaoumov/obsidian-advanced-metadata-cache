@@ -38,11 +38,18 @@ function checkIsVisible(definition: SettingDefinitionItem | undefined): boolean 
   return typeof visible === 'function' ? visible() : visible !== false;
 }
 
-function createHarness(isBacklinksModuleEnabled: boolean, isTitlesModuleEnabled = false, isNamesModuleEnabled = false): Harness {
+function createHarness(
+  isBacklinksModuleEnabled: boolean,
+  isTitlesModuleEnabled = false,
+  isNamesModuleEnabled = false,
+  isPropertiesModuleEnabled = isBacklinksModuleEnabled
+): Harness {
   const settings = {
+    datePropertyNames: ['date', '*Date'],
     isBacklinksModuleEnabled,
     isHeadingsModuleEnabled: false,
     isNamesModuleEnabled,
+    isPropertiesModuleEnabled,
     isTitlesModuleEnabled,
     shouldAutomaticallyRefreshBacklinkPanels: false,
     shouldOfferTitlesInLinkSuggestions: false,
@@ -57,9 +64,11 @@ function createHarness(isBacklinksModuleEnabled: boolean, isTitlesModuleEnabled 
       effectiveValues: settings,
       inputValues: settings,
       validationMessages: {
+        datePropertyNames: '',
         isBacklinksModuleEnabled: '',
         isHeadingsModuleEnabled: '',
         isNamesModuleEnabled: '',
+        isPropertiesModuleEnabled: '',
         isTitlesModuleEnabled: '',
         shouldAutomaticallyRefreshBacklinkPanels: '',
         shouldOfferTitlesInLinkSuggestions: '',
@@ -121,6 +130,7 @@ describe('PluginSettingsTab', () => {
       'Headings module',
       'Names module',
       'Properties module',
+      'Date properties',
       'Titles module',
       'Title properties',
       'Offer titles in the [[ autocomplete',
@@ -132,6 +142,7 @@ describe('PluginSettingsTab', () => {
       'isHeadingsModuleEnabled',
       'isNamesModuleEnabled',
       'isPropertiesModuleEnabled',
+      'datePropertyNames',
       'isTitlesModuleEnabled',
       'titlePropertyNames',
       'shouldOfferTitlesInLinkSuggestions',
@@ -143,13 +154,13 @@ describe('PluginSettingsTab', () => {
   it('should show the options belonging to a module that is on', () => {
     const harness = createHarness(true, true, true);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true, true, true, true]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true, true, true, true, true]);
   });
 
   it('should hide the options belonging to a module that is off, leaving every module toggle visible', () => {
     const harness = createHarness(false);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, false, false, false, false]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, false, true, false, false, false, false]);
   });
 
   it('should hide the titles-in-autocomplete toggle until BOTH modules it needs are on', () => {
@@ -158,9 +169,9 @@ describe('PluginSettingsTab', () => {
 
     // It reads a title through the `Titles` module and puts it in the `Names` module's array, so
     // either one being off leaves it inert - and an inert toggle is worse than an absent one.
-    expect(checkIsVisible(titlesOnly.definitions[6])).toBe(false);
-    expect(checkIsVisible(namesOnly.definitions[6])).toBe(false);
-    expect(checkIsVisible(createHarness(true, true, true).definitions[6])).toBe(true);
+    expect(checkIsVisible(titlesOnly.definitions[7])).toBe(false);
+    expect(checkIsVisible(namesOnly.definitions[7])).toBe(false);
+    expect(checkIsVisible(createHarness(true, true, true).definitions[7])).toBe(true);
   });
 
   it('should re-render the tab when the backlinks module toggle changes, so the hidden rows follow it', async () => {
@@ -177,6 +188,15 @@ describe('PluginSettingsTab', () => {
     const refreshSpy = vi.spyOn(harness.tab, 'refresh').mockImplementation(() => undefined);
 
     await harness.triggerModuleToggleChange('isNamesModuleEnabled');
+
+    expect(refreshSpy).toHaveBeenCalledOnce();
+  });
+
+  it('should re-render the tab when the properties module toggle changes', async () => {
+    const harness = createHarness(true);
+    const refreshSpy = vi.spyOn(harness.tab, 'refresh').mockImplementation(() => undefined);
+
+    await harness.triggerModuleToggleChange('isPropertiesModuleEnabled');
 
     expect(refreshSpy).toHaveBeenCalledOnce();
   });

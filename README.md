@@ -242,7 +242,7 @@ const safeWithKeys = await api.getPathsWithPropertySafe('keys');
 
 #### Notes by date
 
-Added in contract `1.5.0`. Every property whose type is `Date` or `Date & time` is indexed with no registration, in each casing a note spells it, and its values are kept in order:
+Added in contract `1.5.0`. Every **date property** is indexed with no registration, in each casing a note spells it, and its values are kept in order. A date property is one whose type is `Date` or `Date & time`, or, since contract `1.6.0`, one whose name matches the **Date properties** setting: exact names, or patterns where `*` stands for anything, matched case-sensitively. The default is `date` and `*Date`, so `birthDate` and `startDate` are date properties whatever their type. A vault that names its dates differently lists its own, e.g. `date_*`, `*DateTime`, `ctime`, `mtime`.
 
 ```ts
 // Every dated value in the vault, oldest first.
@@ -255,13 +255,29 @@ const due = api.getDatedValues({ from: '2026', propertyNames: ['due'], to: '2026
 const upcoming = api.getDatedValues({ from: '10-26', isRecurring: true, propertyNames: ['birthday'], to: '11-25' });
 
 const safeAll = await api.getDatedValuesSafe({});
+
+// The values of the date properties that are not dates, which every answer above leaves out.
+const skipped = await api.getNonDateValuesSafe();
 ```
 
-Each entry is `{ path, propertyName, value }`, and a list property gives one entry per date it lists. A value counts as a date when it is shaped `YYYY-MM-DD`, optionally followed by `THH:mm`, `THH:mm:ss` or `THH:mm:ss.sss`, with no time zone: what Obsidian's own date pickers write. A registered property of any type contributes the values of that shape too.
+Each entry is `{ path, propertyName, value }`, and a list property gives one entry per date it lists. A value counts as a date when it is shaped `YYYY-MM-DD`, optionally followed by `THH:mm`, `THH:mm:ss` or `THH:mm:ss.sss`: what Obsidian's own date pickers write. A registered property of any type contributes the values of that shape too.
+
+What a value may carry beyond that, since contract `1.6.0`:
+
+| Value | Example | Handled as |
+| --- | --- | --- |
+| A date, or a datetime with no zone | `2026-10-26`, `2026-10-26T09:30` | A date. |
+| A datetime with an ISO 8601 offset | `2026-10-26T00:21:46-06:00`, `2026-10-26T09:30Z` | A date, **ordered and matched by the date and time as written**, the offset dropped. |
+| A datetime with an RFC 9557 time zone, after or instead of the offset | `2026-10-26T09:30+02:00[Europe/Kyiv]` | The same as an offset. |
+| Anything else: a time alone, a space instead of the `T`, a zone name without brackets, free text | `14:30`, `2026-10-26 09:30`, `next week` | Not a date: left out, never guessed. |
+
+**A zoned value sorts by its wall-clock time, not by its instant**, so `2026-10-26T23:00-06:00` is found on the 26th, the day the note says, although it is the 27th in UTC. Mixed with values without a zone, which have no instant at all, that is the only order every value has. Two values with the same wall-clock time are ordered by their text, and the bounds of a query never carry a zone. Each entry still reports the value as written, zone included, so a consumer that wants the instant parses it itself.
+
+`getNonDateValues` lists the values of the date properties that are not dates, ordered by path, then property name, then value, so a typo in a `birthDate` can be found rather than silently missing from every range.
 
 Both bounds are **inclusive and compared as prefixes**, so `to: '2026-06'` includes the whole of June and `to: '2026-06-30'` includes `2026-06-30T23:59`; leave a bound out for no bound. With `isRecurring` on, the bounds are a month and day (`'10-26'`) or a month (`'10'`), and the answer is ordered by month and day, then by year. Otherwise it is ordered by value. Ties are broken by property name, then by path.
 
-A property is registered the first time a note carries it with a date type, or when the type is assigned to it, and like any registration that lasts: changing its type back keeps it indexed. The answer is `null` when `propertyNames` names a property that is not indexed, and while the Properties module is off. Ask for the range `^1.5`.
+A property is registered the first time a note carries it as a date property, when the type is assigned to it, or when a name added to the setting matches it, and like any registration that lasts: changing its type back, or taking the name off the setting, keeps it indexed. The answer is `null` when `propertyNames` names a property that is not indexed, and while the Properties module is off. Ask for the range `^1.5`, or `^1.6` for `getNonDateValues`.
 
 If you would rather not depend on `@mnaoumov/obsidian-lib` for the handle, the registry is a documented wire protocol you can read directly — see [Plugin API protocol](https://mnaoumov.dev/obsidian-lib/guides/plugin-api-protocol/).
 

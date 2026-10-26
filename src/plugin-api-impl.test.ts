@@ -312,6 +312,22 @@ describe('PluginApiImpl', () => {
       settings.isPropertiesModuleEnabled = false;
       expect(pluginApi.getDatedValues({})).toBeNull();
     });
+
+    it('should list the values of a date property that are not dates, at once and after the build, and null while the module is off', async () => {
+      // The mocks have no `metadataTypeManager`; no type is assigned, so `birthDate` is a date property by its name.
+      castTo<Record<'metadataTypeManager', unknown>>(app).metadataTypeManager = { getAssignedWidget: (): null => null };
+      pluginApi.registerPropertyName('birthDate');
+      pluginApi.registerPropertyName('keys');
+      propertyValueIndexComponent = strictProxy<PropertyValueIndexComponent>({ waitForBuild: noopAsync });
+      propertyValueIndex.refresh({ frontmatter: { birthDate: ['1990-10-26', 'unknown'], keys: 'abc' }, path: 'Alpha.md' });
+      const expected = [{ path: 'Alpha.md', propertyName: 'birthDate', value: 'unknown' }];
+
+      expect(pluginApi.getNonDateValues()).toEqual(expected);
+      expect(await pluginApi.getNonDateValuesSafe()).toEqual(expected);
+
+      settings.isPropertiesModuleEnabled = false;
+      expect(pluginApi.getNonDateValues()).toBeNull();
+    });
   });
 
   describe('migrateSettings', () => {

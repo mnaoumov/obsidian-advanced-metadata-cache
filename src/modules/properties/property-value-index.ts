@@ -5,9 +5,8 @@
  * notes carry it and with which values.
  *
  * Only registered properties are indexed, so a vault nobody asks about costs nothing; the module's component
- * registers the date-typed ones itself. Their date-shaped values are also kept in order, by the
- * {@link DatedValueIndex} each {@link PropertyValues} feeds. The registered names
- * are saved with the index, in a JSON file in this plugin's own folder, which is what lets the index answer
+ * registers the date properties itself, by type and by name. Their date-shaped values are also kept in
+ * order, by the {@link DatedValueIndex} each {@link PropertyValues} feeds. The registered names are saved with the index, in a JSON file in this plugin's own folder, which is what lets the index answer
  * at the next startup straight from disk — before the metadata cache is ready, and before the consumer that
  * registered the property has even loaded.
  *
@@ -27,7 +26,11 @@ import type {
 } from '../../plugin-api.ts';
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 
-import { DatedValueIndex } from './dated-value-index.ts';
+import { isDatePropertyName } from './date-properties.ts';
+import {
+  DatedValueIndex,
+  isDateValue
+} from './dated-value-index.ts';
 
 interface PersistedPropertyValues {
   /**
@@ -194,6 +197,43 @@ export class PropertyValueIndex {
     const propertyNames = query.propertyNames ? new Set(query.propertyNames) : null;
 
     return propertyNames && [...propertyNames].some((propertyName) => !this.propertyValuesByName.has(propertyName)) ? null : this.datedValueIndex.getDatedValues(query, (propertyName) => propertyNames?.has(propertyName) ?? true);
+  }
+
+  /**
+   * Answers the published question: which values of the date properties are not dates, and so are left out
+   * of the ordered index?
+   *
+   * @returns The values, ordered by path, then by property name, then by value; `null` while the
+   *   `Properties` module is off.
+   */
+  public getNonDateValues(): DatedValue[] | null {
+    const settings = this.pluginSettingsComponent.settings;
+
+    if (!settings.isPropertiesModuleEnabled) {
+      return null;
+    }
+
+    const nonDateValues: DatedValue[] = [];
+
+    for (const [propertyName, propertyValues] of this.propertyValuesByName) {
+      if (!isDatePropertyName(this.app, settings, propertyName)) {
+        continue;
+      }
+
+      for (const [path, values] of propertyValues.valuesByPath) {
+        for (const value of values) {
+          if (!isDateValue(value)) {
+            nonDateValues.push({ path, propertyName, value });
+          }
+        }
+      }
+    }
+
+    return nonDateValues.sort((entry1, entry2) =>
+      compareStrings(entry1.path, entry2.path)
+      || compareStrings(entry1.propertyName, entry2.propertyName)
+      || compareStrings(entry1.value, entry2.value)
+    );
   }
 
   /**
@@ -405,6 +445,14 @@ export function readPropertyValues(frontmatter: FrontMatterCache | undefined, pr
 
 function areSameValues(values1: readonly string[], values2: readonly string[]): boolean {
   return values1.length === values2.length && values1.every((value, index) => value === values2[index]);
+}
+
+function compareStrings(string1: string, string2: string): number {
+  if (string1 === string2) {
+    return 0;
+  }
+
+  return string1 < string2 ? -1 : 1;
 }
 
 function isStringArray(value: unknown): value is string[] {

@@ -195,6 +195,25 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   }
 
   /**
+   * Lists the values of the date properties that are not date-shaped.
+   *
+   * @returns The values, or `null` while the `Properties` module is off.
+   */
+  public getNonDateValues(): DatedValue[] | null {
+    return this.propertyValueIndex.getNonDateValues();
+  }
+
+  /**
+   * Lists the values of the date properties that are not date-shaped, once the index is rebuilt.
+   *
+   * @returns The values, or `null` while the `Properties` module is off.
+   */
+  public async getNonDateValuesSafe(): Promise<DatedValue[] | null> {
+    await this.getPropertyValueIndexComponent()?.waitForBuild();
+    return this.propertyValueIndex.getNonDateValues();
+  }
+
+  /**
    * Finds every note that answers to a name.
    *
    * @param name - A basename, alias or title, in any casing and spacing.

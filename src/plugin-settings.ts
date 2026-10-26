@@ -1,4 +1,14 @@
 export class PluginSettings {
+  /**
+   * The frontmatter properties whose values are dates whatever type `types.json` assigns them: exact names,
+   * or patterns in which `*` stands for any run of characters, matched case-sensitively over the whole name.
+   *
+   * The default is the camelCase convention (`date`, `birthDate`, `startDate`). A property whose assigned
+   * type is `date` or `datetime` is a date property without being listed here. Read by the `Properties`
+   * module only.
+   */
+  public datePropertyNames: string[] = ['date', '*Date'];
+
   public isBacklinksModuleEnabled = true;
 
   /**

@@ -5,7 +5,6 @@ import { setTimeoutAsync } from '@mnaoumov/typescript-lib/async';
 import { noop } from '@mnaoumov/typescript-lib/function';
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { waitForAllAsyncOperations } from '@mnaoumov/typescript-test-toolkit/async-operation-tracking';
-import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import {
   App,
   Events
@@ -41,6 +40,13 @@ import {
 } from './property-value-index-component.ts';
 /* eslint-enable import-x/first, import-x/imports-first -- End of the mocked imports. */
 
+/**
+ * The part of the settings component both read: its settings, and the event a settings change fires.
+ */
+interface SettingsComponentStub extends Events {
+  settings: PluginSettings;
+}
+
 const DATA_FILE_PATH = 'property-values.json';
 
 describe('PropertyValueIndexComponent', () => {
@@ -49,6 +55,7 @@ describe('PropertyValueIndexComponent', () => {
   let component: PropertyValueIndexComponent;
   let index: PropertyValueIndex;
   let metadataTypeManager: Events;
+  let pluginSettingsComponent: SettingsComponentStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -60,12 +67,18 @@ describe('PropertyValueIndexComponent', () => {
     });
     castTo<Record<'metadataTypeManager', unknown>>(app).metadataTypeManager = metadataTypeManager;
 
+    pluginSettingsComponent = Object.assign(new Events(), { settings: new PluginSettings() });
+
     index = new PropertyValueIndex({
       app: castTo<AppOriginal>(app),
       getDataFilePath: (): string => DATA_FILE_PATH,
-      pluginSettingsComponent: strictProxy<PluginSettingsComponent>({ settings: new PluginSettings() })
+      pluginSettingsComponent: castTo<PluginSettingsComponent>(pluginSettingsComponent)
     });
-    component = new PropertyValueIndexComponent({ app: castTo<AppOriginal>(app), propertyValueIndex: index });
+    component = new PropertyValueIndexComponent({
+      app: castTo<AppOriginal>(app),
+      pluginSettingsComponent: castTo<PluginSettingsComponent>(pluginSettingsComponent),
+      propertyValueIndex: index
+    });
   });
 
   afterEach(() => {
@@ -291,6 +304,56 @@ describe('PropertyValueIndexComponent', () => {
     expect(index.getPropertyNames()).toEqual(['due', 'start']);
     expect(index.getDatedValues({ propertyNames: ['start'] })).toEqual([{ path: 'Beta.md', propertyName: 'start', value: '2026-10-26T09:30' }]);
     expect(index.isDirty).toBe(true);
+  });
+
+  it('should register a property by its name, whatever its type, and list its values that are not dates', async () => {
+    assignedTypes = { birthdate: 'text' };
+    createNote('Alpha.md', '---\nbirthDate: 1990-10-26\ndate: "2026-10-26T00:21:46-06:00"\nupdate: 2026-01-01\n---\n');
+    createNote('Beta.md', '---\nbirthDate: unknown\nDate: "14:30"\n---\n');
+
+    await load();
+
+    expect(index.getPropertyNames()).toEqual(['birthDate', 'date', 'Date']);
+    expect(index.getDatedValues({})).toEqual([
+      { path: 'Alpha.md', propertyName: 'birthDate', value: '1990-10-26' },
+      { path: 'Alpha.md', propertyName: 'date', value: '2026-10-26T00:21:46-06:00' }
+    ]);
+    expect(index.getNonDateValues()).toEqual([
+      { path: 'Beta.md', propertyName: 'Date', value: '14:30' },
+      { path: 'Beta.md', propertyName: 'birthDate', value: 'unknown' }
+    ]);
+  });
+
+  it('should register the properties a name added to the setting matches, and only once the names change', async () => {
+    createNote('Alpha.md', '---\nctime: "2026-10-26T09:00+02:00"\nmtime: "2026-10-26T08:00Z"\n---\n');
+    await load();
+
+    expect(index.getPropertyNames()).toEqual([]);
+
+    pluginSettingsComponent.trigger('saveSettings');
+    expect(index.getPropertyNames()).toEqual([]);
+
+    pluginSettingsComponent.settings.datePropertyNames = ['date', '*Date', 'ctime', 'mtime'];
+    pluginSettingsComponent.trigger('saveSettings');
+
+    expect(index.getPropertyNames()).toEqual(['ctime', 'mtime']);
+    // Ordered by the time as written, not by the instant, which would put 09:00+02:00 (07:00Z) first.
+    expect(index.getDatedValues({ from: '2026-10-26', to: '2026-10-26' })?.map((datedValue) => datedValue.value)).toEqual([
+      '2026-10-26T08:00Z',
+      '2026-10-26T09:00+02:00'
+    ]);
+    expect(index.isDirty).toBe(true);
+  });
+
+  it('should stop following the setting once unloaded', async () => {
+    createNote('Alpha.md', '---\nctime: "2026-10-26T09:00+02:00"\n---\n');
+    await load();
+    component.unload();
+
+    pluginSettingsComponent.settings.datePropertyNames = ['ctime'];
+    pluginSettingsComponent.trigger('saveSettings');
+
+    expect(index.getPropertyNames()).toEqual([]);
   });
 
   function createNote(path: string, content: string): TFile {

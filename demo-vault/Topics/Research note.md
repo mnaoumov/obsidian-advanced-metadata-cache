@@ -1,6 +1,7 @@
 ---
 status: reading
 due: 2026-11-15
+reviewDate: '2026-10-26T23:00-06:00'
 aliases:
   - Background research
   - Literature review

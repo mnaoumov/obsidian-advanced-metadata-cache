@@ -12,10 +12,14 @@ import { invokeAsyncSafely } from '@mnaoumov/typescript-lib/async';
 import { noop } from '@mnaoumov/typescript-lib/function';
 import { debounce } from 'obsidian';
 
+import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 import type { PropertyValueIndex } from './property-value-index.ts';
+
+import { isDatePropertyName } from './date-properties.ts';
 
 interface PropertyValueIndexComponentConstructorParams {
   readonly app: App;
+  readonly pluginSettingsComponent: PluginSettingsComponent;
   readonly propertyValueIndex: PropertyValueIndex;
 }
 
@@ -26,22 +30,17 @@ interface PropertyValueIndexComponentConstructorParams {
 export const SAVE_DEBOUNCE_IN_MILLISECONDS = 5000;
 
 /**
- * The property types whose properties are registered without anybody asking, so every dated value in the
- * vault is in the ordered index.
- */
-const DATE_PROPERTY_TYPES: ReadonlySet<string> = new Set(['date', 'datetime']);
-
-/**
  * The `Properties` module: keeps the {@link PropertyValueIndex} current for as long as it is on.
  *
  * On layout ready it loads the saved index, which answers at once, then rebuilds it from the metadata cache
  * once that is ready — a read of the cache Obsidian already holds for each note, never of the note itself —
  * and then follows the vault's own events. The `Safe` answers wait for that rebuild. Every property whose
- * assigned type is `date` or `datetime` is registered along the way, in each casing a note spells it, so the
- * ordered index holds every dated value without a consumer having to name the properties; a type assigned
- * later is caught by `metadataTypeManager`'s own `changed` event. The index is written
- * to disk on a debounce and once more when the module is switched off, and its values are cleared from
- * memory at both edges, since nothing keeps them current while the module is off.
+ * assigned type is `date` or `datetime`, or whose name matches the `datePropertyNames` setting, is
+ * registered along the way, in each casing a note spells it, so the ordered index holds every dated value
+ * without a consumer having to name the properties; a type assigned later is caught by
+ * `metadataTypeManager`'s own `changed` event, and a name added to the setting by its `saveSettings`. The
+ * index is written to disk on a debounce and once more when the module is switched off, and its values are
+ * cleared from memory at both edges, since nothing keeps them current while the module is off.
  */
 export class PropertyValueIndexComponent extends LayoutReadyComponent {
   /**
@@ -52,8 +51,10 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
   }
 
   private readonly builtPromise: Promise<void>;
+  private datePropertyNamesKey = '';
   private isBuiltValue = false;
   private isLoaded = false;
+  private readonly pluginSettingsComponent: PluginSettingsComponent;
   private readonly propertyValueIndex: PropertyValueIndex;
   private readonly requestSave: Debouncer<[], void>;
   private resolveBuiltPromise: () => void = noop;
@@ -61,6 +62,7 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
   public constructor(params: PropertyValueIndexComponentConstructorParams) {
     super(params.app);
 
+    this.pluginSettingsComponent = params.pluginSettingsComponent;
     this.propertyValueIndex = params.propertyValueIndex;
     this.builtPromise = new Promise<void>((resolve) => {
       this.resolveBuiltPromise = resolve;
@@ -139,8 +141,16 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
     }));
 
     this.registerEvent(this.app.metadataTypeManager.on('changed', () => {
-      this.handlePropertyTypeChange();
+      this.handleDatePropertiesChange();
     }));
+
+    this.datePropertyNamesKey = this.getDatePropertyNamesKey();
+    const saveSettingsEventRef = this.pluginSettingsComponent.on('saveSettings', () => {
+      this.handleSaveSettings();
+    });
+    this.register(() => {
+      this.pluginSettingsComponent.offref(saveSettingsEventRef);
+    });
 
     this.registerEvent(this.app.vault.on('delete', (abstractFile) => {
       this.handleDelete(abstractFile);
@@ -162,6 +172,23 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
     this.requestSave();
   }
 
+  private getDatePropertyNamesKey(): string {
+    return this.pluginSettingsComponent.settings.datePropertyNames.join('\n');
+  }
+
+  /**
+   * Registers the properties a type was just assigned to, or a name setting just matched. Before the build,
+   * the build does it.
+   */
+  private handleDatePropertiesChange(): void {
+    if (!this.isBuiltValue || !this.registerDatePropertiesInVault()) {
+      return;
+    }
+
+    this.refreshAll();
+    this.requestSave();
+  }
+
   private handleDelete(abstractFile: TAbstractFile): void {
     if (isFolder(abstractFile)) {
       this.propertyValueIndex.deleteSubtree(abstractFile.path);
@@ -169,18 +196,6 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
       this.propertyValueIndex.delete(abstractFile.path);
     }
 
-    this.requestSave();
-  }
-
-  /**
-   * Registers the properties a type was just assigned to. Before the build, the build does it.
-   */
-  private handlePropertyTypeChange(): void {
-    if (!this.isBuiltValue || !this.registerDatePropertiesInVault()) {
-      return;
-    }
-
-    this.refreshAll();
     this.requestSave();
   }
 
@@ -202,14 +217,24 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
     this.requestSave();
   }
 
-  private isDateTyped(propertyName: string): boolean {
-    const type = this.app.metadataTypeManager.getAssignedWidget(propertyName);
-    return type !== null && DATE_PROPERTY_TYPES.has(type);
+  /**
+   * Re-reads the date properties when their names changed. Only an addition registers anything: a removed
+   * name stays indexed, as a property retyped away from a date does.
+   */
+  private handleSaveSettings(): void {
+    const datePropertyNamesKey = this.getDatePropertyNamesKey();
+
+    if (this.datePropertyNamesKey === datePropertyNamesKey) {
+      return;
+    }
+
+    this.datePropertyNamesKey = datePropertyNamesKey;
+    this.handleDatePropertiesChange();
   }
 
   /**
    * Reads every note's registered properties from the metadata cache, and forgets the notes that are gone.
-   * The date-typed properties are registered first, so a note read early is read for one a later note
+   * The date properties are registered first, so a note read early is read for one a later note
    * introduces.
    */
   private refreshAll(): void {
@@ -223,7 +248,7 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
   }
 
   /**
-   * Registers each property of a note whose assigned type is a date.
+   * Registers each property of a note that holds dates, by its assigned type or by its name.
    *
    * @param frontmatter - The note's frontmatter.
    * @returns Whether any of them is new.
@@ -232,7 +257,7 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
     let isNew = false;
 
     for (const propertyName of Object.keys(frontmatter ?? {})) {
-      if (this.isDateTyped(propertyName)) {
+      if (isDatePropertyName(this.app, this.pluginSettingsComponent.settings, propertyName)) {
         isNew = this.propertyValueIndex.register(propertyName) || isNew;
       }
     }
@@ -241,7 +266,7 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
   }
 
   /**
-   * Registers every date-typed property any note carries.
+   * Registers every date property any note carries.
    *
    * @returns Whether any of them is new.
    */

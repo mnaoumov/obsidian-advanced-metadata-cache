@@ -134,17 +134,28 @@ counts as CARRYING the property, which is what `getPathsWithProperty` answers.
 `DatedValueIndex` (`dated-value-index.ts`) is fed only by `PropertyValues.set` and `delete`, so a value is in
 it exactly while the property-value index holds it; every rename, delete, `retain`, `clear` and `load` goes
 through those two and needs nothing of its own. It is two sorted arrays (by value, and by month-day for
-`isRecurring`), updated by binary search and `splice`. Only a value shaped `YYYY-MM-DD[THH:mm[:ss[.sss]]]`
-with NO zone enters it: that is what makes plain string order the date order, so do not widen the shape to
-zoned or space-separated values without giving up the string compare.
+`isRecurring`), updated by binary search and `splice`. A value enters it when it is shaped
+`YYYY-MM-DD[THH:mm[:ss[.sss]]]`, and a value with a time may add an ISO 8601 offset (`Z`, `±HH:MM`, `±HHMM`)
+and an RFC 9557 zone annotation (`[Europe/Kyiv]`). **Both arrays key on the LOCAL part** (`getLocalDateValue`:
+the date and time as written, zone dropped), worked out once per entry; that is what keeps plain string order
+the date order, and it is a decision, not a shortcut: a query by calendar day must match the
+day the note names, and a value without a zone has no instant to sort by. Ties on the local part break on the full
+value. Do not key on the instant: `2026-10-26T23:00-06:00` would move to the 27th and every prefix bound would
+stop meaning what it says. A time alone (`14:30`) is not a date, and neither is a space-separated
+datetime or a bare zone name; `getNonDateValues` lists such values of the date properties, computed on
+demand by `PropertyValueIndex`, never kept in step.
 
-Every property whose ASSIGNED type (`metadataTypeManager.getAssignedWidget`, i.e. `types.json`) is `date` or
-`datetime` is registered by `PropertyValueIndexComponent` itself, in each casing a note spells it: in a
+A **date property** is one whose ASSIGNED type (`metadataTypeManager.getAssignedWidget`, i.e. `types.json`) is
+`date` or `datetime`, OR whose name matches the `datePropertyNames` setting (exact names or `*` patterns,
+whole name, case-sensitive; default `date` and `*Date`): `isDatePropertyName` in `date-properties.ts` is the
+one predicate, read by the component to register and by the index to list non-date values. Every date property
+is registered by `PropertyValueIndexComponent` itself, in each casing a note spells it: in a
 pre-pass of every rebuild, on a note `changed` that carries a new one (which then triggers a full refresh,
-since other notes carry it too), and on `metadataTypeManager`'s own `changed`, which the typings do not
+since other notes carry it too), on a `saveSettings` that changed `datePropertyNames`, and on
+`metadataTypeManager`'s own `changed`, which the typings do not
 declare but Obsidian fires from `setType`, `unsetType` and a `types.json` reload — the integration suite
-pins that. So "with nothing registered it holds nothing" now reads "nothing registered and nothing typed
-as a date". Such a registration is as durable as any other: retyping the property away from a date leaves
+pins that. So "with nothing registered it holds nothing" now reads "nothing registered and no date
+property". Such a registration is as durable as any other: retyping the property away from a date leaves
 it indexed, the same cost the missing unregister already accepts.
 
 ## Public surface: the core call answers, the API offers everything else

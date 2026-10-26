@@ -85,6 +85,8 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
       getLinkSuggestions: { input: noArguments, output: nullableSuggestions },
       getLinkSuggestionsOriginal: { input: noArguments, output: { invalid: [null], valid: [[{ file: null, path: 'a' }]] } },
       getLinkSuggestionsSafe: { input: noArguments, output: nullableSuggestions },
+      getNonDateValues: { input: noArguments, output: nullableDatedValues },
+      getNonDateValuesSafe: { input: noArguments, output: nullableDatedValues },
       getPathsByName: { input: name, output: nullableStrings },
       getPathsByNameSafe: { input: name, output: nullableStrings },
       getPathsByPropertyValue: { input: propertyValue, output: nullableStrings },

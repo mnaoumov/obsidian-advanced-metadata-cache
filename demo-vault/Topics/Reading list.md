@@ -3,6 +3,7 @@ status:
   - reading
   - shared
 due: 2026-10-30
+reviewDate: '2026-10-27T08:00+02:00[Europe/Kyiv]'
 ---
 
 # Reading list

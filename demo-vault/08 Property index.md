@@ -2,7 +2,7 @@
 
 Some plugins find notes by a frontmatter value: which note holds a given key, which notes carry a property at all. Obsidian has no index for that, so each such plugin reads the whole vault, and at startup it has to before it can answer anything.
 
-The **Properties** module keeps that index for them. It indexes only the properties another plugin registers, plus every property whose type is a date, so with neither it costs nothing, and it is **on by default** for that reason. The index is saved in `property-values.json` in the plugin's own folder, so the next startup answers straight from disk.
+The **Properties** module keeps that index for them. It indexes only the properties another plugin registers, plus every date property, so with neither it costs nothing, and it is **on by default** for that reason. The index is saved in `property-values.json` in the plugin's own folder, so the next startup answers straight from disk.
 
 ## See it
 
@@ -25,7 +25,7 @@ The same three notes carry a `due` property, and `due` has the **Date** type (se
 ---
 caption: What is due in October and November 2026?
 ---
-await require('/demoSetup.ts').showDatedValues(app, { from: '2026-10', to: '2026-11' });
+await require('/demoSetup.ts').showDatedValues(app, { from: '2026-10', propertyNames: ['due'], to: '2026-11' });
 ```
 
 The meeting note's date is in 2025, so it is left out. A range can also ignore the year, which is how a plugin lists upcoming birthdays or anniversaries:
@@ -34,14 +34,36 @@ The meeting note's date is in 2025, so it is left out. A range can also ignore t
 ---
 caption: What falls between September and October, in any year?
 ---
-await require('/demoSetup.ts').showDatedValues(app, { from: '09', isRecurring: true, to: '10' });
+await require('/demoSetup.ts').showDatedValues(app, { from: '09', isRecurring: true, propertyNames: ['due'], to: '10' });
 ```
 
 Change a `due` date, or give another property the Date type in the **Properties** view, and press a button again.
 
+## Dates by name
+
+A property can be a date property by its **name** too, with no type set. The **Date properties** setting lists the names, and its default, `date` and `*Date`, covers `birthDate`, `startDate` and the `reviewDate` the three notes carry, which has no type in `types.json`. Their values show what else counts as a date: [Research note](<./Topics/Research note.md>) has `2026-10-26T23:00-06:00`, with an offset, and [Reading list](<./Topics/Reading list.md>) has `2026-10-27T08:00+02:00[Europe/Kyiv]`, with a time zone.
+
+```code-button
+---
+caption: What is up for review on October 26, 2026?
+---
+await require('/demoSetup.ts').showDatedValues(app, { from: '2026-10-26', propertyNames: ['reviewDate'], to: '2026-10-26' });
+```
+
+The research note comes back: a zoned value is placed on the day **as written**, although 23:00 at -06:00 is already the 27th in UTC. [Meeting note](<./Topics/Meeting note.md>) says `after the release`, which is not a date, so it is in no range. It is not lost either:
+
+```code-button
+---
+caption: Which date values are not dates?
+---
+await require('/demoSetup.ts').showNonDateValues(app);
+```
+
+A time alone, such as `14:30`, is not a date either.
+
 ## What to know
 
-- **Matched exactly.** Names and values are compared as typed, case included. A number or a boolean is matched by its string form, so `7` finds `status: 7`.
+- **Matched exactly.** Names and values are compared as typed, case included, and so are the **Date properties** patterns. A number or a boolean is matched by its string form, so `7` finds `status: 7`.
 - **A registration lasts.** It is saved with the index, so after a restart the property is answered before the plugin that asked for it has even loaded. Changes made while Obsidian was closed are picked up from the metadata cache once it is ready.
 - **Notes are never read for it.** Every answer comes from Obsidian's own metadata cache.
 
