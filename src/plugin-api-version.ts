@@ -12,6 +12,7 @@
  * for `'^1.3.0'` with a contract naming them finds the module through the registry instead of by probing
  * an Obsidian function for members Obsidian never declared. `1.4.0` adds the `Properties` module, as
  * additively: `registerPropertyName` and the four lookups of notes by a frontmatter property and its value,
- * which `Permanent Links` resolves its keys with.
+ * which `Permanent Links` resolves its keys with. `1.5.0` adds `getDatedValues` and its `Safe` variant, as
+ * additively: the module's ordered index of date-shaped values, by range and by recurring month and day.
  */
-export const PLUGIN_API_VERSION = '1.4.0';
+export const PLUGIN_API_VERSION = '1.5.0';

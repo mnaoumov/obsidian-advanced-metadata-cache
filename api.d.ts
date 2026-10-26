@@ -78,6 +78,43 @@ export interface AdvancedMetadataCacheApi {
   getBacklinksForFileSafe(pathOrFile: string | TFile): Promise<CustomArrayDict<Reference> | null>;
 
   /**
+   * Lists the date-shaped values of the indexed frontmatter properties that fall in a range, in order —
+   * answered from the `Properties` module's ordered index, without walking the vault.
+   *
+   * A value counts as a date when it is shaped `YYYY-MM-DD`, optionally followed by `THH:mm`, `THH:mm:ss` or
+   * `THH:mm:ss.sss`, with no time zone: what Obsidian's own `date` and `datetime` properties write. A list
+   * contributes each such member. Every property whose type is `date` or `datetime` is indexed without being
+   * registered, in each casing a note spells it; a property registered through
+   * {@link AdvancedMetadataCacheApi.registerPropertyName} contributes its date-shaped values too.
+   *
+   * With {@link DatedValuesQuery.isRecurring} on, the year is ignored, so a birthday is found in every year:
+   * `{ from: '10-26', to: '11-25', isRecurring: true }` lists the next month's birthdays, and a `from`
+   * after `to` wraps the end of the year.
+   *
+   * Answers from the index as it stands, as {@link AdvancedMetadataCacheApi.getPathsByPropertyValue} does;
+   * use {@link AdvancedMetadataCacheApi.getDatedValuesSafe} when that matters.
+   *
+   * Added in contract `1.5.0`.
+   *
+   * @param query - The range, and the properties to read; an empty query lists every dated value.
+   * @returns The values, ordered by value (by month and day first, then by year, when recurring), then by
+   *   property name, then by path. `null` when `propertyNames` names a property nobody registered and no
+   *   note carries as a date, and while the `Properties` module is off.
+   */
+  getDatedValues(query: DatedValuesQuery): DatedValue[] | null;
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getDatedValues}, waiting first for the index to be rebuilt from the
+   * metadata cache.
+   *
+   * Added in contract `1.5.0`.
+   *
+   * @param query - The range, and the properties to read.
+   * @returns The values, in order; `null` as for {@link AdvancedMetadataCacheApi.getDatedValues}.
+   */
+  getDatedValuesSafe(query: DatedValuesQuery): Promise<DatedValue[] | null>;
+
+  /**
    * Reads when each of a note's headings was created, last modified and last seen.
    *
    * Obsidian keeps no per-heading metadata, so the `Headings` module keeps it: it compares each parse of
@@ -283,6 +320,9 @@ export interface AdvancedMetadataCacheApi {
    *
    * Registering while the `Properties` module is off is kept, and indexed once the module is switched on.
    *
+   * A property whose type is `date` or `datetime` needs no registration: it is registered automatically,
+   * for {@link AdvancedMetadataCacheApi.getDatedValues}, and so answers the other lookups as well.
+   *
    * Added in contract `1.4.0`.
    *
    * @param propertyName - The property name, matched exactly.
@@ -376,6 +416,59 @@ export interface CustomArrayDict<T> {
    * @param value - The value to remove.
    */
   remove(key: string, value: T): void;
+}
+
+/**
+ * One date-shaped value of one indexed frontmatter property, as
+ * {@link AdvancedMetadataCacheApi.getDatedValues} reports it. A note whose property lists several dates
+ * gives one of these per date.
+ */
+export interface DatedValue {
+  /**
+   * The vault-relative path of the note.
+   */
+  readonly path: string;
+
+  /**
+   * The property name, as the note spells it for a date-typed property, and as it was registered otherwise.
+   */
+  readonly propertyName: string;
+
+  /**
+   * The value, exactly as the frontmatter holds it, e.g. `2026-10-26` or `2026-10-26T09:30`.
+   */
+  readonly value: string;
+}
+
+/**
+ * A range for {@link AdvancedMetadataCacheApi.getDatedValues}. Both bounds are inclusive and compared as
+ * prefixes, so a bound may be as coarse as a year.
+ */
+export interface DatedValuesQuery {
+  /**
+   * The earliest value to include; no lower bound when left out. A date, a datetime or a prefix of one
+   * (`2026`, `2026-10`, `2026-10-26T09`); with {@link DatedValuesQuery.isRecurring} on, a month and day
+   * (`10-26`) or a month (`10`).
+   */
+  readonly from?: string;
+
+  /**
+   * Whether to match and order by month and day alone, ignoring the year, as for a birthday or an
+   * anniversary. A `from` after `to` then wraps the end of the year: `{ from: '12-15', to: '01-15' }`.
+   */
+  readonly isRecurring?: boolean;
+
+  /**
+   * The properties to read, matched exactly; every indexed property when left out.
+   */
+  readonly propertyNames?: readonly string[];
+
+  /**
+   * The latest value to include; no upper bound when left out. Compared over its own length, so `2026-10-31`
+   * includes `2026-10-31T23:59` and `2026-10` includes the whole of October. The same forms as
+   * {@link DatedValuesQuery.from}.
+   */
+  readonly to?: string;
 }
 
 /**

@@ -6,7 +6,10 @@ import { noop } from '@mnaoumov/typescript-lib/function';
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { waitForAllAsyncOperations } from '@mnaoumov/typescript-test-toolkit/async-operation-tracking';
 import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
-import { App } from 'obsidian-test-mocks/obsidian';
+import {
+  App,
+  Events
+} from 'obsidian-test-mocks/obsidian';
 import {
   afterEach,
   beforeEach,
@@ -42,12 +45,20 @@ const DATA_FILE_PATH = 'property-values.json';
 
 describe('PropertyValueIndexComponent', () => {
   let app: App;
+  let assignedTypes: Record<string, string>;
   let component: PropertyValueIndexComponent;
   let index: PropertyValueIndex;
+  let metadataTypeManager: Events;
 
   beforeEach(() => {
     vi.clearAllMocks();
     app = App.createConfigured__();
+    assignedTypes = {};
+    // The mocks have no `metadataTypeManager`; this is the part of it the component reads.
+    metadataTypeManager = Object.assign(new Events(), {
+      getAssignedWidget: (propertyName: string): null | string => assignedTypes[propertyName.toLowerCase()] ?? null
+    });
+    castTo<Record<'metadataTypeManager', unknown>>(app).metadataTypeManager = metadataTypeManager;
 
     index = new PropertyValueIndex({
       app: castTo<AppOriginal>(app),
@@ -217,6 +228,69 @@ describe('PropertyValueIndexComponent', () => {
 
     expect(component.isBuilt).toBe(false);
     expect(hoisted.ensureMetadataCacheReady).not.toHaveBeenCalled();
+  });
+
+  it('should register every date-typed property at the build, in each casing a note spells it', async () => {
+    assignedTypes = { birthday: 'date', created: 'datetime', status: 'text' };
+    createNote('Alpha.md', '---\nbirthday: 1990-10-26\nstatus: 2026-01-01\n---\n');
+    createNote('Beta.md', '---\nBirthday: 1985-10-27\ncreated: 2026-10-25T09:30\n---\n');
+
+    await load();
+
+    expect(index.getPropertyNames()).toEqual(['birthday', 'Birthday', 'created']);
+    expect(index.getDatedValues({})).toEqual([
+      { path: 'Beta.md', propertyName: 'Birthday', value: '1985-10-27' },
+      { path: 'Alpha.md', propertyName: 'birthday', value: '1990-10-26' },
+      { path: 'Beta.md', propertyName: 'created', value: '2026-10-25T09:30' }
+    ]);
+  });
+
+  it('should register a date-typed property a changed note introduces, and read it from every note', async () => {
+    assignedTypes = { due: 'date' };
+    createNote('Alpha.md', '---\ndue: 2026-10-26\n---\n');
+    const beta = createNote('Beta.md', '');
+    // Not in the metadata cache at the build, as a note created after it would not be.
+    vi.spyOn(app.metadataCache, 'getFileCache').mockReturnValue(null);
+    await load();
+
+    expect(index.getPropertyNames()).toEqual([]);
+
+    vi.mocked(app.metadataCache.getFileCache).mockRestore();
+    app.metadataCache.trigger('changed', beta, '', { frontmatter: { due: '2026-10-27' } });
+
+    expect(index.getPropertyNames()).toEqual(['due']);
+    expect(index.getDatedValues({})?.map((datedValue) => datedValue.path)).toEqual(['Alpha.md']);
+  });
+
+  it('should register a property once a date type is assigned to it, and only after the build', async () => {
+    createNote('Alpha.md', '---\ndue: 2026-10-26\n---\n');
+    createNote('Beta.md', '---\nstart: 2026-10-26T09:30\n---\n');
+    let resolveReady: () => void = noop;
+    hoisted.ensureMetadataCacheReady.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        resolveReady = resolve;
+      });
+    });
+    await component.loadWithPromises();
+    app.workspace.setLayoutReady__();
+    await setTimeoutAsync(0);
+
+    assignedTypes = { due: 'date' };
+    metadataTypeManager.trigger('changed', 'due');
+    expect(index.getPropertyNames()).toEqual([]);
+
+    resolveReady();
+    await waitForAllAsyncOperations();
+    expect(index.getPropertyNames()).toEqual(['due']);
+
+    metadataTypeManager.trigger('changed', 'due');
+    expect(index.getPropertyNames()).toEqual(['due']);
+
+    assignedTypes = { due: 'date', start: 'datetime' };
+    metadataTypeManager.trigger('changed', 'start');
+    expect(index.getPropertyNames()).toEqual(['due', 'start']);
+    expect(index.getDatedValues({ propertyNames: ['start'] })).toEqual([{ path: 'Beta.md', propertyName: 'start', value: '2026-10-26T09:30' }]);
+    expect(index.isDirty).toBe(true);
   });
 
   function createNote(path: string, content: string): TFile {

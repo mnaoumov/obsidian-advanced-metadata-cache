@@ -48,6 +48,8 @@ import type {
   AdvancedMetadataCacheApi,
   AdvancedMetadataCacheMigratableSettings,
   CustomArrayDict,
+  DatedValue,
+  DatedValuesQuery,
   HeadingTimes,
   LinkSuggestion,
   MigrateSettingsParams,
@@ -71,6 +73,19 @@ const isBacklinksDictShape = objectTypeGuard<Pick<BacklinksDict, 'data' | 'get' 
   data: instanceOfTypeGuard<BacklinksDict['data']>(Map),
   get: functionTypeGuard<BacklinksDict['get']>(),
   keys: functionTypeGuard<BacklinksDict['keys']>()
+});
+
+const isDatedValue = objectTypeGuard<DatedValue>({
+  path: isString,
+  propertyName: isString,
+  value: isString
+});
+
+const isDatedValuesQuery = objectTypeGuard<DatedValuesQuery>({
+  from: optionalTypeGuard(isString),
+  isRecurring: optionalTypeGuard(isBoolean),
+  propertyNames: optionalTypeGuard(isStringArray),
+  to: optionalTypeGuard(isString)
 });
 
 const isHeadingTimes = objectTypeGuard<HeadingTimes>({
@@ -102,6 +117,8 @@ const isMigrateSettingsResult = objectTypeGuard<MigrateSettingsResult>({
 });
 
 const BACKLINKS_DICT_GUARD = createExpectedTypeGuard('a backlinks dictionary', isBacklinksDict);
+const DATED_VALUE_ARRAY_GUARD = createExpectedTypeGuard('an array of dated values', arrayTypeGuard(isDatedValue));
+const DATED_VALUES_QUERY_GUARD = createExpectedTypeGuard('a dated values query', isDatedValuesQuery);
 const LINK_SUGGESTION_ARRAY_GUARD = createExpectedTypeGuard('an array of link suggestions', arrayTypeGuard(isLinkSuggestion));
 const NAME_GUARD = createExpectedTypeGuard('a name', isString);
 const PATH_OR_FILE_GUARD = createExpectedTypeGuard('a path or a file', isPathOrFile);
@@ -125,6 +142,14 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
   getBacklinksForFileSafe: {
     input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
     output: createTypeGuardSchema(nullableGuard(BACKLINKS_DICT_GUARD))
+  },
+  getDatedValues: {
+    input: createArgumentsSchema([DATED_VALUES_QUERY_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(DATED_VALUE_ARRAY_GUARD))
+  },
+  getDatedValuesSafe: {
+    input: createArgumentsSchema([DATED_VALUES_QUERY_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(DATED_VALUE_ARRAY_GUARD))
   },
   getHeadingTimes: {
     input: createArgumentsSchema([PATH_OR_FILE_GUARD]),

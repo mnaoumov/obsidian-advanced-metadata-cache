@@ -107,7 +107,7 @@ The module has no user interface of its own: it is there for other plugins to re
 
 Some plugins need to find notes by a frontmatter value: which note holds the key `abc123`, which notes carry a `keys` property at all. Obsidian has no index for that, so every such plugin scans the vault, and at startup it scans it before it can answer anything.
 
-The **Properties** module keeps that index for them. It indexes only the properties another plugin registers, so with none registered it costs nothing, and it is **on by default** for that reason. The index lives in `property-values.json` in the plugin folder, so at the next startup it answers straight from disk, and it is brought up to date from Obsidian's own metadata cache once that is ready, never by reading the notes themselves.
+The **Properties** module keeps that index for them. It indexes only the properties another plugin registers, plus every property whose type is `Date` or `Date & time`, so a vault with none of either costs nothing, and it is **on by default** for that reason. Dates are also kept in order, so a plugin can ask for every note dated within a range, or for every birthday in the coming month, without reading the vault. The index lives in `property-values.json` in the plugin folder, so at the next startup it answers straight from disk, and it is brought up to date from Obsidian's own metadata cache once that is ready, never by reading the notes themselves.
 
 The module has no user interface of its own: it is there for other plugins to read, through the API below.
 
@@ -239,6 +239,29 @@ const safeWithKeys = await api.getPathsWithPropertySafe('keys');
 **A registration is durable**: it is saved with the index, so at the next startup the property is answered from disk before your plugin has even loaded. There is no unregister; registering again is harmless.
 
 **Use the `Safe` variants when the answer must be current.** At startup the index answers with what the previous session saved, at once, but it does not know yet what changed while Obsidian was closed — a note synced or edited outside Obsidian. Once the metadata cache is ready the index is rebuilt from it, and the `Safe` variants wait for that. All four answer **`null` for a property nobody registered and while the Properties module is off** — scan the vault yourself then. Ask for the range `^1.4`.
+
+#### Notes by date
+
+Added in contract `1.5.0`. Every property whose type is `Date` or `Date & time` is indexed with no registration, in each casing a note spells it, and its values are kept in order:
+
+```ts
+// Every dated value in the vault, oldest first.
+const all = api.getDatedValues({});
+
+// Every note dated in the first half of 2026, by one property.
+const due = api.getDatedValues({ from: '2026', propertyNames: ['due'], to: '2026-06' });
+
+// Every birthday from today to a month from now, whatever the year; `from` after `to` wraps the year end.
+const upcoming = api.getDatedValues({ from: '10-26', isRecurring: true, propertyNames: ['birthday'], to: '11-25' });
+
+const safeAll = await api.getDatedValuesSafe({});
+```
+
+Each entry is `{ path, propertyName, value }`, and a list property gives one entry per date it lists. A value counts as a date when it is shaped `YYYY-MM-DD`, optionally followed by `THH:mm`, `THH:mm:ss` or `THH:mm:ss.sss`, with no time zone: what Obsidian's own date pickers write. A registered property of any type contributes the values of that shape too.
+
+Both bounds are **inclusive and compared as prefixes**, so `to: '2026-06'` includes the whole of June and `to: '2026-06-30'` includes `2026-06-30T23:59`; leave a bound out for no bound. With `isRecurring` on, the bounds are a month and day (`'10-26'`) or a month (`'10'`), and the answer is ordered by month and day, then by year. Otherwise it is ordered by value. Ties are broken by property name, then by path.
+
+A property is registered the first time a note carries it with a date type, or when the type is assigned to it, and like any registration that lasts: changing its type back keeps it indexed. The answer is `null` when `propertyNames` names a property that is not indexed, and while the Properties module is off. Ask for the range `^1.5`.
 
 If you would rather not depend on `@mnaoumov/obsidian-lib` for the handle, the registry is a documented wire protocol you can read directly — see [Plugin API protocol](https://mnaoumov.dev/obsidian-lib/guides/plugin-api-protocol/).
 

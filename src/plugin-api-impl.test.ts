@@ -9,7 +9,10 @@ import type {
   TFile
 } from 'obsidian';
 
-import { noop } from '@mnaoumov/typescript-lib/function';
+import {
+  noop,
+  noopAsync
+} from '@mnaoumov/typescript-lib/function';
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { App } from 'obsidian-test-mocks/obsidian';
@@ -294,6 +297,20 @@ describe('PluginApiImpl', () => {
 
       expect(await byValuePromise).toEqual(['Alpha.md']);
       expect(await withPropertyPromise).toEqual(['Alpha.md']);
+    });
+
+    it('should list dated values, at once and after the build, and null while the module is off', async () => {
+      pluginApi.registerPropertyName('due');
+      propertyValueIndexComponent = strictProxy<PropertyValueIndexComponent>({ waitForBuild: noopAsync });
+      propertyValueIndex.refresh({ frontmatter: { due: '2026-10-26' }, path: 'Alpha.md' });
+      const expected = [{ path: 'Alpha.md', propertyName: 'due', value: '2026-10-26' }];
+
+      expect(pluginApi.getDatedValues({ from: '2026-10' })).toEqual(expected);
+      expect(await pluginApi.getDatedValuesSafe({ isRecurring: true, to: '10-26' })).toEqual(expected);
+      expect(pluginApi.getDatedValues({ propertyNames: ['other'] })).toBeNull();
+
+      settings.isPropertiesModuleEnabled = false;
+      expect(pluginApi.getDatedValues({})).toBeNull();
     });
   });
 

@@ -1,5 +1,6 @@
 ---
 status: reading
+due: 2026-11-15
 aliases:
   - Background research
   - Literature review
