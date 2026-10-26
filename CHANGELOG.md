@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.1.0
+
+- feat(properties): merge indexing notes by frontmatter property value for other plugins
+
 ## 2.0.3
 
 - test(demo-vault): require `CodeScript Toolkit` 15.0.0, its first release on obsidian-lib 6
