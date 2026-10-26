@@ -16,6 +16,8 @@
     "basenames",
     "collab",
     "creatordate",
+    "Datacore",
+    "Dataview",
     "Debouncer",
     "frontmatter",
     "GHSA",

@@ -133,7 +133,11 @@ export class Plugin extends PluginBase {
           moduleId: 'properties'
         },
         {
-          createComponent: (): UnlinkedMentionsComponent => new UnlinkedMentionsComponent({ app: this.app }),
+          createComponent: (): UnlinkedMentionsComponent =>
+            new UnlinkedMentionsComponent({
+              app: this.app,
+              getDataFilePath: (): string => this.getDataFilePath('unlinked-mentions.json')
+            }),
           getIsEnabled: (settings): boolean => settings.isUnlinkedMentionsModuleEnabled,
           moduleId: 'unlinked-mentions'
         }

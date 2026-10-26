@@ -45,6 +45,24 @@ const DEMO_VAULT_TEST_FILES = 'src/**/*.demo-vault.integration.test.ts';
  */
 const DEMO_VAULT_TIMEOUT_IN_MILLISECONDS = 600_000;
 
+/**
+ * The suites measured against a copy of a real vault's notes (`AMC_REAL_VAULT_PATH`). Their own suffix keeps them out
+ * of every standard project: the copy is a private vault, so the run is an explicit
+ * `npm run test:integration:real-vault`, never part of a gate.
+ */
+const REAL_VAULT_TEST_FILES = 'src/**/*.desktop-real-vault.integration.test.ts';
+
+/**
+ * Copying and then parsing tens of thousands of real notes outlasts every standard hook budget.
+ */
+const REAL_VAULT_TIMEOUT_IN_MILLISECONDS = 3_600_000;
+
+/**
+ * Obsidian's own startup parse of such a vault holds the renderer for well over the 30 s default per command, so even
+ * the first short poll waits that long for its turn.
+ */
+const REAL_VAULT_COMMAND_TIMEOUT_IN_MILLISECONDS = 600_000;
+
 export const config = defineObsidianPluginVitestConfig({
   customProjects(context: ObsidianPluginVitestConfigContext): TestProjectConfiguration[] {
     return [
@@ -81,6 +99,22 @@ export const config = defineObsidianPluginVitestConfig({
           include: [DEMO_VAULT_TEST_FILES],
           name: 'integration-tests:demo-vault',
           testTimeout: DEMO_VAULT_TIMEOUT_IN_MILLISECONDS
+        }
+      },
+      {
+        test: {
+          ...context.desktop,
+          environmentOptions: {
+            obsidianTransport: {
+              commandTimeoutInMilliseconds: REAL_VAULT_COMMAND_TIMEOUT_IN_MILLISECONDS,
+              type: 'obsidian-cdp'
+            }
+          },
+          globalSetup: ['./scripts/real-vault-global-setup.ts'],
+          hookTimeout: REAL_VAULT_TIMEOUT_IN_MILLISECONDS,
+          include: [REAL_VAULT_TEST_FILES],
+          name: 'integration-tests:real-vault',
+          testTimeout: REAL_VAULT_TIMEOUT_IN_MILLISECONDS
         }
       }
     ];

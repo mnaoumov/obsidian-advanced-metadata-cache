@@ -94,6 +94,37 @@ export class UnlinkedMentionIndex {
   }
 
   /**
+   * Lists the keys every note's text has been looked at for: the names known and not dirty. What a saved index may
+   * claim to have scanned for.
+   *
+   * @returns The keys.
+   */
+  public getCleanKeys(): string[] {
+    return [...this.keyCounts.keys()].filter((key) => !this.dirtyKeyScanNumbers.has(key));
+  }
+
+  /**
+   * Lists the keys one note's text was found to mention.
+   *
+   * @param path - The note's path.
+   * @returns The keys, empty for a note that mentions none or was never scanned.
+   */
+  public getMentionKeys(path: string): string[] {
+    return [...this.mentionKeysByPath.get(path) ?? []];
+  }
+
+  /**
+   * Marks names clean without a full scan: for a saved index whose notes were all looked at for them.
+   *
+   * @param keys - The keys, as {@link UnlinkedMentionIndex.getCleanKeys} listed them when the index was saved.
+   */
+  public markClean(keys: Iterable<string>): void {
+    for (const key of keys) {
+      this.dirtyKeyScanNumbers.delete(key);
+    }
+  }
+
+  /**
    * Forgets the names one note contributed.
    *
    * @param path - The note's path.
@@ -144,6 +175,17 @@ export class UnlinkedMentionIndex {
     if (mentionKeys) {
       this.replaceMentionKeys(newPath, mentionKeys);
     }
+  }
+
+  /**
+   * Records what one note's text was found to mention by an earlier scan, saved, without reading it again. A key that
+   * is no longer a name is dropped: nothing could ask for it.
+   *
+   * @param path - The note's path.
+   * @param mentionKeys - The keys {@link UnlinkedMentionIndex.getMentionKeys} listed for it.
+   */
+  public restoreText(path: string, mentionKeys: readonly string[]): void {
+    this.replaceMentionKeys(path, new Set(mentionKeys.filter((key) => this.keyCounts.has(key))));
   }
 
   /**
