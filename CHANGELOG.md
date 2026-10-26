@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.2.0
+
+- feat(properties): find notes by date range and by recurring date for other plugins
+
 ## 2.1.0
 
 - feat(properties): merge indexing notes by frontmatter property value for other plugins
