@@ -123,6 +123,21 @@ Measured on a generated vault of 40,000 notes, most of them empty, which is the 
 
 The cost is one read of every note when the module starts, in the background, and it is **off by default** for that reason. Until that read finishes the section is filled the built-in way, so it is never incomplete. A note created later, or an alias added later, is picked up by one more full read the first time its section is shown. A name with no letter or digit Obsidian knows of, such as one written only in Chinese or Japanese characters, cannot be indexed by words, so its section is filled the built-in way too.
 
+## See also
+
+[See my other Obsidian resources](https://github.com/mnaoumov/obsidian-resources).
+
+| Plugin | Features | How `Advanced Metadata Cache` differs |
+| --- | --- | --- |
+| [`Backlink Cache`](https://community.obsidian.md/plugins/backlink-cache) (my plugin) | Retired; points to this plugin, which carries its backlink index | The same backlink index; adds the names, titles, headings, properties and unlinked mentions modules |
+| [`Boost Link Suggestions`](https://community.obsidian.md/plugins/boost-link-suggestions) | Alternative `[[` suggester; orders results by link count and manual boosts | Keeps Obsidian's own suggester and order; answers it from an index instead of a walk of every note |
+| [`Datacore`](https://community.obsidian.md/plugins/datacore) | Reactive query engine with its own vault index; JavaScript and JSX views | Answers Obsidian's built-in calls, so the Backlinks pane and other plugins get faster unchanged; no query language |
+| [`Dataview`](https://community.obsidian.md/plugins/dataview) | Indexes page metadata and inline fields; query language and JavaScript API for tables, lists and tasks | Answers Obsidian's built-in calls; a property-value index for other plugins, answered from disk at startup; no query language |
+| [`Front Matter Title`](https://community.obsidian.md/plugins/obsidian-front-matter-title-plugin) | Shows a frontmatter title in place of the file name in the explorer, tabs, graph and more | The reverse lookup: finds a note by its title; can offer titles in the `[[` autocomplete; changes no display |
+| [`Vault Map`](https://community.obsidian.md/plugins/vault-map) | Writes a JSON Lines file of every note's frontmatter, links, embeds and backlinks, for scripts and AI agents | In-memory indexes behind Obsidian's own calls; an API for other plugins; writes no export file |
+
+Last searched for similar plugins on 2026-10-26.
+
 ## For plugin developers
 
 Everything this plugin offers another plugin is declared in one hand-written file — [api.d.ts](./api.d.ts) at the repository root. It imports from `obsidian` and nothing else, so you can copy it into your own code or reference it where it sits, with no build-time dependency on this repository.
@@ -345,10 +360,6 @@ Contributions are welcome — see [CONTRIBUTING](./CONTRIBUTING.md) to get set u
 <a href="https://www.buymeacoffee.com/mnaoumov" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="60" width="217"></a>
 
 <!-- markdownlint-enable MD033 -->
-
-## My other Obsidian resources
-
-[See my other Obsidian resources](https://github.com/mnaoumov/obsidian-resources).
 
 ## License
 
