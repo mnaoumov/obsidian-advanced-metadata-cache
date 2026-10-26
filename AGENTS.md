@@ -145,6 +145,16 @@ stop meaning what it says. A time alone (`14:30`) is not a date, and neither is 
 datetime or a bare zone name; `getNonDateValues` lists such values of the date properties, computed on
 demand by `PropertyValueIndex`, never kept in step.
 
+**A reduced-precision value (`2019`, `2019-05`) is a PERIOD, keyed as written and never padded.** Plain
+string order already puts it at the start of its period, and the prefix upper bound already matches it by
+overlap; the lower bound gets it through `SortedDatedEntries.getRange`'s extra exact-key slices for the
+prefixes of `from` at the reduced key lengths. A year alone stays out of `byMonthDay` (its key would be
+empty and match every recurring range). It enters the arrays from ANY property but counts only in a date
+property, and `DatedValueIndex.getDatedValues` asks that per query through its `isDateProperty` callback: a
+bare `1500` in a registered `pages` is not a year, and a check at query time needs no re-index when a type
+or the setting changes. Obsidian's `date` widget shows such a value padded (`2019-01-01`), which the
+integration suite pins and the README warns about.
+
 A **date property** is one whose ASSIGNED type (`metadataTypeManager.getAssignedWidget`, i.e. `types.json`) is
 `date` or `datetime`, OR whose name matches the `datePropertyNames` setting (exact names or `*` patterns,
 whole name, case-sensitive; default `date` and `*Date`): `isDatePropertyName` in `date-properties.ts` is the

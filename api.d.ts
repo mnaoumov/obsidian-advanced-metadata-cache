@@ -88,6 +88,13 @@ export interface AdvancedMetadataCacheApi {
    * so `2026-10-26T23:00-06:00` is on the 26th and the bounds never carry a zone. A list contributes each such
    * member.
    *
+   * In a date property, a value of reduced precision counts too: a year (`2019`, also as an unquoted YAML
+   * number) or a year and a month (`2019-05`), as ISO 8601 writes a date known only that far. It stands for
+   * its whole period, never for the period's first day: it sorts at the START of its period (`2019` before
+   * `2019-01-01`), a range matches it whenever the two OVERLAP (`{ from: '2019-05-10', to: '2019-05-20' }`
+   * lists `2019` and `2019-05`), and it is reported as written, so its precision is the length of its
+   * `value`. A recurring query skips a year alone and matches a month by the same overlap.
+   *
    * Every property whose type is `date` or `datetime`, or whose name matches the plugin's `Date properties`
    * setting (by default `date` and `*Date`), is indexed without being registered, in each casing a note
    * spells it; a property registered through {@link AdvancedMetadataCacheApi.registerPropertyName}
@@ -123,7 +130,8 @@ export interface AdvancedMetadataCacheApi {
 
   /**
    * Lists the values of the date properties that are NOT date-shaped, and so are left out of
-   * {@link AdvancedMetadataCacheApi.getDatedValues}: a time alone (`14:30`), a free-text date, a typo. A date
+   * {@link AdvancedMetadataCacheApi.getDatedValues}: a time alone (`14:30`), a free-text date, a typo. A year
+   * or a month of reduced precision (`2019`, `2019-05`) is a date, so it is not listed. A date
    * property is one {@link AdvancedMetadataCacheApi.getDatedValues} indexes without a registration, by its
    * type or by its name; a registered property of another type is not one, so its other values are not
    * listed.
@@ -470,7 +478,8 @@ export interface DatedValue {
 
   /**
    * The value, exactly as the frontmatter holds it, e.g. `2026-10-26`, `2026-10-26T09:30` or
-   * `2026-10-26T09:30:00+02:00[Europe/Kyiv]`, zone included.
+   * `2026-10-26T09:30:00+02:00[Europe/Kyiv]`, zone included; a reduced-precision date stays `2019` or
+   * `2019-05`, never padded to a day. A number or a boolean is in its string form.
    */
   readonly value: string;
 }

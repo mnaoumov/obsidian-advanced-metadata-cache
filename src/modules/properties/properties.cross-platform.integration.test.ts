@@ -71,12 +71,26 @@ interface DatedValuesResult {
 }
 
 /**
+ * Obsidian's own property widgets, as far as this suite reads them.
+ */
+interface MetadataTypeWidgetsHolder {
+  readonly registeredTypeWidgets?: Record<string, PropertyWidget | undefined>;
+}
+
+/**
  * What one run of the named-dates scenario answered.
  */
 interface NamedDatesResult {
+  readonly dateWidgetShows: null | Record<string, null | string>;
+  readonly dateWidgetWrites: null | unknown[];
   readonly day: DatedValue[] | null;
   readonly error: null | string;
   readonly nonDates: DatedValue[] | null;
+  readonly reduced: DatedValue[] | null;
+  /**
+   * The JavaScript type the metadata cache hands over for an unquoted `2019`.
+   */
+  readonly unquotedYearType: null | string;
 }
 
 interface ObsidianLibStateBag {
@@ -117,6 +131,21 @@ interface PropertiesResult {
 }
 
 /**
+ * One of Obsidian's own property widgets, as far as this suite renders it.
+ */
+interface PropertyWidget {
+  readonly render?: (containerEl: HTMLElement, value: unknown, context: PropertyWidgetContext) => unknown;
+}
+
+interface PropertyWidgetContext {
+  readonly app: unknown;
+  readonly blur: () => void;
+  readonly key: string;
+  readonly onChange: (value: unknown) => void;
+  readonly sourcePath: string;
+}
+
+/**
  * The saved index, as far as this suite reads it.
  */
 interface SavedPropertyValues {
@@ -140,7 +169,10 @@ const NAMED_DATE_PROPERTY_NAME = 'properties-integration-reviewDate';
 const NAMED_DATE_NOTES: readonly (readonly [string, string, string])[] = [
   ['properties-named-1.md', '2026-10-26T23:00-06:00', '2026-10-26T23:00-06:00'],
   ['properties-named-2.md', '"2026-10-26T09:00+02:00[Europe/Kyiv]"', '2026-10-26T09:00+02:00[Europe/Kyiv]'],
-  ['properties-named-3.md', '"14:30"', '14:30']
+  ['properties-named-3.md', '"14:30"', '14:30'],
+  // A year left unquoted is a YAML integer; a month is quoted only to keep the two forms apart.
+  ['properties-named-4.md', '2019', '2019'],
+  ['properties-named-5.md', '"2019-05"', '2019-05']
 ];
 
 /*
@@ -186,11 +218,17 @@ describe('Properties module', () => {
 
   it('indexes a property by its name, orders zoned values by the time as written, and lists the values that are not dates', async () => {
     const result = await runNamedDatesScenario();
-    const [note1, note2, note3] = NAMED_DATE_NOTES.map(([path, , value]) => ({ path, propertyName: NAMED_DATE_PROPERTY_NAME, value }));
+    const [note1, note2, note3, note4, note5] = NAMED_DATE_NOTES.map(([path, , value]) => ({ path, propertyName: NAMED_DATE_PROPERTY_NAME, value }));
 
     expect(result.error).toBeNull();
     expect(result.day).toEqual([note2, note1]);
     expect(result.nonDates?.filter((entry) => entry.propertyName === NAMED_DATE_PROPERTY_NAME)).toEqual([note3]);
+    expect(result.unquotedYearType).toBe('number');
+    expect(result.reduced).toEqual([note4, note5]);
+    // Obsidian's own date widget shows each as the first day of its period, which the README warns about;
+    // showing it writes nothing back.
+    expect(result.dateWidgetShows).toEqual({ '2019': '2019-01-01', '2019-05': '2019-05-01' });
+    expect(result.dateWidgetWrites).toEqual([]);
   }, SCENARIO_TIMEOUT_IN_MS);
 
   it('answers null while the module is off', async () => {
@@ -324,7 +362,7 @@ async function runNamedDatesScenario(): Promise<NamedDatesResult> {
       NAMED_DATE_PROPERTY_NAME: propertyName,
       POLL_IN_MS: pollMs
     }) {
-      const empty: NamedDatesResult = { day: null, error: null, nonDates: null };
+      const empty: NamedDatesResult = { dateWidgetShows: null, dateWidgetWrites: null, day: null, error: null, nonDates: null, reduced: null, unquotedYearType: null };
 
       function readLiveRecord(): PluginApiRecord | undefined {
         const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
@@ -345,6 +383,8 @@ async function runNamedDatesScenario(): Promise<NamedDatesResult> {
           return { ...empty, error: 'No live API record' };
         }
 
+        const files: TFile[] = [];
+
         for (const [path, yamlValue] of namedDateNotes) {
           const existing = app.vault.getAbstractFileByPath(path);
 
@@ -352,23 +392,48 @@ async function runNamedDatesScenario(): Promise<NamedDatesResult> {
             await app.fileManager.trashFile(existing);
           }
 
-          await app.vault.create(path, `---\n${propertyName}: ${yamlValue}\n---\n`);
+          files.push(await app.vault.create(path, `---\n${propertyName}: ${yamlValue}\n---\n`));
         }
 
-        // Two dates and one value that is not: both answers fill as the metadata cache parses the notes.
+        // Four dates and one value that is not: both answers fill as the metadata cache parses the notes.
         await waitUntil({
           intervalInMilliseconds: pollMs,
           message: 'the name to register the property and index the notes',
           predicate: async () =>
-            (api.getDatedValues({ propertyNames: [propertyName] }) ?? []).length === 2
+            (api.getDatedValues({ propertyNames: [propertyName] }) ?? []).length === namedDateNotes.length - 1
             && ((await api.getNonDateValuesSafe()) ?? []).some((entry) => entry.propertyName === propertyName),
           timeoutInMilliseconds: changeWaitMs
         });
 
+        const unquotedYearFile = files.find((file) => file.path === 'properties-named-4.md');
+        const dateWidget = (app.metadataTypeManager as MetadataTypeWidgetsHolder).registeredTypeWidgets?.['date'];
+        const dateWidgetShows: Record<string, null | string> = {};
+        const dateWidgetWrites: unknown[] = [];
+
+        for (const value of [2019, '2019-05']) {
+          const containerEl = createDiv();
+          dateWidget?.render?.(containerEl, value, {
+            app,
+            blur(): void {
+              // Nothing to blur in a detached element.
+            },
+            key: propertyName,
+            onChange(newValue): void {
+              dateWidgetWrites.push(newValue);
+            },
+            sourcePath: unquotedYearFile?.path ?? ''
+          });
+          dateWidgetShows[String(value)] = containerEl.querySelector('input')?.value ?? null;
+        }
+
         return {
           ...empty,
+          dateWidgetShows,
+          dateWidgetWrites,
           day: await api.getDatedValuesSafe({ from: '2026-10-26', propertyNames: [propertyName], to: '2026-10-26' }),
-          nonDates: await api.getNonDateValuesSafe()
+          nonDates: await api.getNonDateValuesSafe(),
+          reduced: api.getDatedValues({ from: '2019-05-10', propertyNames: [propertyName], to: '2019-05-20' }),
+          unquotedYearType: unquotedYearFile ? typeof app.metadataCache.getFileCache(unquotedYearFile)?.frontmatter?.[propertyName] : null
         };
       } catch (error) {
         return { ...empty, error: String(error) };

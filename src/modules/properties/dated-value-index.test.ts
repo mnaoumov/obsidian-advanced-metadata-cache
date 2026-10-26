@@ -10,7 +10,8 @@ import type { DatedValue } from '../../plugin-api.ts';
 import {
   DatedValueIndex,
   getLocalDateValue,
-  isDateValue
+  isDateValue,
+  isReducedPrecisionDateValue
 } from './dated-value-index.ts';
 
 describe('isDateValue', () => {
@@ -64,8 +65,23 @@ describe('getLocalDateValue', () => {
     expect(getLocalDateValue(value)).toBe(localValue);
   });
 
+  it('should read a reduced-precision value as itself, never padded', () => {
+    expect(getLocalDateValue('2019')).toBe('2019');
+    expect(getLocalDateValue('2019-05')).toBe('2019-05');
+  });
+
   it('should answer null for a value that is not a date', () => {
     expect(getLocalDateValue('14:30')).toBeNull();
+  });
+});
+
+describe('isReducedPrecisionDateValue', () => {
+  it.each(['2019', '2019-05', '0001', '2019-12'])('should count %s as a reduced-precision date', (value) => {
+    expect(isReducedPrecisionDateValue(value)).toBe(true);
+  });
+
+  it.each(['2019-13', '2019-00', '2019-5', '201', '20190', '2019-05-01', '2019T10:00', '2019-05Z', '-2019', '2019.5'])('should not count %s', (value) => {
+    expect(isReducedPrecisionDateValue(value)).toBe(false);
   });
 });
 
@@ -149,7 +165,70 @@ describe('DatedValueIndex', () => {
     add('A.md', 'birthday', '1990-10-26');
     add('A.md', 'due', '2026-10-26');
 
-    expect(index.getDatedValues({}, (propertyName) => propertyName === 'due')).toEqual([{ path: 'A.md', propertyName: 'due', value: '2026-10-26' }]);
+    expect(index.getDatedValues({}, (propertyName) => propertyName === 'due', () => true)).toEqual([{ path: 'A.md', propertyName: 'due', value: '2026-10-26' }]);
+  });
+
+  it('should place a reduced-precision value at the start of its period, and report it as written', () => {
+    add('A.md', 'closed', '2019-01-01');
+    add('B.md', 'closed', '2019');
+    add('C.md', 'closed', '2019-05-01');
+    add('D.md', 'closed', '2019-05');
+    add('E.md', 'closed', '2018-12-31T23:59');
+
+    expect(getValues({})).toEqual([
+      'E.md closed 2018-12-31T23:59',
+      'B.md closed 2019',
+      'A.md closed 2019-01-01',
+      'D.md closed 2019-05',
+      'C.md closed 2019-05-01'
+    ]);
+  });
+
+  it('should match a reduced-precision value with every range its period overlaps', () => {
+    add('Year.md', 'closed', '2019');
+    add('Month.md', 'closed', '2019-05');
+    add('Day.md', 'closed', '2019-03-15');
+    add('Before.md', 'closed', '2019-02-28');
+
+    expect(getValues({ from: '2019-03-01', to: '2019-06-30' })).toEqual(['Year.md closed 2019', 'Day.md closed 2019-03-15', 'Month.md closed 2019-05']);
+    expect(getValues({ from: '2019-05-10', to: '2019-05-20' })).toEqual(['Year.md closed 2019', 'Month.md closed 2019-05']);
+    expect(getValues({ from: '2019-05-10T08:00' })).toEqual(['Year.md closed 2019', 'Month.md closed 2019-05']);
+    expect(getValues({ to: '2019-01' })).toEqual(['Year.md closed 2019']);
+    expect(getValues({ from: '2019-06', to: '2019-12-31' })).toEqual(['Year.md closed 2019']);
+    expect(getValues({ from: '2019', to: '2019' })).toEqual(['Year.md closed 2019', 'Before.md closed 2019-02-28', 'Day.md closed 2019-03-15', 'Month.md closed 2019-05']);
+    expect(getValues({ from: '2020' })).toEqual([]);
+    expect(getValues({ to: '2018-12-31' })).toEqual([]);
+    expect(getValues({ from: '2019-05-10', to: '2018' })).toEqual([]);
+  });
+
+  it('should leave a year alone out of a recurring range, and match a month by overlap', () => {
+    add('Year.md', 'closed', '2019');
+    add('May.md', 'closed', '2019-05');
+    add('Dec.md', 'closed', '2018-12');
+    add('Day.md', 'closed', '2020-05-15');
+
+    expect(getValues({ isRecurring: true })).toEqual(['May.md closed 2019-05', 'Day.md closed 2020-05-15', 'Dec.md closed 2018-12']);
+    expect(getValues({ from: '05-10', isRecurring: true, to: '05-20' })).toEqual(['May.md closed 2019-05', 'Day.md closed 2020-05-15']);
+    expect(getValues({ from: '05-16', isRecurring: true, to: '06' })).toEqual(['May.md closed 2019-05']);
+    expect(getValues({ from: '12-20', isRecurring: true, to: '01-05' })).toEqual(['Dec.md closed 2018-12']);
+    expect(getValues({ from: '06', isRecurring: true, to: '11' })).toEqual([]);
+
+    index.remove({ path: 'Year.md', propertyName: 'closed', value: '2019' });
+    index.remove({ path: 'May.md', propertyName: 'closed', value: '2019-05' });
+
+    expect(getValues({})).toEqual(['Dec.md closed 2018-12', 'Day.md closed 2020-05-15']);
+    expect(getValues({ isRecurring: true })).toEqual(['Day.md closed 2020-05-15', 'Dec.md closed 2018-12']);
+  });
+
+  it('should count a reduced-precision value only in a property the caller calls a date property', () => {
+    add('A.md', 'pages', '1500');
+    add('A.md', 'pages', '2026-10-26');
+    add('A.md', 'closed', '2019');
+
+    expect(index.getDatedValues({}, () => true, (propertyName) => propertyName === 'closed').map((entry) => format(entry))).toEqual([
+      'A.md closed 2019',
+      'A.md pages 2026-10-26'
+    ]);
   });
 
   it('should forget a removed entry, ignore a repeat, and forget everything on clear', () => {
@@ -171,7 +250,7 @@ describe('DatedValueIndex', () => {
 
   it('should hand out copies, so a caller writing to an answer changes nothing', () => {
     add('A.md', 'due', '2026-10-26');
-    const [entry] = index.getDatedValues({}, () => true);
+    const [entry] = index.getDatedValues({}, () => true, () => true);
     Object.assign(entry ?? {}, { path: 'Changed.md' });
 
     expect(getValues({})).toEqual(['A.md due 2026-10-26']);
@@ -186,6 +265,6 @@ describe('DatedValueIndex', () => {
   }
 
   function getValues(query: Parameters<DatedValueIndex['getDatedValues']>[0]): string[] {
-    return index.getDatedValues(query, () => true).map((entry) => format(entry));
+    return index.getDatedValues(query, () => true, () => true).map((entry) => format(entry));
   }
 });

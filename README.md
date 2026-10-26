@@ -260,7 +260,7 @@ const safeAll = await api.getDatedValuesSafe({});
 const skipped = await api.getNonDateValuesSafe();
 ```
 
-Each entry is `{ path, propertyName, value }`, and a list property gives one entry per date it lists. A value counts as a date when it is shaped `YYYY-MM-DD`, optionally followed by `THH:mm`, `THH:mm:ss` or `THH:mm:ss.sss`: what Obsidian's own date pickers write. A registered property of any type contributes the values of that shape too.
+Each entry is `{ path, propertyName, value }`, and a list property gives one entry per date it lists. A value counts as a date when it is shaped `YYYY-MM-DD`, optionally followed by `THH:mm`, `THH:mm:ss` or `THH:mm:ss.sss`: what Obsidian's own date pickers write. A registered property of any type contributes the values of that shape too. A date property also counts a year or a month alone, since contract `1.6.0`.
 
 What a value may carry beyond that, since contract `1.6.0`:
 
@@ -269,9 +269,20 @@ What a value may carry beyond that, since contract `1.6.0`:
 | A date, or a datetime with no zone | `2026-10-26`, `2026-10-26T09:30` | A date. |
 | A datetime with an ISO 8601 offset | `2026-10-26T00:21:46-06:00`, `2026-10-26T09:30Z` | A date, **ordered and matched by the date and time as written**, the offset dropped. |
 | A datetime with an RFC 9557 time zone, after or instead of the offset | `2026-10-26T09:30+02:00[Europe/Kyiv]` | The same as an offset. |
+| A year, or a year and a month, in a date property | `2019`, `2019-05` | A date of **reduced precision**, standing for its whole year or month. See below. |
 | Anything else: a time alone, a space instead of the `T`, a zone name without brackets, free text | `14:30`, `2026-10-26 09:30`, `next week` | Not a date: left out, never guessed. |
 
 **A zoned value sorts by its wall-clock time, not by its instant**, so `2026-10-26T23:00-06:00` is found on the 26th, the day the note says, although it is the 27th in UTC. Mixed with values without a zone, which have no instant at all, that is the only order every value has. Two values with the same wall-clock time are ordered by their text, and the bounds of a query never carry a zone. Each entry still reports the value as written, zone included, so a consumer that wants the instant parses it itself.
+
+**A partly known date is written with reduced precision, as ISO 8601 has it**: `closedDate: 2019` when only the year is known, `closedDate: 2019-05` when the month is known too. Such a value means *some time in 2019*, not *the 1st of January 2019*, and the index never treats it as one day:
+
+- It is reported as written, `2019` or `2019-05`, never padded, so its precision is the length of its `value`. An unquoted `2019` is a YAML number, and it is reported as `'2019'` all the same.
+- It sorts at the start of its period: `2019` before `2019-01-01`, `2019-05` before `2019-05-01`.
+- A range matches it whenever the two **overlap**: `{ from: '2019-05-10', to: '2019-05-20' }` lists both `2019` and `2019-05`, because either may have been in those days. Drop the short values when you want only the dates certainly in the range.
+- With `isRecurring` on, a year alone has no month and day and is skipped, and `2019-05` matches any range that touches May.
+- It counts only in a **date property**, by type or by name. A registered `pages` property holding `1500` is not a year.
+
+Obsidian's own `Date` property type shows such a value as the first day of its period: `2019` reads as `2019-01-01` in the date picker, and picking a date there writes a full date in its place. Showing it writes nothing back, and the value in the note stays valid ISO 8601. To keep reduced precision visible while editing, leave such a property as `Text` and make it a date property by name instead, which the default `*Date` pattern already does for `closedDate`.
 
 `getNonDateValues` lists the values of the date properties that are not dates, ordered by path, then property name, then value, so a typo in a `birthDate` can be found rather than silently missing from every range.
 
