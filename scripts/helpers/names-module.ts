@@ -35,6 +35,7 @@ export interface SwitchablePluginSettings {
   isNamesModuleEnabled: boolean;
   isPropertiesModuleEnabled: boolean;
   isTitlesModuleEnabled: boolean;
+  isUnlinkedMentionsModuleEnabled: boolean;
   shouldOfferTitlesInLinkSuggestions: boolean;
   titlePropertyNames: string[];
 }

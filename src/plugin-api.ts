@@ -20,7 +20,9 @@ export type {
   DatedValuesQuery,
   HeadingTimes,
   MigrateSettingsParams,
-  MigrateSettingsResult
+  MigrateSettingsResult,
+  UnlinkedMention,
+  UnlinkedMentionRange
 } from '../api.d.ts';
 
 /**

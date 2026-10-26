@@ -19,6 +19,26 @@ export const PERFORMANCE_VAULT_LINKER_FOLDER = 'links';
 export const PERFORMANCE_VAULT_LINKER_COUNT = 50;
 
 /**
+ * Folder holding notes of prose, a few of which name {@link PERFORMANCE_VAULT_TARGET} without linking to it, for the
+ * `Unlinked mentions` module's suite to find. Kept small and apart from the filler: giving every filler note text
+ * would keep Obsidian's own startup parse running into the suites that measure against it.
+ */
+export const PERFORMANCE_VAULT_MENTION_FOLDER = 'mentions';
+
+/**
+ * How many notes {@link PERFORMANCE_VAULT_MENTION_FOLDER} holds, and every how many of them names the target.
+ */
+const PERFORMANCE_VAULT_MENTION_NOTE_COUNT = 1000;
+const PERFORMANCE_VAULT_MENTION_INTERVAL = 25;
+
+const PROSE_SENTENCE_REPEAT_COUNT = 5;
+
+/*
+ * About a kilobyte of prose with no link syntax and no mention of the target in it.
+ */
+const PROSE = 'A paragraph of ordinary prose that stands in for what a real note holds: a few sentences about a day, a meeting, a book or an idea, written in plain words and long enough that reading the note costs something. '.repeat(PROSE_SENTENCE_REPEAT_COUNT);
+
+/**
  * Folder holding the bulk of unrelated filler notes (no links). Their count is what
  * Obsidian's original `updateRelatedLinks` would scan via `getCachedFiles`; the
  * patch must ignore them entirely.
@@ -76,6 +96,12 @@ export function generatePerformanceVault(): PopulateFilesParams {
     for (let deletionIndex = 0; deletionIndex < PERFORMANCE_VAULT_DELETE_COUNT; deletionIndex++) {
       files[`${deletionFolder}/del-${String(deletionIndex)}.md`] = '[[delete-target]]\n';
     }
+  }
+
+  for (let mentionIndex = 0; mentionIndex < PERFORMANCE_VAULT_MENTION_NOTE_COUNT; mentionIndex++) {
+    files[`${PERFORMANCE_VAULT_MENTION_FOLDER}/note-${String(mentionIndex)}.md`] = mentionIndex % PERFORMANCE_VAULT_MENTION_INTERVAL === 0
+      ? `${PROSE}\nThis note is about the target, without linking to it.\n`
+      : `${PROSE}\n`;
   }
 
   let written = 0;

@@ -32,6 +32,13 @@ export class PluginSettings {
    * Off by default, like every module added after the one this plugin was created for.
    */
   public isTitlesModuleEnabled = false;
+
+  /**
+   * Off by default, like every module added after the one this plugin was created for. It reads every note once when
+   * it starts, which a user who never opens the `Unlinked mentions` section should not pay for.
+   */
+  public isUnlinkedMentionsModuleEnabled = false;
+
   public shouldAutomaticallyRefreshBacklinkPanels = false;
 
   /**

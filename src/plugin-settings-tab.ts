@@ -123,6 +123,19 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         visible: () => this.pluginSettingsComponent.settings.isNamesModuleEnabled && this.pluginSettingsComponent.settings.isTitlesModuleEnabled
       }),
       this.settingEx({
+        desc: 'Whether to index which notes mention which note names, so the Backlinks pane\'s `Unlinked mentions` section reads only the notes that mention the open note instead of every note in the vault. It finds exactly what the built-in section finds. Every note is read once when it starts, in the background; until then the built-in section answers. When off, nothing is indexed.',
+        name: 'Unlinked mentions module',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            // No `onChanged` refresh: no other row depends on this module.
+            this.bind({
+              propertyName: 'isUnlinkedMentionsModuleEnabled',
+              valueComponent: toggle
+            });
+          });
+        }
+      }),
+      this.settingEx({
         desc: 'Whether to refresh the backlink panels automatically when a note is saved.',
         name: 'Should automatically refresh backlink panels',
         render: (setting) => {

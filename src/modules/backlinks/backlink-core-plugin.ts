@@ -1,6 +1,9 @@
 import type { BacklinkView } from '@obsidian-typings/obsidian-public-latest';
 import type { BacklinkComponent } from '@obsidian-typings/obsidian-public-latest/implementations';
-import type { App } from 'obsidian';
+import type {
+  App,
+  Component
+} from 'obsidian';
 
 import { ComponentEx } from '@mnaoumov/obsidian-lib/components/component-ex';
 import { CorePluginToggleComponent } from '@mnaoumov/obsidian-lib/components/core-plugin-toggle-component';
@@ -16,7 +19,7 @@ import { BacklinkComponentRecomputeBacklinkPatchComponent } from './patches/back
 export class BacklinksCorePluginComponent extends ComponentEx {
   private isBacklinksPanePatched = false;
 
-  public constructor(private readonly app: App) {
+  public constructor(protected readonly app: App) {
     super();
   }
 
@@ -55,6 +58,29 @@ export class BacklinksCorePluginComponent extends ComponentEx {
     );
   }
 
+  /**
+   * Builds the patch this component installs on the `BacklinkComponent` prototype. A module that patches another
+   * method of the same pane overrides it, and inherits the moments the patch can first be installed.
+   *
+   * @param backlinkComponent - A backlinks component on screen, whose prototype the patch sits on.
+   * @returns The patch component.
+   */
+  protected createPanePatchComponent(backlinkComponent: BacklinkComponent): Component {
+    return new BacklinkComponentRecomputeBacklinkPatchComponent({
+      backlinkComponent
+    });
+  }
+
+  /**
+   * Recomputes what a backlinks component already on screen showed before the patch was installed.
+   *
+   * @param backlinkComponent - The component.
+   */
+  protected recomputeLatePatchedBacklinkComponent(backlinkComponent: BacklinkComponent): void {
+    // The backlinks that just appeared were computed before the patch was in, without the canvas backlinks.
+    backlinkComponent.recomputeBacklink(backlinkComponent.file);
+  }
+
   private async patchBacklinksPane(): Promise<boolean> {
     const [backlinkComponent] = await getBacklinkComponents(this.app);
 
@@ -71,11 +97,7 @@ export class BacklinksCorePluginComponent extends ComponentEx {
     }
 
     this.isBacklinksPanePatched = true;
-    this.addChild(
-      new BacklinkComponentRecomputeBacklinkPatchComponent({
-        backlinkComponent
-      })
-    );
+    this.addChild(this.createPanePatchComponent(backlinkComponent));
     return true;
   }
 
@@ -84,9 +106,8 @@ export class BacklinksCorePluginComponent extends ComponentEx {
       return;
     }
 
-    // The backlinks that just appeared were computed before the patch was in, without the canvas backlinks.
     for (const backlinkComponent of await getBacklinkComponents(this.app)) {
-      backlinkComponent.recomputeBacklink(backlinkComponent.file);
+      this.recomputeLatePatchedBacklinkComponent(backlinkComponent);
     }
   }
 }

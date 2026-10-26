@@ -18,6 +18,7 @@ import { PropertyValueIndexComponent } from './modules/properties/property-value
 import { PropertyValueIndex } from './modules/properties/property-value-index.ts';
 import { TitleIndexComponent } from './modules/titles/title-index-component.ts';
 import { TitleIndex } from './modules/titles/title-index.ts';
+import { UnlinkedMentionsComponent } from './modules/unlinked-mentions/unlinked-mentions-component.ts';
 import { PluginApiImpl } from './plugin-api-impl.ts';
 import { PLUGIN_API_VERSION } from './plugin-api-version.ts';
 import { PLUGIN_API_CONTRACT } from './plugin-api.ts';
@@ -130,6 +131,11 @@ export class Plugin extends PluginBase {
           createComponent: (): PropertyValueIndexComponent => new PropertyValueIndexComponent({ app: this.app, pluginSettingsComponent, propertyValueIndex }),
           getIsEnabled: (settings): boolean => settings.isPropertiesModuleEnabled,
           moduleId: 'properties'
+        },
+        {
+          createComponent: (): UnlinkedMentionsComponent => new UnlinkedMentionsComponent({ app: this.app }),
+          getIsEnabled: (settings): boolean => settings.isUnlinkedMentionsModuleEnabled,
+          moduleId: 'unlinked-mentions'
         }
       ],
       pluginSettingsComponent
@@ -148,6 +154,10 @@ export class Plugin extends PluginBase {
       getPropertyValueIndexComponent: (): null | PropertyValueIndexComponent => {
         const moduleComponent = modulesComponent.getModuleComponent('properties');
         return moduleComponent instanceof PropertyValueIndexComponent ? moduleComponent : null;
+      },
+      getUnlinkedMentionsComponent: (): null | UnlinkedMentionsComponent => {
+        const moduleComponent = modulesComponent.getModuleComponent('unlinked-mentions');
+        return moduleComponent instanceof UnlinkedMentionsComponent ? moduleComponent : null;
       },
       headingTimesIndex,
       pluginSettingsComponent,

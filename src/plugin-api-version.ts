@@ -17,6 +17,7 @@
  * `1.6.0` adds `getNonDateValues` and its `Safe` variant, and widens what `getDatedValues` answers without
  * changing its shape: properties are picked by name as well as by type, and a datetime may carry an offset or
  * a time zone annotation, ordered by its local part, and a date property's year or month of reduced precision
- * is a date standing for its whole period.
+ * is a date standing for its whole period. `1.7.0` adds `getUnlinkedMentions`, as additively: the `Unlinked mentions`
+ * module's answer to which notes mention a note without linking to it.
  */
-export const PLUGIN_API_VERSION = '1.6.0';
+export const PLUGIN_API_VERSION = '1.7.0';

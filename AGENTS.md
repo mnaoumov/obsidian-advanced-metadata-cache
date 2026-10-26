@@ -23,10 +23,13 @@ inherited wholesale from `Backlink Cache`; a module added later defaults **off**
 
 ## The `names` module: the patch goes in BEFORE the index is built
 
-`NameIndexComponent.onLayoutReady` installs `MetadataCacheGetLinkSuggestionsPatchComponent` and only then
-builds the index, and the order is deliberate: while the index is empty the patch falls through to
-Obsidian's own `getLinkSuggestions`, so there is no window in which a caller is handed a half-built
-answer. The patch reads `isBuilt` on every call to decide.
+`NameIndexComponent.onload` installs `MetadataCacheGetLinkSuggestionsPatchComponent`, and the index is built
+only later, on layout ready or by the first `Safe` call, and the order is deliberate: while the index is empty the
+patch falls through to Obsidian's own `getLinkSuggestions`, so there is no window in which a caller is handed a
+half-built answer. The patch reads `isBuilt` on every call to decide. It was installed on layout ready until
+`2.2.0`, which let a `Safe` call that started the build settle before the patch was in, so a caller that then
+asked core got Obsidian's answer; the on/off tripwire reported exactly 1.0 for it on a vault whose cache settled
+quickly.
 
 The cost is that the presence of the patch says nothing about whether the index is ready — which is what
 the API's `getLinkSuggestionsSafe()` and `getPathsByNameSafe()` are for, and what the README tells
@@ -167,6 +170,44 @@ declare but Obsidian fires from `setType`, `unsetType` and a `types.json` reload
 pins that. So "with nothing registered it holds nothing" now reads "nothing registered and no date
 property". Such a registration is as durable as any other: retyping the property away from a date leaves
 it indexed, the same cost the missing unregister already accepts.
+
+## The `unlinked-mentions` module: a candidate index, confirmed by Obsidian's own expression
+
+Obsidian 1.14.4's `BacklinkComponent.recomputeUnlinked` reads every markdown note and runs one `RegExp(VA(name),
+'gi')` per name (basename, then each `parseFrontMatterAliases` alias), dropping a match wholly inside a `links` or
+`embeds` entry or the frontmatter. `VA` adds a word boundary only on a side where the name's own character is in a
+fixed letters-and-digits table, which `word-characters.ts` copies verbatim: CJK ideographs, kana and Hangul syllables
+are NOT in it, there is no `u` flag (so case folds per UTF-16 code unit, by ECMAScript's `Canonicalize`) and code is
+NOT excluded. `unlinked-mention-ranges.ts` is that algorithm, and nothing else may decide what a match is.
+
+**The index only narrows; it never decides.** `UnlinkedMentionIndex` keys every basename and alias in the vault by its
+canonical word tokens, scans a changed note's text once against all of them through a token trie, and records which
+keys it holds. Every exact match covers consecutive whole tokens of the text, so the notes holding a key are a SUPERSET
+of the notes Obsidian lists; each candidate is then read and matched with Obsidian's expression. That superset claim is
+what `word-characters.test.ts`'s randomized case pins, and it holds only because a name containing a character whose
+case folding crosses word-ness (`ͅ` folds to the word character `Ι`) is refused by `getNameTokens`, like a name
+with no word character at all: both are answered by reading every note.
+
+**A name that appears after a full scan is DIRTY**, because the notes scanned before it were not looked at for it.
+Asking about one returns `null` from the index, and the component runs one more full scan, which cleans every name that
+was dirty when that scan began (`beginFullScan` / `completeFullScan`, by scan number, so a name added DURING a scan
+stays dirty). That is lazy on purpose: a vault gains a note every day, and a full scan per creation would cost more than
+the queries it serves.
+
+The pane is answered by patching `recomputeUnlinked` and `onFileChanged` on the `BacklinkComponent` prototype, through
+`UnlinkedMentionsCorePluginComponent`, a subclass of the `backlinks` module's `BacklinksCorePluginComponent` that
+inherits its moments of installation and overrides only which patch it installs. The replacement never creates the
+original's `unlinkedQueue`, so `onFileChanged` re-checks a changed note itself; it sets `unlinkedAliases` the way the
+original does, because the original `onMetadataChanged` compares it to decide on a recompute. Until the first full scan
+ends, both methods fall through to Obsidian's.
+
+There is no persistence: the build reads every note on each start, in the background, and the pane falls through until
+it ends. `unlinked-mentions-parity.desktop.integration.test.ts` compares the section filled both ways in a real
+Obsidian, and `unlinked-mentions-on-off.desktop-performance.integration.test.ts` times them. Read its numbers with the
+vault in mind: the generated filler notes are EMPTY, the cheapest case for Obsidian's scan, so most of the indexed
+section's time is rendering, which both sides pay (40k notes: 0.58 s against 0.18 s for the section, ~10 ms for the
+lookup). A first measurement taken while Obsidian's own startup parse was still running read 11 s against 0.1 s, which
+is why `waitForPerformanceVaultScan` now also waits for `inProgressTaskCount` to reach 0; do not quote such numbers.
 
 ## Public surface: the core call answers, the API offers everything else
 
