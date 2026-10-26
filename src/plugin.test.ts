@@ -119,6 +119,7 @@ import { Plugin } from './plugin.ts';
 interface ApiModuleGetters {
   readonly getBacklinkCacheComponent: () => unknown;
   readonly getNameIndexComponent: () => unknown;
+  readonly getPropertyValueIndexComponent: () => unknown;
 }
 
 interface HeadingTimesIndexHolder {
@@ -135,6 +136,10 @@ interface ModuleDefinitionsHolder {
 
 interface PluginApisReader {
   getPluginApis: () => PluginApiDeclaration[];
+}
+
+interface PropertyValueIndexHolder {
+  readonly propertyValueIndex: HeadingTimesIndexPathReader;
 }
 
 interface SettingTabsHolder {
@@ -197,7 +202,7 @@ describe('Plugin', () => {
 
   it('should declare every module', async () => {
     await createLoadedPlugin(createApp());
-    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names', 'titles', 'headings']);
+    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names', 'titles', 'headings', 'properties']);
   });
 
   it('should gate the backlinks module on its own setting', async () => {
@@ -302,6 +307,31 @@ describe('Plugin', () => {
     expect(castTo<HeadingTimesIndexPathReader>(params.headingTimesIndex).getDataFilePath()).toBe(`${app.vault.configDir}/plugins/advanced-metadata-cache/heading-times.json`);
   });
 
+  it('should gate the properties module on its own setting, and leave it on by default', async () => {
+    await createLoadedPlugin(createApp());
+    const settings = new PluginSettings();
+    const moduleDefinition = getModuleDefinitions()[4];
+
+    expect(moduleDefinition?.getIsEnabled(settings)).toBe(true);
+    settings.isPropertiesModuleEnabled = false;
+    expect(moduleDefinition?.getIsEnabled(settings)).toBe(false);
+  });
+
+  it('should build the properties module on demand, keeping its index in the plugin folder', async () => {
+    await createLoadedPlugin(
+      createApp(),
+      createManifest({
+        // eslint-disable-next-line unicorn/name-replacements -- Obsidian's own `PluginManifest` member.
+        dir: 'plugins-root/custom-folder'
+      })
+    );
+    const component = getModuleDefinitions()[4]?.createComponent();
+
+    expect(castTo<PropertyValueIndexHolder>(component).propertyValueIndex.getDataFilePath()).toBe(
+      'plugins-root/custom-folder/property-values.json'
+    );
+  });
+
   it('should publish its API under the contract it declares, and only once loaded', async () => {
     const plugin = new Plugin(createApp(), createManifest());
 
@@ -325,13 +355,17 @@ describe('Plugin', () => {
 
     expect(moduleGetters.getBacklinkCacheComponent()).toBeNull();
     expect(moduleGetters.getNameIndexComponent()).toBeNull();
+    expect(moduleGetters.getPropertyValueIndexComponent()).toBeNull();
 
     hoisted.loadedModules.set('backlinks', getModuleDefinitions()[0]?.createComponent());
     const nameIndexComponent = getModuleDefinitions()[1]?.createComponent();
     hoisted.loadedModules.set('names', nameIndexComponent);
+    const propertyValueIndexComponent = getModuleDefinitions()[4]?.createComponent();
+    hoisted.loadedModules.set('properties', propertyValueIndexComponent);
 
     expect(moduleGetters.getBacklinkCacheComponent()).toBe(hoisted.backlinkCacheComponent);
     expect(moduleGetters.getNameIndexComponent()).toBe(nameIndexComponent);
+    expect(moduleGetters.getPropertyValueIndexComponent()).toBe(propertyValueIndexComponent);
   });
 
   it('should register the open demo vault command via its command handler', async () => {

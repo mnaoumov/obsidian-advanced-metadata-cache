@@ -14,6 +14,8 @@ import { HeadingTimesComponent } from './modules/headings/heading-times-componen
 import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import { ModulesComponent } from './modules/modules-component.ts';
 import { NameIndexComponent } from './modules/names/name-index-component.ts';
+import { PropertyValueIndexComponent } from './modules/properties/property-value-index-component.ts';
+import { PropertyValueIndex } from './modules/properties/property-value-index.ts';
 import { TitleIndexComponent } from './modules/titles/title-index-component.ts';
 import { TitleIndex } from './modules/titles/title-index.ts';
 import { PluginApiImpl } from './plugin-api-impl.ts';
@@ -78,7 +80,13 @@ export class Plugin extends PluginBase {
     // Owned here for the same reason: the published API reads it for the plugin's whole life.
     const headingTimesIndex = new HeadingTimesIndex({
       app: this.app,
-      getDataFilePath: (): string => this.getHeadingTimesFilePath(),
+      getDataFilePath: (): string => this.getDataFilePath('heading-times.json'),
+      pluginSettingsComponent
+    });
+    // Owned here too: a registration must outlive the module being switched off and on again.
+    const propertyValueIndex = new PropertyValueIndex({
+      app: this.app,
+      getDataFilePath: (): string => this.getDataFilePath('property-values.json'),
       pluginSettingsComponent
     });
     const modulesComponent = new ModulesComponent({
@@ -117,6 +125,11 @@ export class Plugin extends PluginBase {
           createComponent: (): HeadingTimesComponent => new HeadingTimesComponent({ app: this.app, headingTimesIndex }),
           getIsEnabled: (settings): boolean => settings.isHeadingsModuleEnabled,
           moduleId: 'headings'
+        },
+        {
+          createComponent: (): PropertyValueIndexComponent => new PropertyValueIndexComponent({ app: this.app, propertyValueIndex }),
+          getIsEnabled: (settings): boolean => settings.isPropertiesModuleEnabled,
+          moduleId: 'properties'
         }
       ],
       pluginSettingsComponent
@@ -132,8 +145,13 @@ export class Plugin extends PluginBase {
         const moduleComponent = modulesComponent.getModuleComponent('names');
         return moduleComponent instanceof NameIndexComponent ? moduleComponent : null;
       },
+      getPropertyValueIndexComponent: (): null | PropertyValueIndexComponent => {
+        const moduleComponent = modulesComponent.getModuleComponent('properties');
+        return moduleComponent instanceof PropertyValueIndexComponent ? moduleComponent : null;
+      },
       headingTimesIndex,
       pluginSettingsComponent,
+      propertyValueIndex,
       titleIndex
     });
 
@@ -150,12 +168,13 @@ export class Plugin extends PluginBase {
   }
 
   /**
-   * Where the `Headings` module keeps its index: a file of its own in this plugin's folder, so it never
-   * mixes into `data.json`, which holds settings and is rewritten whenever one changes.
+   * Where a module keeps its index: a file of its own in this plugin's folder, so it never mixes into
+   * `data.json`, which holds settings and is rewritten whenever one changes.
    *
+   * @param fileName - The index file's name.
    * @returns The vault-relative path.
    */
-  private getHeadingTimesFilePath(): string {
-    return normalizePath(`${this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`}/heading-times.json`);
+  private getDataFilePath(fileName: string): string {
+    return normalizePath(`${this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`}/${fileName}`);
   }
 }

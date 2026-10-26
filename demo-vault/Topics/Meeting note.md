@@ -1,5 +1,6 @@
 ---
 title: Q3 planning meeting
+status: done
 ---
 
 # Meeting note

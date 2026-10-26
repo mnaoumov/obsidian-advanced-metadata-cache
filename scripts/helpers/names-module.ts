@@ -33,6 +33,7 @@ export interface SettingsEditorPlugin extends Plugin {
 export interface SwitchablePluginSettings {
   isHeadingsModuleEnabled: boolean;
   isNamesModuleEnabled: boolean;
+  isPropertiesModuleEnabled: boolean;
   isTitlesModuleEnabled: boolean;
   shouldOfferTitlesInLinkSuggestions: boolean;
   titlePropertyNames: string[];

@@ -1,4 +1,5 @@
 ---
+status: reading
 aliases:
   - Background research
   - Literature review

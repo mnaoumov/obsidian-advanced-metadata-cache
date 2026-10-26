@@ -54,6 +54,7 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
       // An `alias` of `undefined` and a key the suggestion does not name both pass, as before the guards moved to `@mnaoumov/typescript-lib`.
       valid: [null, [], [{ file: null, path: 'a' }, { alias: 'b', file, path: 'Alpha.md' }], [{ alias: undefined, file: null, path: 'a', unknownKey: true }]]
     };
+    const propertyValue: PayloadCases = { invalid: [[], ['keys'], ['keys', 1], [1, 'a'], ['keys', 'a', 'extra']], valid: [['keys', 'a']] };
     const nullableStrings: PayloadCases = { invalid: [undefined, [1]], valid: [null, ['a']] };
     const strings: PayloadCases = { invalid: [null, ['a', 1]], valid: [[], ['a']] };
 
@@ -76,6 +77,10 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
       getLinkSuggestionsSafe: { input: noArguments, output: nullableSuggestions },
       getPathsByName: { input: name, output: nullableStrings },
       getPathsByNameSafe: { input: name, output: nullableStrings },
+      getPathsByPropertyValue: { input: propertyValue, output: nullableStrings },
+      getPathsByPropertyValueSafe: { input: propertyValue, output: nullableStrings },
+      getPathsWithProperty: { input: name, output: nullableStrings },
+      getPathsWithPropertySafe: { input: name, output: nullableStrings },
       getTitlePropertyNames: { input: noArguments, output: strings },
       getTitles: { input: pathOrFile, output: strings },
       migrateSettings: {
@@ -92,7 +97,8 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
           }]]
         },
         output: { invalid: [null, {}, { isApplied: 'yes' }], valid: [{ isApplied: true }, { isApplied: false, unknownKey: true }] }
-      }
+      },
+      registerPropertyName: { input: name, output: { invalid: [null, false, 'a'], valid: [undefined] } }
     };
   }
 

@@ -1,3 +1,9 @@
+---
+status:
+  - reading
+  - shared
+---
+
 # Reading list
 
 Reading that supports [Central topic](<./Central topic.md>).
