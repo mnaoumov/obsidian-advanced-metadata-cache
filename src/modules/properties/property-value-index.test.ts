@@ -193,4 +193,57 @@ describe('PropertyValueIndex', () => {
     expect(index.getPropertyNames()).toEqual(['keys']);
     expect(index.getPathsWithProperty('keys')).toEqual(['Alpha.md']);
   });
+
+  describe('getDatedValues', () => {
+    it('should list the date-shaped values of every registered property, list members included, in order', () => {
+      index.register('birthday');
+      index.register('due');
+      index.refresh({ frontmatter: { birthday: '1990-10-26', due: ['2026-11-01', 'soon', 7] }, path: 'Alpha.md' });
+      index.refresh({ frontmatter: { birthday: '1985-10-27', other: '2026-01-01' }, path: 'Beta.md' });
+
+      expect(index.getDatedValues({})).toEqual([
+        { path: 'Beta.md', propertyName: 'birthday', value: '1985-10-27' },
+        { path: 'Alpha.md', propertyName: 'birthday', value: '1990-10-26' },
+        { path: 'Alpha.md', propertyName: 'due', value: '2026-11-01' }
+      ]);
+      expect(index.getDatedValues({ from: '10-26', isRecurring: true, propertyNames: ['birthday'], to: '10-26' })).toEqual([
+        { path: 'Alpha.md', propertyName: 'birthday', value: '1990-10-26' }
+      ]);
+    });
+
+    it('should answer null for a property nobody registered, and while the module is off', () => {
+      index.register('birthday');
+
+      expect(index.getDatedValues({ propertyNames: ['birthday'] })).toEqual([]);
+      expect(index.getDatedValues({ propertyNames: ['birthday', 'other'] })).toBeNull();
+
+      settings.isPropertiesModuleEnabled = false;
+
+      expect(index.getDatedValues({})).toBeNull();
+    });
+
+    it('should follow changes, deletions and renames, and forget everything on clear, and come back on load', async () => {
+      index.register('due');
+      index.refresh({ frontmatter: { due: '2026-10-26' }, path: 'Alpha.md' });
+      index.refresh({ frontmatter: { due: '2026-10-27' }, path: 'Folder/Beta.md' });
+      index.refresh({ frontmatter: { due: '2026-10-28' }, path: 'Alpha.md' });
+      index.rename('Alpha.md', 'Renamed.md');
+      index.renameSubtree('Folder', 'Moved');
+
+      expect(index.getDatedValues({})).toEqual([
+        { path: 'Moved/Beta.md', propertyName: 'due', value: '2026-10-27' },
+        { path: 'Renamed.md', propertyName: 'due', value: '2026-10-28' }
+      ]);
+
+      index.delete('Renamed.md');
+      await index.save();
+      index.clear();
+
+      expect(index.getDatedValues({})).toEqual([]);
+
+      await index.load();
+
+      expect(index.getDatedValues({ isRecurring: true })).toEqual([{ path: 'Moved/Beta.md', propertyName: 'due', value: '2026-10-27' }]);
+    });
+  });
 });

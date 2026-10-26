@@ -39,6 +39,7 @@ interface AdvancedMetadataCacheApi {
   getBacklinksForFile(pathOrFile: string): BacklinksDict | null;
   getBacklinksForFileOriginal(file: TFile): BacklinksDict;
   getBacklinksForFileSafe(pathOrFile: string): Promise<BacklinksDict | null>;
+  getDatedValuesSafe(query: DatedValuesQuery): Promise<DatedValue[] | null>;
   getHeadingTimes(pathOrFile: string): HeadingTimes[];
   getLinkSuggestions(): LinkSuggestion[] | null;
   getLinkSuggestionsOriginal(): LinkSuggestion[];
@@ -53,6 +54,25 @@ interface AdvancedMetadataCacheApi {
 
 interface BacklinksDict {
   count(): number;
+}
+
+/**
+ * One dated value, as the plugin API reports it. The same shape `DatedValue` in the root `api.d.ts` ships.
+ */
+interface DatedValue {
+  readonly path: string;
+  readonly propertyName: string;
+  readonly value: string;
+}
+
+/**
+ * A range of dates, as the plugin API takes it. The same shape `DatedValuesQuery` in the root `api.d.ts` ships.
+ */
+interface DatedValuesQuery {
+  readonly from?: string;
+  readonly isRecurring?: boolean;
+  readonly propertyNames?: readonly string[];
+  readonly to?: string;
 }
 
 interface DemoSettingsPatch {
@@ -499,6 +519,39 @@ export async function showPathsByPropertyValue(app: App, propertyName: string, v
       `Notes carrying "${propertyName}": ${formatPaths(pathsWithProperty)}`,
       `Notes where "${propertyName}" holds "${value}": ${formatPaths(pathsWithValue)}`
     ].join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+ * Reports the dated values a range matches, in order. A property whose type is `Date` is indexed with no
+ * registration, so nothing is registered here.
+ *
+ * Manual equivalent: none - Obsidian has no ordered index of dates. The closest is a Bases view filtered
+ * on the date, which reads every note.
+ *
+ * @param app - The Obsidian app.
+ * @param query - The range, as `getDatedValues` takes it.
+ */
+export async function showDatedValues(app: App, query: DatedValuesQuery): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isPropertiesModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.5',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    const datedValues = await api.getDatedValuesSafe(query) ?? [];
+    const lines = datedValues.map((datedValue) => `${datedValue.value}  ${datedValue.propertyName}  ${datedValue.path}`);
+
+    new Notice([`Dated values from ${query.from ?? 'the start'} to ${query.to ?? 'the end'}:`, ...lines.length === 0 ? ['none'] : lines].join('\n'));
   } finally {
     component.unload();
   }

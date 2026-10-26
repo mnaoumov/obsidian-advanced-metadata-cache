@@ -1,6 +1,7 @@
 ---
 title: Q3 planning meeting
 status: done
+due: 2025-09-30
 ---
 
 # Meeting note

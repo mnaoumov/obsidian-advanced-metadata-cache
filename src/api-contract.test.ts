@@ -57,6 +57,14 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
     const propertyValue: PayloadCases = { invalid: [[], ['keys'], ['keys', 1], [1, 'a'], ['keys', 'a', 'extra']], valid: [['keys', 'a']] };
     const nullableStrings: PayloadCases = { invalid: [undefined, [1]], valid: [null, ['a']] };
     const strings: PayloadCases = { invalid: [null, ['a', 1]], valid: [[], ['a']] };
+    const datedValuesQuery: PayloadCases = {
+      invalid: [[], [null], [{ from: 1 }], [{ isRecurring: 'yes' }], [{ propertyNames: [1] }], [{ to: null }], [{}, 'extra']],
+      valid: [[{}], [{ from: '2026', isRecurring: false, propertyNames: ['birthday'], to: '2026-10-31' }]]
+    };
+    const nullableDatedValues: PayloadCases = {
+      invalid: [undefined, [null], [{ path: 'Alpha.md', propertyName: 'birthday' }], [{ path: 'Alpha.md', propertyName: 'birthday', value: 1 }]],
+      valid: [null, [], [{ path: 'Alpha.md', propertyName: 'birthday', value: '2026-10-26' }]]
+    };
 
     return {
       getBacklinksForFile: { input: pathOrFile, output: nullableBacklinks },
@@ -65,6 +73,8 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
         output: { invalid: [null], valid: [BACKLINKS_DICT] }
       },
       getBacklinksForFileSafe: { input: pathOrFile, output: nullableBacklinks },
+      getDatedValues: { input: datedValuesQuery, output: nullableDatedValues },
+      getDatedValuesSafe: { input: datedValuesQuery, output: nullableDatedValues },
       getHeadingTimes: {
         input: pathOrFile,
         output: {

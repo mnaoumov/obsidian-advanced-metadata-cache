@@ -2,6 +2,7 @@
 status:
   - reading
   - shared
+due: 2026-10-30
 ---
 
 # Reading list

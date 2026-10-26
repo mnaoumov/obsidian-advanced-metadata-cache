@@ -6,11 +6,15 @@
  * - A registered property answers by value — a scalar and a list member alike — and by presence.
  * - The answer follows an edit of the frontmatter and a rename of the note.
  * - The registration and the values are saved to `property-values.json` in the plugin folder.
+ * - Assigning the `date` type to a property registers it with no consumer asking, and its values answer by
+ *   range and by recurring month and day — which also pins that `metadataTypeManager` fires `changed`.
  * - Switching the module off answers `null`.
  *
  * Named `*.cross-platform.integration.test.ts` so the desktop AND android projects both collect it:
  * none of this is platform-specific, and the API is the one a consumer calls on either.
  */
+
+import type { TFile } from 'obsidian';
 
 import { evalInObsidian } from 'obsidian-integration-testing';
 import { getTemporaryVault } from 'obsidian-integration-testing/vitest-global-setup-plugin';
@@ -31,10 +35,35 @@ import { applyPluginSettings } from '../../../scripts/helpers/names-module.ts';
  * module's scope but cannot carry a value across.
  */
 interface AdvancedMetadataCacheApi {
+  getDatedValues: (query: DatedValuesQuery) => DatedValue[] | null;
+  getDatedValuesSafe: (query: DatedValuesQuery) => Promise<DatedValue[] | null>;
   getPathsByPropertyValue: (propertyName: string, value: string) => null | string[];
   getPathsByPropertyValueSafe: (propertyName: string, value: string) => Promise<null | string[]>;
   getPathsWithPropertySafe: (propertyName: string) => Promise<null | string[]>;
   registerPropertyName: (propertyName: string) => void;
+}
+
+interface DatedValue {
+  readonly path: string;
+  readonly propertyName: string;
+  readonly value: string;
+}
+
+interface DatedValuesQuery {
+  readonly from?: string;
+  readonly isRecurring?: boolean;
+  readonly propertyNames?: readonly string[];
+  readonly to?: string;
+}
+
+/**
+ * What one run of the dated-values scenario answered.
+ */
+interface DatedValuesResult {
+  readonly all: DatedValue[] | null;
+  readonly error: null | string;
+  readonly range: DatedValue[] | null;
+  readonly recurring: DatedValue[] | null;
 }
 
 interface ObsidianLibStateBag {
@@ -87,6 +116,12 @@ const SCALAR_NOTE_PATH = 'properties-scalar.md';
 const RENAMED_NOTE_PATH = 'properties-renamed.md';
 const LIST_NOTE_CONTENT = `---\n${PROPERTY_NAME}:\n  - alpha\n  - beta\n---\n# List\n`;
 const SCALAR_NOTE_CONTENT = `---\n${PROPERTY_NAME}: beta\n---\n# Scalar\n`;
+const DATE_PROPERTY_NAME = 'properties-integration-date';
+const DATED_NOTES: readonly (readonly [string, string])[] = [
+  ['properties-dated-1.md', '1990-10-26'],
+  ['properties-dated-2.md', '2026-03-01'],
+  ['properties-dated-3.md', '2026-12-31']
+];
 
 /*
  * Every wait is for work already in flight. Their SUM (25 s, the change wait counted twice) has to stay under the transport's
@@ -119,6 +154,16 @@ describe('Properties module', () => {
     expect(sortPaths(result.savedPaths)).toEqual(sortPaths([RENAMED_NOTE_PATH, SCALAR_NOTE_PATH]));
   }, SCENARIO_TIMEOUT_IN_MS);
 
+  it('registers a property once it is given the date type, and answers it by range and by recurring date', async () => {
+    const result = await runDatedValuesScenario();
+    const [note1, note2, note3] = DATED_NOTES.map(([path, value]) => ({ path, propertyName: DATE_PROPERTY_NAME, value }));
+
+    expect(result.error).toBeNull();
+    expect(result.all).toEqual([note1, note2, note3]);
+    expect(result.range).toEqual([note2]);
+    expect(result.recurring).toEqual([note1, note3]);
+  }, SCENARIO_TIMEOUT_IN_MS);
+
   it('answers null while the module is off', async () => {
     const switchOff = await applyPluginSettings({ isPropertiesModuleEnabled: false });
     expect(switchOff.error).toBeNull();
@@ -136,6 +181,102 @@ describe('Properties module', () => {
     expect(answer).toBeNull();
   }, SCENARIO_TIMEOUT_IN_MS);
 });
+
+/**
+ * Creates notes carrying a property nobody registered, gives the property the `date` type and asks the
+ * dated questions about it. The type is removed again at the end, since the vault is shared.
+ *
+ * @returns What the plugin answered.
+ */
+async function runDatedValuesScenario(): Promise<DatedValuesResult> {
+  return evalInObsidian({
+    async callback({
+      API_WAIT_IN_MS: apiWaitMs,
+      app,
+      CHANGE_WAIT_IN_MS: changeWaitMs,
+      DATE_PROPERTY_NAME: propertyName,
+      DATED_NOTES: datedNotes,
+      lib: { waitUntil },
+      POLL_IN_MS: pollMs
+    }) {
+      const empty: DatedValuesResult = { all: null, error: null, range: null, recurring: null };
+
+      function readLiveRecord(): PluginApiRecord | undefined {
+        const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
+        return (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked);
+      }
+
+      try {
+        await waitUntil({
+          intervalInMilliseconds: pollMs,
+          message: 'the plugin to publish its API to the registry',
+          predicate: () => readLiveRecord() !== undefined,
+          timeoutInMilliseconds: apiWaitMs
+        });
+
+        const api = readLiveRecord()?.api;
+
+        if (!api) {
+          return { ...empty, error: 'No live API record' };
+        }
+
+        const files: TFile[] = [];
+
+        for (const [path, value] of datedNotes) {
+          const existing = app.vault.getAbstractFileByPath(path);
+
+          if (existing) {
+            await app.fileManager.trashFile(existing);
+          }
+
+          files.push(await app.vault.create(path, `---\n${propertyName}: ${value}\n---\n`));
+        }
+
+        await waitUntil({
+          intervalInMilliseconds: pollMs,
+          message: 'the metadata cache to parse the dated notes',
+          predicate: () => files.every((file) => app.metadataCache.getFileCache(file)?.frontmatter?.[propertyName] !== undefined),
+          timeoutInMilliseconds: changeWaitMs
+        });
+
+        // Nobody registered it, and it has no type yet, so it is not indexed.
+        if (api.getDatedValues({ propertyNames: [propertyName] }) !== null) {
+          return { ...empty, error: 'The property was indexed before it had a date type' };
+        }
+
+        await app.metadataTypeManager.setType(propertyName, 'date');
+
+        try {
+          await waitUntil({
+            intervalInMilliseconds: pollMs,
+            message: 'the date type to register the property',
+            predicate: () => (api.getDatedValues({ propertyNames: [propertyName] }) ?? []).length === datedNotes.length,
+            timeoutInMilliseconds: changeWaitMs
+          });
+
+          return {
+            ...empty,
+            all: await api.getDatedValuesSafe({ propertyNames: [propertyName] }),
+            range: api.getDatedValues({ from: '2026', propertyNames: [propertyName], to: '2026-06' }),
+            recurring: api.getDatedValues({ from: '10', isRecurring: true, propertyNames: [propertyName], to: '12' })
+          };
+        } finally {
+          await app.metadataTypeManager.unsetType(propertyName);
+        }
+      } catch (error) {
+        return { ...empty, error: String(error) };
+      }
+    },
+    input: {
+      API_WAIT_IN_MS,
+      CHANGE_WAIT_IN_MS,
+      DATE_PROPERTY_NAME,
+      DATED_NOTES,
+      POLL_IN_MS
+    },
+    vaultPath: getTemporaryVault().path
+  });
+}
 
 /**
  * Creates the fixture notes, registers the property and asks every documented question about them.

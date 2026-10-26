@@ -2,7 +2,7 @@
 
 Some plugins find notes by a frontmatter value: which note holds a given key, which notes carry a property at all. Obsidian has no index for that, so each such plugin reads the whole vault, and at startup it has to before it can answer anything.
 
-The **Properties** module keeps that index for them. It indexes only the properties another plugin registers, so with none registered it costs nothing, and it is **on by default** for that reason. The index is saved in `property-values.json` in the plugin's own folder, so the next startup answers straight from disk.
+The **Properties** module keeps that index for them. It indexes only the properties another plugin registers, plus every property whose type is a date, so with neither it costs nothing, and it is **on by default** for that reason. The index is saved in `property-values.json` in the plugin's own folder, so the next startup answers straight from disk.
 
 ## See it
 
@@ -16,6 +16,28 @@ await require('/demoSetup.ts').showPathsByPropertyValue(app, 'status', 'reading'
 ```
 
 A list value counts when any of its members matches, so both notes come back, and the meeting note does not. Change a `status` in one of those notes and press the button again: the answer follows at once.
+
+## Dates
+
+The same three notes carry a `due` property, and `due` has the **Date** type (set in `.obsidian/types.json`, the file Obsidian writes when you pick a type for a property). A property with a date type is indexed with nobody registering it, and its dates are also kept **in order**, so a plugin can ask for a range:
+
+```code-button
+---
+caption: What is due in October and November 2026?
+---
+await require('/demoSetup.ts').showDatedValues(app, { from: '2026-10', to: '2026-11' });
+```
+
+The meeting note's date is in 2025, so it is left out. A range can also ignore the year, which is how a plugin lists upcoming birthdays or anniversaries:
+
+```code-button
+---
+caption: What falls between September and October, in any year?
+---
+await require('/demoSetup.ts').showDatedValues(app, { from: '09', isRecurring: true, to: '10' });
+```
+
+Change a `due` date, or give another property the Date type in the **Properties** view, and press a button again.
 
 ## What to know
 

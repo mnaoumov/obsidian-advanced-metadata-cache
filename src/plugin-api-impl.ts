@@ -24,6 +24,8 @@ import type { TitleIndex } from './modules/titles/title-index.ts';
 import type {
   AdvancedMetadataCacheApi,
   AdvancedMetadataCacheMigratableSettings,
+  DatedValue,
+  DatedValuesQuery,
   HeadingTimes,
   MigrateSettingsParams,
   MigrateSettingsResult
@@ -129,6 +131,27 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
    */
   public async getBacklinksForFileSafe(pathOrFile: string | TFile): Promise<CustomArrayDict<Reference> | null> {
     return await this.getBacklinkCacheComponent()?.getBacklinksForFileAsCoreSafe(pathOrFile) ?? null;
+  }
+
+  /**
+   * Lists the date-shaped values of the indexed properties that fall in a range, in order.
+   *
+   * @param query - The range, and the properties to read.
+   * @returns The values, or `null` for an unregistered property and while the `Properties` module is off.
+   */
+  public getDatedValues(query: DatedValuesQuery): DatedValue[] | null {
+    return this.propertyValueIndex.getDatedValues(query);
+  }
+
+  /**
+   * Lists the date-shaped values of the indexed properties that fall in a range, once the index is rebuilt.
+   *
+   * @param query - The range, and the properties to read.
+   * @returns The values, or `null` for an unregistered property and while the `Properties` module is off.
+   */
+  public async getDatedValuesSafe(query: DatedValuesQuery): Promise<DatedValue[] | null> {
+    await this.getPropertyValueIndexComponent()?.waitForBuild();
+    return this.propertyValueIndex.getDatedValues(query);
   }
 
   /**

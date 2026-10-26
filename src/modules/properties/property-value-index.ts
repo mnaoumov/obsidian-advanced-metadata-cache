@@ -4,7 +4,9 @@
  * The state behind the `Properties` module: for each frontmatter property a consumer registered, which
  * notes carry it and with which values.
  *
- * Only registered properties are indexed, so a vault nobody asks about costs nothing. The registered names
+ * Only registered properties are indexed, so a vault nobody asks about costs nothing; the module's component
+ * registers the date-typed ones itself. Their date-shaped values are also kept in order, by the
+ * {@link DatedValueIndex} each {@link PropertyValues} feeds. The registered names
  * are saved with the index, in a JSON file in this plugin's own folder, which is what lets the index answer
  * at the next startup straight from disk — before the metadata cache is ready, and before the consumer that
  * registered the property has even loaded.
@@ -19,7 +21,13 @@ import type {
   FrontMatterCache
 } from 'obsidian';
 
+import type {
+  DatedValue,
+  DatedValuesQuery
+} from '../../plugin-api.ts';
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
+
+import { DatedValueIndex } from './dated-value-index.ts';
 
 interface PersistedPropertyValues {
   /**
@@ -47,6 +55,8 @@ class PropertyValues {
   public readonly pathsByValue = new Map<string, Set<string>>();
   public readonly valuesByPath = new Map<string, readonly string[]>();
 
+  public constructor(private readonly propertyName: string, private readonly datedValueIndex: DatedValueIndex) {}
+
   public delete(path: string): boolean {
     const values = this.valuesByPath.get(path);
 
@@ -57,6 +67,7 @@ class PropertyValues {
     this.valuesByPath.delete(path);
 
     for (const value of values) {
+      this.datedValueIndex.remove({ path, propertyName: this.propertyName, value });
       const paths = this.pathsByValue.get(value);
       paths?.delete(path);
 
@@ -92,6 +103,7 @@ class PropertyValues {
     this.valuesByPath.set(path, values);
 
     for (const value of values) {
+      this.datedValueIndex.add({ path, propertyName: this.propertyName, value });
       let paths = this.pathsByValue.get(value);
 
       if (!paths) {
@@ -120,6 +132,7 @@ export class PropertyValueIndex {
   }
 
   private readonly app: App;
+  private readonly datedValueIndex = new DatedValueIndex();
   private readonly getDataFilePath: () => string;
   private isDirtyValue = false;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
@@ -135,8 +148,10 @@ export class PropertyValueIndex {
    * Forgets every value held in memory, keeping the registered names. The file on disk is left alone.
    */
   public clear(): void {
+    this.datedValueIndex.clear();
+
     for (const propertyName of this.propertyValuesByName.keys()) {
-      this.propertyValuesByName.set(propertyName, new PropertyValues());
+      this.propertyValuesByName.set(propertyName, new PropertyValues(propertyName, this.datedValueIndex));
     }
 
     this.isDirtyValue = false;
@@ -162,6 +177,23 @@ export class PropertyValueIndex {
     for (const path of this.getPathsUnder(folderPath)) {
       this.delete(path);
     }
+  }
+
+  /**
+   * Answers the published question: which date-shaped values fall in a range, in order?
+   *
+   * @param query - The range, and the properties to read.
+   * @returns The values, in order; `null` when the query names a property nobody registered and while the
+   *   `Properties` module is off.
+   */
+  public getDatedValues(query: DatedValuesQuery): DatedValue[] | null {
+    if (!this.pluginSettingsComponent.settings.isPropertiesModuleEnabled) {
+      return null;
+    }
+
+    const propertyNames = query.propertyNames ? new Set(query.propertyNames) : null;
+
+    return propertyNames && [...propertyNames].some((propertyName) => !this.propertyValuesByName.has(propertyName)) ? null : this.datedValueIndex.getDatedValues(query, (propertyName) => propertyNames?.has(propertyName) ?? true);
   }
 
   /**
@@ -214,7 +246,7 @@ export class PropertyValueIndex {
     const persisted = parsePersistedPropertyValues(await this.app.vault.adapter.read(dataFilePath));
 
     for (const [propertyName, valuesByPath] of Object.entries(persisted?.properties ?? {})) {
-      const propertyValues = new PropertyValues();
+      const propertyValues = new PropertyValues(propertyName, this.datedValueIndex);
 
       for (const [path, values] of Object.entries(valuesByPath)) {
         propertyValues.set(path, values);
@@ -249,7 +281,7 @@ export class PropertyValueIndex {
       return false;
     }
 
-    this.propertyValuesByName.set(propertyName, new PropertyValues());
+    this.propertyValuesByName.set(propertyName, new PropertyValues(propertyName, this.datedValueIndex));
     this.isDirtyValue = true;
     return true;
   }

@@ -130,6 +130,23 @@ Matching is exact, name and value. A scalar string, number or boolean is one val
 list contributes each such member, and `null` or an object contributes nothing — while the note still
 counts as CARRYING the property, which is what `getPathsWithProperty` answers.
 
+**Dates are a second, ordered view of the same values, never a second index to keep in step.**
+`DatedValueIndex` (`dated-value-index.ts`) is fed only by `PropertyValues.set` and `delete`, so a value is in
+it exactly while the property-value index holds it; every rename, delete, `retain`, `clear` and `load` goes
+through those two and needs nothing of its own. It is two sorted arrays (by value, and by month-day for
+`isRecurring`), updated by binary search and `splice`. Only a value shaped `YYYY-MM-DD[THH:mm[:ss[.sss]]]`
+with NO zone enters it: that is what makes plain string order the date order, so do not widen the shape to
+zoned or space-separated values without giving up the string compare.
+
+Every property whose ASSIGNED type (`metadataTypeManager.getAssignedWidget`, i.e. `types.json`) is `date` or
+`datetime` is registered by `PropertyValueIndexComponent` itself, in each casing a note spells it: in a
+pre-pass of every rebuild, on a note `changed` that carries a new one (which then triggers a full refresh,
+since other notes carry it too), and on `metadataTypeManager`'s own `changed`, which the typings do not
+declare but Obsidian fires from `setType`, `unsetType` and a `types.json` reload — the integration suite
+pins that. So "with nothing registered it holds nothing" now reads "nothing registered and nothing typed
+as a date". Such a registration is as durable as any other: retyping the property away from a date leaves
+it indexed, the same cost the missing unregister already accepts.
+
 ## Public surface: the core call answers, the API offers everything else
 
 `backlinks` and `names` **replace a core method** — `getBacklinksForFile`, `getLinkSuggestions` — keeping

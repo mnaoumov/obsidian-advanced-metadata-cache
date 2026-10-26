@@ -1,6 +1,7 @@
 import type {
   App,
   Debouncer,
+  FrontMatterCache,
   TAbstractFile
 } from 'obsidian';
 
@@ -25,11 +26,20 @@ interface PropertyValueIndexComponentConstructorParams {
 export const SAVE_DEBOUNCE_IN_MILLISECONDS = 5000;
 
 /**
+ * The property types whose properties are registered without anybody asking, so every dated value in the
+ * vault is in the ordered index.
+ */
+const DATE_PROPERTY_TYPES: ReadonlySet<string> = new Set(['date', 'datetime']);
+
+/**
  * The `Properties` module: keeps the {@link PropertyValueIndex} current for as long as it is on.
  *
  * On layout ready it loads the saved index, which answers at once, then rebuilds it from the metadata cache
  * once that is ready — a read of the cache Obsidian already holds for each note, never of the note itself —
- * and then follows the vault's own events. The `Safe` answers wait for that rebuild. The index is written
+ * and then follows the vault's own events. The `Safe` answers wait for that rebuild. Every property whose
+ * assigned type is `date` or `datetime` is registered along the way, in each casing a note spells it, so the
+ * ordered index holds every dated value without a consumer having to name the properties; a type assigned
+ * later is caught by `metadataTypeManager`'s own `changed` event. The index is written
  * to disk on a debounce and once more when the module is switched off, and its values are cleared from
  * memory at both edges, since nothing keeps them current while the module is off.
  */
@@ -118,8 +128,18 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
      * already the newer answer, and the rebuild reading the same cache afterwards agrees with it.
      */
     this.registerEvent(this.app.metadataCache.on('changed', (file, _data, cache) => {
-      this.propertyValueIndex.refresh({ frontmatter: cache.frontmatter, path: file.path });
+      // A date property new to the index has values in other notes too, which only a full refresh reads.
+      if (this.registerDateProperties(cache.frontmatter) && this.isBuiltValue) {
+        this.refreshAll();
+      } else {
+        this.propertyValueIndex.refresh({ frontmatter: cache.frontmatter, path: file.path });
+      }
+
       this.requestSave();
+    }));
+
+    this.registerEvent(this.app.metadataTypeManager.on('changed', () => {
+      this.handlePropertyTypeChange();
     }));
 
     this.registerEvent(this.app.vault.on('delete', (abstractFile) => {
@@ -153,6 +173,18 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
   }
 
   /**
+   * Registers the properties a type was just assigned to. Before the build, the build does it.
+   */
+  private handlePropertyTypeChange(): void {
+    if (!this.isBuiltValue || !this.registerDatePropertiesInVault()) {
+      return;
+    }
+
+    this.refreshAll();
+    this.requestSave();
+  }
+
+  /**
    * Moves a renamed note's values with it. A folder's descendants each fire a `rename` of their own too,
    * in an order that is not a contract; the subtree move here and the per-file moves are each a no-op for
    * a path already moved, so the same state is reached in either order.
@@ -170,15 +202,56 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
     this.requestSave();
   }
 
+  private isDateTyped(propertyName: string): boolean {
+    const type = this.app.metadataTypeManager.getAssignedWidget(propertyName);
+    return type !== null && DATE_PROPERTY_TYPES.has(type);
+  }
+
   /**
    * Reads every note's registered properties from the metadata cache, and forgets the notes that are gone.
+   * The date-typed properties are registered first, so a note read early is read for one a later note
+   * introduces.
    */
   private refreshAll(): void {
+    this.registerDatePropertiesInVault();
     const files = this.app.vault.getMarkdownFiles();
     this.propertyValueIndex.retain(new Set(files.map((file) => file.path)));
 
     for (const file of files) {
       this.propertyValueIndex.refresh({ frontmatter: this.app.metadataCache.getFileCache(file)?.frontmatter, path: file.path });
     }
+  }
+
+  /**
+   * Registers each property of a note whose assigned type is a date.
+   *
+   * @param frontmatter - The note's frontmatter.
+   * @returns Whether any of them is new.
+   */
+  private registerDateProperties(frontmatter: FrontMatterCache | undefined): boolean {
+    let isNew = false;
+
+    for (const propertyName of Object.keys(frontmatter ?? {})) {
+      if (this.isDateTyped(propertyName)) {
+        isNew = this.propertyValueIndex.register(propertyName) || isNew;
+      }
+    }
+
+    return isNew;
+  }
+
+  /**
+   * Registers every date-typed property any note carries.
+   *
+   * @returns Whether any of them is new.
+   */
+  private registerDatePropertiesInVault(): boolean {
+    let isNew = false;
+
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      isNew = this.registerDateProperties(this.app.metadataCache.getFileCache(file)?.frontmatter) || isNew;
+    }
+
+    return isNew;
   }
 }
