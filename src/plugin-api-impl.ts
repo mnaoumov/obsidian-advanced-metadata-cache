@@ -21,6 +21,8 @@ import type { NameIndexComponent } from './modules/names/name-index-component.ts
 import type { PropertyValueIndexComponent } from './modules/properties/property-value-index-component.ts';
 import type { PropertyValueIndex } from './modules/properties/property-value-index.ts';
 import type { TitleIndex } from './modules/titles/title-index.ts';
+import type { MentionRange } from './modules/unlinked-mentions/unlinked-mention-ranges.ts';
+import type { UnlinkedMentionsComponent } from './modules/unlinked-mentions/unlinked-mentions-component.ts';
 import type {
   AdvancedMetadataCacheApi,
   AdvancedMetadataCacheMigratableSettings,
@@ -28,7 +30,9 @@ import type {
   DatedValuesQuery,
   HeadingTimes,
   MigrateSettingsParams,
-  MigrateSettingsResult
+  MigrateSettingsResult,
+  UnlinkedMention,
+  UnlinkedMentionRange
 } from './plugin-api.ts';
 import type { PluginSettingsComponent } from './plugin-settings-component.ts';
 
@@ -55,6 +59,11 @@ interface PluginApiImplConstructorParams {
    * same reason.
    */
   readonly getPropertyValueIndexComponent: () => null | PropertyValueIndexComponent;
+  /**
+   * Finds the `Unlinked mentions` module's component, or `null` while the module is off. Asked per call, for the
+   * same reason.
+   */
+  readonly getUnlinkedMentionsComponent: () => null | UnlinkedMentionsComponent;
   readonly headingTimesIndex: HeadingTimesIndex;
   readonly pluginSettingsComponent: PluginSettingsComponent;
   readonly propertyValueIndex: PropertyValueIndex;
@@ -80,6 +89,7 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   private readonly getBacklinkCacheComponent: () => BacklinkCacheComponent | null;
   private readonly getNameIndexComponent: () => NameIndexComponent | null;
   private readonly getPropertyValueIndexComponent: () => null | PropertyValueIndexComponent;
+  private readonly getUnlinkedMentionsComponent: () => null | UnlinkedMentionsComponent;
   private readonly headingTimesIndex: HeadingTimesIndex;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
   private readonly propertyValueIndex: PropertyValueIndex;
@@ -97,6 +107,7 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
     this.getBacklinkCacheComponent = params.getBacklinkCacheComponent;
     this.getNameIndexComponent = params.getNameIndexComponent;
     this.getPropertyValueIndexComponent = params.getPropertyValueIndexComponent;
+    this.getUnlinkedMentionsComponent = params.getUnlinkedMentionsComponent;
     this.headingTimesIndex = params.headingTimesIndex;
     this.pluginSettingsComponent = params.pluginSettingsComponent;
     this.propertyValueIndex = params.propertyValueIndex;
@@ -303,6 +314,33 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   }
 
   /**
+   * Finds every note that mentions a note without linking to it.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The mentioning notes ordered by path, each with its spans ordered by position; empty for a path no file
+   *   answers to, and `null` while the `Unlinked mentions` module is off.
+   */
+  public async getUnlinkedMentions(pathOrFile: string | TFile): Promise<null | UnlinkedMention[]> {
+    const unlinkedMentionsComponent = this.getUnlinkedMentionsComponent();
+    if (!unlinkedMentionsComponent) {
+      return null;
+    }
+
+    const file = getFileOrNull({ app: this.app, pathOrFile });
+    if (!file) {
+      return [];
+    }
+
+    const unlinkedMentionMatches = await unlinkedMentionsComponent.getUnlinkedMentions(file);
+    return unlinkedMentionMatches
+      .map((unlinkedMentionMatch) => ({
+        path: unlinkedMentionMatch.file.path,
+        ranges: toUnlinkedMentionRanges(unlinkedMentionMatch.ranges)
+      }))
+      .sort((a, b) => compareByCodeUnits(a.path, b.path));
+  }
+
+  /**
    * Offers the user title properties another plugin proposes, and adds the ones they approve.
    *
    * @param params - The proposal.
@@ -386,4 +424,30 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
 
     return { isApplied: true };
   }
+}
+
+// The same order on every machine, whatever its locale.
+function compareByCodeUnits(a: string, b: string): number {
+  if (a === b) {
+    return 0;
+  }
+
+  return a < b ? -1 : 1;
+}
+
+/*
+ * Obsidian lists a note's spans name by name, so a span two names both match appears twice; the API orders them by
+ * position and lists each span once.
+ */
+function toUnlinkedMentionRanges(mentionRanges: readonly MentionRange[]): UnlinkedMentionRange[] {
+  const unlinkedMentionRanges: UnlinkedMentionRange[] = [];
+  const sortedMentionRanges = [...mentionRanges].sort(([startA, endA], [startB, endB]) => startA - startB || endA - endB);
+  for (const [start, end] of sortedMentionRanges) {
+    const previous = unlinkedMentionRanges.at(-1);
+    if (previous?.start !== start || previous.end !== end) {
+      unlinkedMentionRanges.push({ end, start });
+    }
+  }
+
+  return unlinkedMentionRanges;
 }

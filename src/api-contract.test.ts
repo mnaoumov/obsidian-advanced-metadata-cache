@@ -95,6 +95,13 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
       getPathsWithPropertySafe: { input: name, output: nullableStrings },
       getTitlePropertyNames: { input: noArguments, output: strings },
       getTitles: { input: pathOrFile, output: strings },
+      getUnlinkedMentions: {
+        input: pathOrFile,
+        output: {
+          invalid: [undefined, [null], [{ path: 'Alpha.md' }], [{ path: 1, ranges: [] }], [{ path: 'Alpha.md', ranges: [{ start: 0 }] }], [{ path: 'Alpha.md', ranges: [{ end: '3', start: 0 }] }]],
+          valid: [null, [], [{ path: 'Alpha.md', ranges: [] }, { path: 'Beta.md', ranges: [{ end: 5, start: 0 }] }]]
+        }
+      },
       migrateSettings: {
         input: {
           invalid: [[], [null], [{ proposedSettings: {} }], [{ proposedSettings: null, sourcePluginId: 'x' }], [{

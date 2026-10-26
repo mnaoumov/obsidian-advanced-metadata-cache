@@ -53,7 +53,9 @@ import type {
   HeadingTimes,
   LinkSuggestion,
   MigrateSettingsParams,
-  MigrateSettingsResult
+  MigrateSettingsResult,
+  UnlinkedMention,
+  UnlinkedMentionRange
 } from './api.d.ts';
 
 /**
@@ -116,6 +118,16 @@ const isMigrateSettingsResult = objectTypeGuard<MigrateSettingsResult>({
   isApplied: isBoolean
 });
 
+const isUnlinkedMentionRange = objectTypeGuard<UnlinkedMentionRange>({
+  end: isNumber,
+  start: isNumber
+});
+
+const isUnlinkedMention = objectTypeGuard<UnlinkedMention>({
+  path: isString,
+  ranges: arrayTypeGuard(isUnlinkedMentionRange)
+});
+
 const BACKLINKS_DICT_GUARD = createExpectedTypeGuard('a backlinks dictionary', isBacklinksDict);
 const DATED_VALUE_ARRAY_GUARD = createExpectedTypeGuard('an array of dated values', arrayTypeGuard(isDatedValue));
 const DATED_VALUES_QUERY_GUARD = createExpectedTypeGuard('a dated values query', isDatedValuesQuery);
@@ -125,6 +137,7 @@ const PATH_OR_FILE_GUARD = createExpectedTypeGuard('a path or a file', isPathOrF
 const PATHS_GUARD = createExpectedTypeGuard('an array of paths', isStringArray);
 const PROPERTY_NAME_GUARD = createExpectedTypeGuard('a property name', isString);
 const PROPERTY_VALUE_GUARD = createExpectedTypeGuard('a property value', isString);
+const UNLINKED_MENTION_ARRAY_GUARD = createExpectedTypeGuard('an array of unlinked mentions', arrayTypeGuard(isUnlinkedMention));
 
 /**
  * The contract this plugin publishes with {@link AdvancedMetadataCacheApi}, for a consumer to pass as the
@@ -206,6 +219,10 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
   getTitles: {
     input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
     output: createTypeGuardSchema(createExpectedTypeGuard('an array of titles', isStringArray))
+  },
+  getUnlinkedMentions: {
+    input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(UNLINKED_MENTION_ARRAY_GUARD))
   },
   migrateSettings: {
     input: createArgumentsSchema([createExpectedTypeGuard('migrate settings params', isMigrateSettingsParams)]),

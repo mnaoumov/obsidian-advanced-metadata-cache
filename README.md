@@ -51,17 +51,19 @@ A copy of the vault ships with every release. You can access it via any of the f
 - **A frontmatter property can name a note too**, so a note titled in its `title` property is found under that title — and, if you ask for it, offered under that title by the `[[` autocomplete. [06 Titles](<./demo-vault/06 Titles.md>)
 - **When each heading was created, modified and seen**, recorded per heading without touching the note, so other plugins can sort a note's headings by time. [07 Heading times](<./demo-vault/07 Heading times.md>)
 - **Notes by frontmatter property value**, for other plugins to ask which notes carry a property, or a given value of it, without scanning the vault, answered straight from disk at startup. [08 Property index](<./demo-vault/08 Property index.md>)
+- **Unlinked mentions without reading every note**, so the Backlinks pane's **Unlinked mentions** section reads only the notes that mention the note, and lists exactly what it listed before. [09 Unlinked mentions](<./demo-vault/09 Unlinked mentions.md>)
 - **Every index is a module of its own**, switched on or off without touching the others, and refresh behavior is configurable. [04 Settings](<./demo-vault/04 Settings.md>)
 
 ## Modules
 
-| Module     | What it indexes                                                                               | Default |
-|------------|-----------------------------------------------------------------------------------------------|---------|
-| Backlinks  | Which notes link to a note, answering `getBacklinksForFile()`.                                | On      |
-| Names      | What each note is called - its name and its `aliases` - answering `getLinkSuggestions()`.     | Off     |
-| Titles     | What a note's own frontmatter says it is called, read per note and on demand.                 | Off     |
-| Headings   | When each heading of a note was created, last modified and last seen.                         | Off     |
-| Properties | Which notes carry the frontmatter properties other plugins registered, and with which values. | On      |
+| Module            | What it indexes                                                                                 | Default |
+|-------------------|-------------------------------------------------------------------------------------------------|---------|
+| Backlinks         | Which notes link to a note, answering `getBacklinksForFile()`.                                  | On      |
+| Names             | What each note is called - its name and its `aliases` - answering `getLinkSuggestions()`.       | Off     |
+| Titles            | What a note's own frontmatter says it is called, read per note and on demand.                   | Off     |
+| Headings          | When each heading of a note was created, last modified and last seen.                           | Off     |
+| Properties        | Which notes carry the frontmatter properties other plugins registered, and with which values.   | On      |
+| Unlinked mentions | Which notes name which note in plain text, answering the Backlinks pane's `Unlinked mentions`.  | Off     |
 
 Switching a module off unloads it completely — its index, its listeners and the commands it registers all go with it, and the built-in implementation answers again. Switching one back on rebuilds its index from scratch.
 
@@ -110,6 +112,16 @@ Some plugins need to find notes by a frontmatter value: which note holds the key
 The **Properties** module keeps that index for them. It indexes only the properties another plugin registers, plus every property whose type is `Date` or `Date & time`, so a vault with none of either costs nothing, and it is **on by default** for that reason. Dates are also kept in order, so a plugin can ask for every note dated within a range, or for every birthday in the coming month, without reading the vault. The index lives in `property-values.json` in the plugin folder, so at the next startup it answers straight from disk, and it is brought up to date from Obsidian's own metadata cache once that is ready, never by reading the notes themselves.
 
 The module has no user interface of its own: it is there for other plugins to read, through the API below.
+
+### Unlinked mentions
+
+The core Backlinks pane lists, under **Unlinked mentions**, the notes that name a note in plain text without linking to it. To fill that section Obsidian reads every note in the vault and searches each one for the note's name and its `aliases`, every time a note is shown with the section expanded. In a vault of tens of thousands of notes that takes seconds.
+
+Switch the **Unlinked mentions** module on and it keeps an index of which notes mention which note names, updated as each note changes, so the section reads only the notes that do mention the shown note. It finds exactly what Obsidian finds, match for match: the name or an alias, case-insensitively but without folding accents, as a whole word where it starts or ends with a letter or a digit, and not inside a link, an embed or the frontmatter (inside code it still counts, as it does in Obsidian). The **Link** buttons work as before.
+
+Measured on a generated vault of 40,000 notes, most of them empty, which is the cheapest case there is for Obsidian's scan: the section filled in about 0.18 s instead of 0.58 s, and most of what is left is drawing the 40 listed notes, which costs the same either way. The lookup itself took about 10 ms. Real notes hold text, which only Obsidian's scan has to read and search each time, so the gap widens with the length of the notes as well as with their number.
+
+The cost is one read of every note when the module starts, in the background, and it is **off by default** for that reason. Until that read finishes the section is filled the built-in way, so it is never incomplete. A note created later, or an alias added later, is picked up by one more full read the first time its section is shown. A name with no letter or digit Obsidian knows of, such as one written only in Chinese or Japanese characters, cannot be indexed by words, so its section is filled the built-in way too.
 
 ## For plugin developers
 
@@ -291,6 +303,18 @@ Both bounds are **inclusive and compared as prefixes**, so `to: '2026-06'` inclu
 A property is registered the first time a note carries it as a date property, when the type is assigned to it, or when a name added to the setting matches it, and like any registration that lasts: changing its type back, or taking the name off the setting, keeps it indexed. The answer is `null` when `propertyNames` names a property that is not indexed, and while the Properties module is off. Ask for the range `^1.5`, or `^1.6` for `getNonDateValues`.
 
 If you would rather not depend on `@mnaoumov/obsidian-lib` for the handle, the registry is a documented wire protocol you can read directly — see [Plugin API protocol](https://mnaoumov.dev/obsidian-lib/guides/plugin-api-protocol/).
+
+#### Unlinked mentions
+
+Added in contract `1.7.0`:
+
+```ts
+for (const { path, ranges } of await api.getUnlinkedMentions('Notes/Some note.md') ?? []) {
+  console.log(path, ranges.map(({ end, start }) => `${String(start)}-${String(end)}`));
+}
+```
+
+`getUnlinkedMentions(pathOrFile)` answers the notes the Backlinks pane's **Unlinked mentions** section lists for a note, ordered by path, each with the spans of its text that mention the note, as UTF-16 offsets from the start of the file, ordered by position. It is always asynchronous, because each candidate note is read to confirm its matches, and it waits for the index to be built first. It answers **`null` while the Unlinked mentions module is off** — read the vault yourself then. Ask for the range `^1.7`.
 
 ## Installation
 

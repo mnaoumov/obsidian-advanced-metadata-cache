@@ -120,6 +120,7 @@ interface ApiModuleGetters {
   readonly getBacklinkCacheComponent: () => unknown;
   readonly getNameIndexComponent: () => unknown;
   readonly getPropertyValueIndexComponent: () => unknown;
+  readonly getUnlinkedMentionsComponent: () => unknown;
 }
 
 interface HeadingTimesIndexHolder {
@@ -202,7 +203,7 @@ describe('Plugin', () => {
 
   it('should declare every module', async () => {
     await createLoadedPlugin(createApp());
-    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names', 'titles', 'headings', 'properties']);
+    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names', 'titles', 'headings', 'properties', 'unlinked-mentions']);
   });
 
   it('should gate the backlinks module on its own setting', async () => {
@@ -317,6 +318,16 @@ describe('Plugin', () => {
     expect(moduleDefinition?.getIsEnabled(settings)).toBe(false);
   });
 
+  it('should gate the unlinked mentions module on its own setting, and leave it off by default', async () => {
+    await createLoadedPlugin(createApp());
+    const settings = new PluginSettings();
+    const moduleDefinition = getModuleDefinitions()[5];
+
+    expect(moduleDefinition?.getIsEnabled(settings)).toBe(false);
+    settings.isUnlinkedMentionsModuleEnabled = true;
+    expect(moduleDefinition?.getIsEnabled(settings)).toBe(true);
+  });
+
   it('should build the properties module on demand, keeping its index in the plugin folder', async () => {
     await createLoadedPlugin(
       createApp(),
@@ -356,16 +367,20 @@ describe('Plugin', () => {
     expect(moduleGetters.getBacklinkCacheComponent()).toBeNull();
     expect(moduleGetters.getNameIndexComponent()).toBeNull();
     expect(moduleGetters.getPropertyValueIndexComponent()).toBeNull();
+    expect(moduleGetters.getUnlinkedMentionsComponent()).toBeNull();
 
     hoisted.loadedModules.set('backlinks', getModuleDefinitions()[0]?.createComponent());
     const nameIndexComponent = getModuleDefinitions()[1]?.createComponent();
     hoisted.loadedModules.set('names', nameIndexComponent);
     const propertyValueIndexComponent = getModuleDefinitions()[4]?.createComponent();
     hoisted.loadedModules.set('properties', propertyValueIndexComponent);
+    const unlinkedMentionsComponent = getModuleDefinitions()[5]?.createComponent();
+    hoisted.loadedModules.set('unlinked-mentions', unlinkedMentionsComponent);
 
     expect(moduleGetters.getBacklinkCacheComponent()).toBe(hoisted.backlinkCacheComponent);
     expect(moduleGetters.getNameIndexComponent()).toBe(nameIndexComponent);
     expect(moduleGetters.getPropertyValueIndexComponent()).toBe(propertyValueIndexComponent);
+    expect(moduleGetters.getUnlinkedMentionsComponent()).toBe(unlinkedMentionsComponent);
   });
 
   it('should register the open demo vault command via its command handler', async () => {

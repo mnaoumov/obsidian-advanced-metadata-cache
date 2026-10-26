@@ -51,6 +51,7 @@ function createHarness(
     isNamesModuleEnabled,
     isPropertiesModuleEnabled,
     isTitlesModuleEnabled,
+    isUnlinkedMentionsModuleEnabled: false,
     shouldAutomaticallyRefreshBacklinkPanels: false,
     shouldOfferTitlesInLinkSuggestions: false,
     shouldShowProgressBarOnLoad: true,
@@ -70,6 +71,7 @@ function createHarness(
         isNamesModuleEnabled: '',
         isPropertiesModuleEnabled: '',
         isTitlesModuleEnabled: '',
+        isUnlinkedMentionsModuleEnabled: '',
         shouldAutomaticallyRefreshBacklinkPanels: '',
         shouldOfferTitlesInLinkSuggestions: '',
         shouldShowProgressBarOnLoad: '',
@@ -134,6 +136,7 @@ describe('PluginSettingsTab', () => {
       'Titles module',
       'Title properties',
       'Offer titles in the [[ autocomplete',
+      'Unlinked mentions module',
       'Should automatically refresh backlink panels',
       'Should show progress bar on load'
     ]);
@@ -146,6 +149,7 @@ describe('PluginSettingsTab', () => {
       'isTitlesModuleEnabled',
       'titlePropertyNames',
       'shouldOfferTitlesInLinkSuggestions',
+      'isUnlinkedMentionsModuleEnabled',
       'shouldAutomaticallyRefreshBacklinkPanels',
       'shouldShowProgressBarOnLoad'
     ]);
@@ -154,13 +158,13 @@ describe('PluginSettingsTab', () => {
   it('should show the options belonging to a module that is on', () => {
     const harness = createHarness(true, true, true);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true, true, true, true, true]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true, true, true, true, true, true]);
   });
 
   it('should hide the options belonging to a module that is off, leaving every module toggle visible', () => {
     const harness = createHarness(false);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, false, true, false, false, false, false]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, false, true, false, false, true, false, false]);
   });
 
   it('should hide the titles-in-autocomplete toggle until BOTH modules it needs are on', () => {

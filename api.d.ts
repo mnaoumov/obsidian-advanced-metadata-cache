@@ -12,7 +12,8 @@
  *   plugin's own belongs on an Obsidian function, and each has a replacement on the published API below.
  * - **A published API.** {@link AdvancedMetadataCacheApi} is published through the plugin registry
  *   under the plugin id `advanced-metadata-cache` and carries a contract version of its own. It
- *   answers what the `Titles`, `Headings` and `Properties` modules know, which core has no method for, and
+ *   answers what the `Titles`, `Headings`, `Properties` and `Unlinked mentions` modules know, which core has no
+ *   method for, and
  *   since contract `1.3.0` every extra the `Backlinks` and `Names` modules offer beyond the core call.
  *
  * Hand-written and self-contained on purpose: it imports from `obsidian` and nothing else, so a
@@ -331,6 +332,27 @@ export interface AdvancedMetadataCacheApi {
   getTitles(pathOrFile: string | TFile): string[];
 
   /**
+   * Finds every note that mentions a note without linking to it: what the Backlinks pane's `Unlinked mentions`
+   * section lists, note for note and match for match.
+   *
+   * A note is mentioned by its basename or one of its `aliases`, matched case-insensitively (no diacritic folding),
+   * as a whole word where the name starts or ends with a letter or a digit. A match is not counted when it lies inside
+   * a link, an embed or the frontmatter; one inside code is counted, as Obsidian counts it. The note itself and the
+   * notes excluded from the vault's search are never listed.
+   *
+   * Answered from the `Unlinked mentions` module's index, which reads only the notes whose text holds one of the
+   * names. Waits for the index to be built first, at startup. Always asynchronous, because the candidate notes are
+   * read to confirm each match.
+   *
+   * Added in contract `1.7.0`.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The mentioning notes, ordered by path; empty for a path no file answers to. `null` while the
+   *   `Unlinked mentions` module is off.
+   */
+  getUnlinkedMentions(pathOrFile: string | TFile): Promise<null | UnlinkedMention[]>;
+
+  /**
    * Offers the user title properties another plugin used to own, and adds the ones they approve to
    * {@link AdvancedMetadataCacheApi.getTitlePropertyNames}.
    *
@@ -581,6 +603,38 @@ export interface MigrateSettingsResult {
    * proposing plugin must NOT record the migration as done.
    */
   readonly isApplied: boolean;
+}
+
+/**
+ * One note that mentions another without linking to it, as
+ * {@link AdvancedMetadataCacheApi.getUnlinkedMentions} reports it.
+ */
+export interface UnlinkedMention {
+  /**
+   * The vault-relative path of the mentioning note.
+   */
+  readonly path: string;
+
+  /**
+   * Where its text mentions the note, ordered by position. Two names of the note may match overlapping text, and
+   * then both spans are listed.
+   */
+  readonly ranges: readonly UnlinkedMentionRange[];
+}
+
+/**
+ * A span of a note's text, in UTF-16 offsets from the start of the file, frontmatter included.
+ */
+export interface UnlinkedMentionRange {
+  /**
+   * The offset just past the span's last character.
+   */
+  readonly end: number;
+
+  /**
+   * The offset of the span's first character.
+   */
+  readonly start: number;
 }
 
 /**

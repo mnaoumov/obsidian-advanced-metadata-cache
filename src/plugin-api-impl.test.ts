@@ -28,6 +28,10 @@ import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-
 import type { NameIndexComponent } from './modules/names/name-index-component.ts';
 import type { NameIndex } from './modules/names/name-index.ts';
 import type { PropertyValueIndexComponent } from './modules/properties/property-value-index-component.ts';
+import type {
+  UnlinkedMentionMatch,
+  UnlinkedMentionsComponent
+} from './modules/unlinked-mentions/unlinked-mentions-component.ts';
 import type { PluginSettingsComponent } from './plugin-settings-component.ts';
 import type {
   ApprovedSettingsMigration,
@@ -69,6 +73,7 @@ describe('PluginApiImpl', () => {
   let propertyValueIndex: PropertyValueIndex;
   let propertyValueIndexComponent: null | PropertyValueIndexComponent;
   let settings: PluginSettings;
+  let unlinkedMentionsComponent: null | UnlinkedMentionsComponent;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -79,6 +84,7 @@ describe('PluginApiImpl', () => {
     backlinkCacheComponent = null;
     nameIndexComponent = null;
     propertyValueIndexComponent = null;
+    unlinkedMentionsComponent = null;
 
     const pluginSettingsComponent = strictProxy<PluginSettingsComponent>({
       async editAndSave(settingsEditor: (settingsToEdit: PluginSettings) => Promise<void> | void): Promise<void> {
@@ -110,6 +116,7 @@ describe('PluginApiImpl', () => {
       getBacklinkCacheComponent: (): BacklinkCacheComponent | null => backlinkCacheComponent,
       getNameIndexComponent: (): NameIndexComponent | null => nameIndexComponent,
       getPropertyValueIndexComponent: (): null | PropertyValueIndexComponent => propertyValueIndexComponent,
+      getUnlinkedMentionsComponent: (): null | UnlinkedMentionsComponent => unlinkedMentionsComponent,
       headingTimesIndex,
       pluginSettingsComponent,
       propertyValueIndex,
@@ -327,6 +334,40 @@ describe('PluginApiImpl', () => {
 
       settings.isPropertiesModuleEnabled = false;
       expect(pluginApi.getNonDateValues()).toBeNull();
+    });
+  });
+
+  describe('unlinked mentions', () => {
+    it('should answer null while the module is off', async () => {
+      await expect(pluginApi.getUnlinkedMentions('Alpha.md')).resolves.toBeNull();
+    });
+
+    it('should answer empty for a path no file answers to', async () => {
+      const getUnlinkedMentions = vi.fn();
+      unlinkedMentionsComponent = strictProxy<UnlinkedMentionsComponent>({ getUnlinkedMentions });
+
+      await expect(pluginApi.getUnlinkedMentions('Missing.md')).resolves.toEqual([]);
+      expect(getUnlinkedMentions).not.toHaveBeenCalled();
+    });
+
+    it('should order the notes by path and their spans by position, each span once', async () => {
+      const file = app.vault.createSync__('Alpha.md', '');
+      const matches: UnlinkedMentionMatch[] = [
+        { content: '', file: castTo<TFile>({ path: 'b.md' }), ranges: [[10, 15], [0, 5], [0, 3], [0, 5]] },
+        { content: '', file: castTo<TFile>({ path: 'B.md' }), ranges: [[1, 2]] },
+        { content: '', file: castTo<TFile>({ path: 'a.md' }), ranges: [[1, 2]] },
+        { content: '', file: castTo<TFile>({ path: 'a.md' }), ranges: [[1, 2]] }
+      ];
+      const getUnlinkedMentions = vi.fn().mockResolvedValue(matches);
+      unlinkedMentionsComponent = strictProxy<UnlinkedMentionsComponent>({ getUnlinkedMentions });
+
+      await expect(pluginApi.getUnlinkedMentions(castTo<TFile>(file))).resolves.toEqual([
+        { path: 'B.md', ranges: [{ end: 2, start: 1 }] },
+        { path: 'a.md', ranges: [{ end: 2, start: 1 }] },
+        { path: 'a.md', ranges: [{ end: 2, start: 1 }] },
+        { path: 'b.md', ranges: [{ end: 3, start: 0 }, { end: 5, start: 0 }, { end: 15, start: 10 }] }
+      ]);
+      expect(getUnlinkedMentions).toHaveBeenCalledWith(file);
     });
   });
 

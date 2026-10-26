@@ -31,6 +31,12 @@ const STABLE_POLLS_REQUIRED = 3;
 interface VaultScanStatus {
   readonly fileCount: number;
   readonly isCacheReady: boolean;
+
+  /**
+   * Whether the metadata cache has no parse in flight. A vault whose notes hold text keeps parsing well after the
+   * file count settles, and every batch it resolves fires `resolved`, which drops the `names` module's memo.
+   */
+  readonly isCacheSettled: boolean;
 }
 
 /**
@@ -39,8 +45,8 @@ interface VaultScanStatus {
  * Shared by every performance suite that measures against the generated vault: a measurement taken
  * while Obsidian is still indexing measures the indexing.
  *
- * @returns A {@link Promise} that resolves once the file count has stopped moving and the metadata
- *   cache can answer for a known note.
+ * @returns A {@link Promise} that resolves once the file count has stopped moving, the metadata cache can
+ *   answer for a known note, and it has no parse in flight.
  */
 export async function waitForPerformanceVaultScan(): Promise<void> {
   let previousFileCount = -1;
@@ -55,7 +61,8 @@ export async function waitForPerformanceVaultScan(): Promise<void> {
     }): VaultScanStatus {
       return {
         fileCount: app.vault.getFiles().length,
-        isCacheReady: !!app.metadataCache.getCache(withCachePath)
+        isCacheReady: !!app.metadataCache.getCache(withCachePath),
+        isCacheSettled: app.metadataCache.inProgressTaskCount === 0
       };
     },
     timeoutInMilliseconds: INDEX_WAIT_IN_MS,
@@ -63,7 +70,7 @@ export async function waitForPerformanceVaultScan(): Promise<void> {
     until(status: VaultScanStatus): boolean {
       stablePolls = status.fileCount > 0 && status.fileCount === previousFileCount ? stablePolls + 1 : 0;
       previousFileCount = status.fileCount;
-      return stablePolls >= STABLE_POLLS_REQUIRED && status.isCacheReady;
+      return stablePolls >= STABLE_POLLS_REQUIRED && status.isCacheReady && status.isCacheSettled;
     },
     vaultPath: getTemporaryVault().path
   });

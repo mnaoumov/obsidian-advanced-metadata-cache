@@ -1,4 +1,7 @@
-import type { LinkSuggestion } from '@obsidian-typings/obsidian-public-latest';
+import type {
+  BacklinkView,
+  LinkSuggestion
+} from '@obsidian-typings/obsidian-public-latest';
 import type {
   App,
   Editor,
@@ -50,6 +53,7 @@ interface AdvancedMetadataCacheApi {
   getPathsWithPropertySafe(propertyName: string): Promise<null | string[]>;
   getTitlePropertyNames(): string[];
   getTitles(pathOrFile: string): string[];
+  getUnlinkedMentions(pathOrFile: string): Promise<null | UnlinkedMention[]>;
   registerPropertyName(propertyName: string): void;
 }
 
@@ -82,6 +86,7 @@ interface DemoSettingsPatch {
   isNamesModuleEnabled?: boolean;
   isPropertiesModuleEnabled?: boolean;
   isTitlesModuleEnabled?: boolean;
+  isUnlinkedMentionsModuleEnabled?: boolean;
   shouldAutomaticallyRefreshBacklinkPanels?: boolean;
   shouldOfferTitlesInLinkSuggestions?: boolean;
   shouldShowProgressBarOnLoad?: boolean;
@@ -99,6 +104,23 @@ interface HeadingTimes {
   readonly line: number;
   readonly modified: null | number;
   readonly seen: null | number;
+}
+
+/**
+ * One note that mentions another without linking to it, as the plugin API reports it. The same shape
+ * `UnlinkedMention` in the root `api.d.ts` ships.
+ */
+interface UnlinkedMention {
+  readonly path: string;
+  readonly ranges: readonly UnlinkedMentionRange[];
+}
+
+/**
+ * A span of a note's text. The same shape `UnlinkedMentionRange` in the root `api.d.ts` ships.
+ */
+interface UnlinkedMentionRange {
+  readonly end: number;
+  readonly start: number;
 }
 
 /**
@@ -587,6 +609,70 @@ export async function showNonDateValues(app: App): Promise<void> {
   } finally {
     component.unload();
   }
+}
+
+/**
+ * Reports the notes that mention a note by its name or an alias without linking to it, with how many times each does,
+ * as the `Unlinked mentions` module answers through the API.
+ *
+ * Manual equivalent: open the note and expand **Unlinked mentions** in the core Backlinks pane, which reads every note
+ * in the vault to fill it.
+ *
+ * @param app - The Obsidian app.
+ * @param path - The vault-relative path of the mentioned note.
+ */
+export async function showUnlinkedMentionsOf(app: App, path: string): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isUnlinkedMentionsModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.7',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    const unlinkedMentions = await api.getUnlinkedMentions(path) ?? [];
+    const lines = unlinkedMentions.map((unlinkedMention) => `${unlinkedMention.path}: ${String(unlinkedMention.ranges.length)}`);
+
+    new Notice([`Notes mentioning ${path} without linking to it:`, ...lines.length === 0 ? ['none'] : lines].join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+ * Opens a note and the core Backlinks pane beside it with its **Unlinked mentions** section expanded, the section
+ * the `Unlinked mentions` module fills.
+ *
+ * Manual equivalent: open the note, run **Backlinks: Show backlinks**, and click **Unlinked mentions**.
+ *
+ * @param app - The Obsidian app.
+ * @param path - The vault-relative path of the note.
+ */
+export async function showUnlinkedMentionsPane(app: App, path: string): Promise<void> {
+  const file = app.vault.getFileByPath(path);
+
+  if (!file) {
+    new Notice(`${path} is missing from this vault.`);
+    return;
+  }
+
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isUnlinkedMentionsModuleEnabled: true } });
+  await app.workspace.getLeaf(false).openFile(file);
+  app.internalPlugins.getPluginById('backlink')?.instance.openBacklinksForActiveFile(true);
+
+  const backlinkLeaf = app.workspace.getLeavesOfType('backlink')[0];
+  if (!backlinkLeaf) {
+    new Notice('The core Backlinks plugin is off.');
+    return;
+  }
+
+  await backlinkLeaf.loadIfDeferred();
+  await (backlinkLeaf.view as BacklinkView).backlink.setUnlinkedCollapsed(false, true);
 }
 
 function formatPaths(paths: readonly string[]): string {
