@@ -55,13 +55,28 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         name: 'Properties module',
         render: (setting) => {
           setting.addToggle((toggle) => {
-            // No `onChanged` refresh: no other row depends on this module.
             this.bind({
+              onChanged: () => {
+                this.refresh();
+              },
               propertyName: 'isPropertiesModuleEnabled',
               valueComponent: toggle
             });
           });
         }
+      }),
+      this.settingEx({
+        desc: 'The frontmatter properties whose values are dates, one per line, so other plugins can find notes by date or by a recurring date. An exact name, or a pattern in which `*` stands for anything: `*Date` matches `birthDate` and `startDate`. Case-sensitive. A property whose type is Date or Date & time is a date property without being listed here.',
+        name: 'Date properties',
+        render: (setting) => {
+          setting.addMultipleText((multipleText) => {
+            this.bind({
+              propertyName: 'datePropertyNames',
+              valueComponent: multipleText
+            });
+          });
+        },
+        visible: () => this.pluginSettingsComponent.settings.isPropertiesModuleEnabled
       }),
       this.settingEx({
         desc: 'Whether to treat a frontmatter property as a name for the note carrying it, alongside its own name and its `aliases`. Nothing is indexed up front: the properties are read per note, on demand, and they join what the `Names` module answers about. Other plugins can read the same list and the same per-note answer, so the property is named here once rather than in each of them.',

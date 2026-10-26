@@ -54,6 +54,29 @@ describe('PropertyValueIndex', () => {
     });
   });
 
+  it('should list the values of the date properties that are not dates, in order, and null while the module is off', () => {
+    // The mocks have no `metadataTypeManager`; `due` is a date property by its type, the others by their name.
+    castTo<Record<'metadataTypeManager', unknown>>(app).metadataTypeManager = {
+      getAssignedWidget: (propertyName: string): null | string => propertyName === 'due' ? 'date' : null
+    };
+    for (const propertyName of ['due', 'startDate', 'date', 'keys']) {
+      index.register(propertyName);
+    }
+    index.refresh({ frontmatter: { date: ['soon', '2026-10-26', 'later'], due: '14:30', keys: 'abc', startDate: 'never' }, path: 'Beta.md' });
+    index.refresh({ frontmatter: { due: 'tomorrow' }, path: 'Alpha.md' });
+
+    expect(index.getNonDateValues()).toEqual([
+      { path: 'Alpha.md', propertyName: 'due', value: 'tomorrow' },
+      { path: 'Beta.md', propertyName: 'date', value: 'later' },
+      { path: 'Beta.md', propertyName: 'date', value: 'soon' },
+      { path: 'Beta.md', propertyName: 'due', value: '14:30' },
+      { path: 'Beta.md', propertyName: 'startDate', value: 'never' }
+    ]);
+
+    settings.isPropertiesModuleEnabled = false;
+    expect(index.getNonDateValues()).toBeNull();
+  });
+
   it('should answer null for a property nobody registered', () => {
     expect(index.getPathsByPropertyValue('keys', 'a')).toBeNull();
     expect(index.getPathsWithProperty('keys')).toBeNull();

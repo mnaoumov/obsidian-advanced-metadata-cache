@@ -14,5 +14,8 @@
  * additively: `registerPropertyName` and the four lookups of notes by a frontmatter property and its value,
  * which `Permanent Links` resolves its keys with. `1.5.0` adds `getDatedValues` and its `Safe` variant, as
  * additively: the module's ordered index of date-shaped values, by range and by recurring month and day.
+ * `1.6.0` adds `getNonDateValues` and its `Safe` variant, and widens what `getDatedValues` answers without
+ * changing its shape: properties are picked by name as well as by type, and a datetime may carry an offset or
+ * a time zone annotation, ordered by its local part.
  */
-export const PLUGIN_API_VERSION = '1.5.0';
+export const PLUGIN_API_VERSION = '1.6.0';

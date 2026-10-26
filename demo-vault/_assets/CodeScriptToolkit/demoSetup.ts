@@ -44,6 +44,7 @@ interface AdvancedMetadataCacheApi {
   getLinkSuggestions(): LinkSuggestion[] | null;
   getLinkSuggestionsOriginal(): LinkSuggestion[];
   getLinkSuggestionsSafe(): Promise<LinkSuggestion[] | null>;
+  getNonDateValuesSafe(): Promise<DatedValue[] | null>;
   getPathsByNameSafe(name: string): Promise<null | string[]>;
   getPathsByPropertyValueSafe(propertyName: string, value: string): Promise<null | string[]>;
   getPathsWithPropertySafe(propertyName: string): Promise<null | string[]>;
@@ -525,8 +526,8 @@ export async function showPathsByPropertyValue(app: App, propertyName: string, v
 }
 
 /**
- * Reports the dated values a range matches, in order. A property whose type is `Date` is indexed with no
- * registration, so nothing is registered here.
+ * Reports the dated values a range matches, in order. A date property, by its `Date` type or by its name, is
+ * indexed with no registration, so nothing is registered here.
  *
  * Manual equivalent: none - Obsidian has no ordered index of dates. The closest is a Bases view filtered
  * on the date, which reads every note.
@@ -552,6 +553,37 @@ export async function showDatedValues(app: App, query: DatedValuesQuery): Promis
     const lines = datedValues.map((datedValue) => `${datedValue.value}  ${datedValue.propertyName}  ${datedValue.path}`);
 
     new Notice([`Dated values from ${query.from ?? 'the start'} to ${query.to ?? 'the end'}:`, ...lines.length === 0 ? ['none'] : lines].join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+ * Reports the values of the date properties that are not dates, which no range includes.
+ *
+ * Manual equivalent: none - Obsidian does not check a value against a property's name, and its Properties
+ * view shows a mistyped date only in the note that holds it.
+ *
+ * @param app - The Obsidian app.
+ */
+export async function showNonDateValues(app: App): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isPropertiesModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.6',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    const nonDateValues = await api.getNonDateValuesSafe() ?? [];
+    const lines = nonDateValues.map((datedValue) => `"${datedValue.value}"  ${datedValue.propertyName}  ${datedValue.path}`);
+
+    new Notice(['Values of date properties that are not dates:', ...lines.length === 0 ? ['none'] : lines].join('\n'));
   } finally {
     component.unload();
   }

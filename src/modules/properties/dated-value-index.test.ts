@@ -9,6 +9,7 @@ import type { DatedValue } from '../../plugin-api.ts';
 
 import {
   DatedValueIndex,
+  getLocalDateValue,
   isDateValue
 } from './dated-value-index.ts';
 
@@ -18,7 +19,15 @@ describe('isDateValue', () => {
     '2026-10-26T09:30',
     '2026-10-26T09:30:15',
     '2026-10-26T09:30:15.123',
-    '0001-01-01'
+    '0001-01-01',
+    '2026-10-26T09:30Z',
+    '2026-10-26T09:30z',
+    '2026-10-26T00:21:46-06:00',
+    '2026-10-26T09:30+0200',
+    '2026-10-26T09:30:15.123+02:00[Europe/Kyiv]',
+    '2026-10-26T09:30[Europe/Kyiv]',
+    '2026-10-26T09:30[!America/Argentina/Buenos_Aires]',
+    '2026-10-26T09:30[+02:00]'
   ])('should count %s as a date', (value) => {
     expect(isDateValue(value)).toBe(true);
   });
@@ -29,12 +38,34 @@ describe('isDateValue', () => {
     '2026-10-32',
     '2026-10-26T24:00',
     '2026-10-26 09:30',
-    '2026-10-26T09:30Z',
-    '2026-10-26T09:30+02:00',
+    '2026-10-26Z',
+    '2026-10-26+02:00',
+    '2026-10-26[Europe/Kyiv]',
+    '2026-10-26T09:30+24:00',
+    '2026-10-26T09:30 Europe/Kyiv',
+    '2026-10-26T09:30[Europe Kyiv]',
+    '2026-10-26T09:30[Europe/Kyiv][u-ca=iso8601]',
+    '14:30',
     '26-10-2026',
     '[[2026-10-26]]'
   ])('should not count %s as a date', (value) => {
     expect(isDateValue(value)).toBe(false);
+  });
+});
+
+describe('getLocalDateValue', () => {
+  it.each([
+    ['2026-10-26', '2026-10-26'],
+    ['2026-10-26T09:30', '2026-10-26T09:30'],
+    ['2026-10-26T00:21:46-06:00', '2026-10-26T00:21:46'],
+    ['2026-10-26T09:30:15.123Z', '2026-10-26T09:30:15.123'],
+    ['2026-10-26T09:30+02:00[Europe/Kyiv]', '2026-10-26T09:30']
+  ])('should read %s as %s', (value, localValue) => {
+    expect(getLocalDateValue(value)).toBe(localValue);
+  });
+
+  it('should answer null for a value that is not a date', () => {
+    expect(getLocalDateValue('14:30')).toBeNull();
   });
 });
 
@@ -91,6 +122,26 @@ describe('DatedValueIndex', () => {
       'Dee.md birthday 1970-10-26',
       'Cid.md birthday 2001-10-26',
       'Ann.md birthday 1990-12-20'
+    ]);
+  });
+
+  it('should order and match a zoned value by its local part, and report it as written', () => {
+    add('A.md', 'ctime', '2026-10-26T23:00-06:00');
+    add('B.md', 'ctime', '2026-10-26T09:00+02:00[Europe/Kyiv]');
+    add('C.md', 'ctime', '2026-10-26T09:00');
+    add('D.md', 'ctime', '2026-10-27T01:00Z');
+
+    expect(getValues({ from: '2026-10-26', to: '2026-10-26' })).toEqual([
+      'C.md ctime 2026-10-26T09:00',
+      'B.md ctime 2026-10-26T09:00+02:00[Europe/Kyiv]',
+      'A.md ctime 2026-10-26T23:00-06:00'
+    ]);
+    expect(getValues({ from: '10-27', isRecurring: true })).toEqual(['D.md ctime 2026-10-27T01:00Z']);
+
+    index.remove({ path: 'A.md', propertyName: 'ctime', value: '2026-10-26T23:00-06:00' });
+    expect(getValues({ to: '2026-10-26' })).toEqual([
+      'C.md ctime 2026-10-26T09:00',
+      'B.md ctime 2026-10-26T09:00+02:00[Europe/Kyiv]'
     ]);
   });
 

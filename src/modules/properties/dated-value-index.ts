@@ -6,10 +6,14 @@
  * recurring date such as a birthday, is a binary search and a slice rather than a walk.
  *
  * A value counts as a date when it is shaped `YYYY-MM-DD`, optionally followed by `THH:mm`, `THH:mm:ss` or
- * `THH:mm:ss.sss`, with no time zone: the forms Obsidian's own `date` and `datetime` properties write. Such
- * values are local wall-clock times, so they compare correctly as plain strings, which is what lets both
- * orderings be sorted arrays of strings. A value with a zone would sort wrong against one without, so it is not
- * a date here.
+ * `THH:mm:ss.sss`: the forms Obsidian's own `date` and `datetime` properties write. A value with a time may
+ * also carry an ISO 8601 offset (`Z`, `-06:00`, `+0200`) and an RFC 9557 time zone annotation
+ * (`[Europe/Kyiv]`), in that order, either or both.
+ *
+ * Both orderings key on the LOCAL part, the date and time as written with the zone dropped, so a value is
+ * found on the calendar day it names and every key compares correctly as a plain string, which is what lets
+ * both orderings be sorted arrays of strings. Ordering by the UTC instant instead would move a note dated
+ * `2026-10-26T23:00-06:00` to the 27th, and would have no instant at all for the values without a zone it sits among.
  *
  * Kept current entry by entry from `PropertyValues.set` and `delete`: an insertion or a removal is a binary
  * search and one `splice`.
@@ -20,25 +24,42 @@ import type {
   DatedValuesQuery
 } from '../../plugin-api.ts';
 
-type DatedEntryComparer = (entry1: DatedValue, entry2: DatedValue) => number;
+type DatedEntryComparer = (entry1: LocalDatedValue, entry2: LocalDatedValue) => number;
 
 interface EntryLocation {
   readonly index: number;
   readonly isFound: boolean;
 }
 
-type KeySelector = (entry: DatedValue) => string;
+type KeySelector = (entry: LocalDatedValue) => string;
 
-const DATE_VALUE_REGEXP = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?:T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?)?$/;
+/**
+ * An entry with its local part worked out once, rather than on every comparison of a binary search.
+ */
+interface LocalDatedValue extends DatedValue {
+  readonly localValue: string;
+}
+
+const DATE_PATTERN = String.raw`\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])`;
+const TIME_PATTERN = String.raw`T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?`;
+const OFFSET_PATTERN = String.raw`[Zz]|[+-](?:[01]\d|2[0-3]):?[0-5]\d`;
+const TIME_ZONE_NAME_PART_PATTERN = String.raw`[A-Za-z_.][\w.+-]*`;
+const TIME_ZONE_ANNOTATION_PATTERN = String.raw`\[!?(?:${TIME_ZONE_NAME_PART_PATTERN}(?:\/${TIME_ZONE_NAME_PART_PATTERN})*|[+-](?:[01]\d|2[0-3]):[0-5]\d)\]`;
+/**
+ * The date and the time are the local part. A zone is accepted only after a time, as ISO 8601 and RFC 9557
+ * have it.
+ */
+const DATE_VALUE_REGEXP = new RegExp(`^(?<date>${DATE_PATTERN})(?:(?<time>${TIME_PATTERN})(?:${OFFSET_PATTERN})?(?:${TIME_ZONE_ANNOTATION_PATTERN})?)?$`);
 const HALVING_DIVISOR = 2;
 const YEAR_LENGTH = 'YYYY-'.length;
 
 /**
- * Entries sorted by a key, then by property name, then by path, so each entry has exactly one place.
+ * Entries sorted by a key, then by value, then by property name, then by path, so each entry has exactly one
+ * place.
  */
 class SortedDatedEntries {
   private readonly compare: DatedEntryComparer;
-  private entries: DatedValue[] = [];
+  private entries: LocalDatedValue[] = [];
   private readonly getKey: KeySelector;
 
   public constructor(getKey: KeySelector) {
@@ -50,7 +71,7 @@ class SortedDatedEntries {
       || compareStrings(entry1.path, entry2.path);
   }
 
-  public add(entry: DatedValue): void {
+  public add(entry: LocalDatedValue): void {
     const { index, isFound } = this.locate(entry);
 
     if (!isFound) {
@@ -69,7 +90,7 @@ class SortedDatedEntries {
    * @param to - The inclusive upper bound, as a prefix; no bound when `undefined`.
    * @returns The entries, in order.
    */
-  public getRange(from: string, to: string | undefined): DatedValue[] {
+  public getRange(from: string, to: string | undefined): LocalDatedValue[] {
     const start = this.findFirst((entry) => compareStrings(this.getKey(entry), from) >= 0);
     const end = to === undefined
       ? this.entries.length
@@ -78,7 +99,7 @@ class SortedDatedEntries {
     return this.entries.slice(start, Math.max(start, end));
   }
 
-  public remove(entry: DatedValue): void {
+  public remove(entry: LocalDatedValue): void {
     const { index, isFound } = this.locate(entry);
 
     if (isFound) {
@@ -92,7 +113,7 @@ class SortedDatedEntries {
    * @param isAtOrAfter - False for a prefix of the entries and true for the rest.
    * @returns The index of the first entry it holds for, or the length when it holds for none.
    */
-  private findFirst(isAtOrAfter: (entry: DatedValue) => boolean): number {
+  private findFirst(isAtOrAfter: (entry: LocalDatedValue) => boolean): number {
     let low = 0;
     let high = this.entries.length;
 
@@ -116,7 +137,7 @@ class SortedDatedEntries {
    * @param entry - The entry.
    * @returns The index it is at, or belongs at, and whether it is there.
    */
-  private locate(entry: DatedValue): EntryLocation {
+  private locate(entry: LocalDatedValue): EntryLocation {
     const index = this.findFirst((existing) => this.compare(existing, entry) >= 0);
     const existing = this.entries.at(index);
     return { index, isFound: existing !== undefined && this.compare(existing, entry) === 0 };
@@ -136,12 +157,14 @@ export class DatedValueIndex {
    * @param entry - The note, the property and the value.
    */
   public add(entry: DatedValue): void {
-    if (!isDateValue(entry.value)) {
+    const localEntry = toLocalDatedValue(entry);
+
+    if (!localEntry) {
       return;
     }
 
-    this.byValue.add(entry);
-    this.byMonthDay.add(entry);
+    this.byValue.add(localEntry);
+    this.byMonthDay.add(localEntry);
   }
 
   /**
@@ -170,7 +193,7 @@ export class DatedValueIndex {
       ? [entries.getRange(from, undefined), entries.getRange('', to)]
       : [entries.getRange(from, to)];
 
-    return slices.flat().filter((entry) => isIncluded(entry.propertyName)).map((entry) => ({ ...entry }));
+    return slices.flat().filter((entry) => isIncluded(entry.propertyName)).map(({ path, propertyName, value }) => ({ path, propertyName, value }));
   }
 
   /**
@@ -179,17 +202,30 @@ export class DatedValueIndex {
    * @param entry - The note, the property and the value.
    */
   public remove(entry: DatedValue): void {
-    if (!isDateValue(entry.value)) {
+    const localEntry = toLocalDatedValue(entry);
+
+    if (!localEntry) {
       return;
     }
 
-    this.byValue.remove(entry);
-    this.byMonthDay.remove(entry);
+    this.byValue.remove(localEntry);
+    this.byMonthDay.remove(localEntry);
   }
 }
 
 /**
- * Whether a value is shaped as a date or a datetime with no time zone.
+ * Reads the local part of a date-shaped value: its date and time as written, without the zone.
+ *
+ * @param value - The value.
+ * @returns The local part, or `null` when the value does not count as a date.
+ */
+export function getLocalDateValue(value: string): null | string {
+  const groups = DATE_VALUE_REGEXP.exec(value)?.groups;
+  return groups?.['date'] === undefined ? null : `${groups['date']}${groups['time'] ?? ''}`;
+}
+
+/**
+ * Whether a value is shaped as a date or a datetime, with or without a zone.
  *
  * @param value - The value.
  * @returns Whether the value counts as a date.
@@ -214,10 +250,15 @@ function compareStrings(string1: string, string2: string): number {
   return string1 < string2 ? -1 : 1;
 }
 
-function getMonthDayKey(entry: DatedValue): string {
-  return entry.value.slice(YEAR_LENGTH);
+function getMonthDayKey(entry: LocalDatedValue): string {
+  return entry.localValue.slice(YEAR_LENGTH);
 }
 
-function getValueKey(entry: DatedValue): string {
-  return entry.value;
+function getValueKey(entry: LocalDatedValue): string {
+  return entry.localValue;
+}
+
+function toLocalDatedValue(entry: DatedValue): LocalDatedValue | null {
+  const localValue = getLocalDateValue(entry.value);
+  return localValue === null ? null : { ...entry, localValue };
 }

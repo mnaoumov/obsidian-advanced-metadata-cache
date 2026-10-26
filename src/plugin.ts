@@ -127,7 +127,7 @@ export class Plugin extends PluginBase {
           moduleId: 'headings'
         },
         {
-          createComponent: (): PropertyValueIndexComponent => new PropertyValueIndexComponent({ app: this.app, propertyValueIndex }),
+          createComponent: (): PropertyValueIndexComponent => new PropertyValueIndexComponent({ app: this.app, pluginSettingsComponent, propertyValueIndex }),
           getIsEnabled: (settings): boolean => settings.isPropertiesModuleEnabled,
           moduleId: 'properties'
         }

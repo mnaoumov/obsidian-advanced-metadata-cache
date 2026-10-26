@@ -167,6 +167,14 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
     input: createArgumentsSchema([]),
     output: createTypeGuardSchema(nullableGuard(LINK_SUGGESTION_ARRAY_GUARD))
   },
+  getNonDateValues: {
+    input: createArgumentsSchema([]),
+    output: createTypeGuardSchema(nullableGuard(DATED_VALUE_ARRAY_GUARD))
+  },
+  getNonDateValuesSafe: {
+    input: createArgumentsSchema([]),
+    output: createTypeGuardSchema(nullableGuard(DATED_VALUE_ARRAY_GUARD))
+  },
   getPathsByName: {
     input: createArgumentsSchema([NAME_GUARD]),
     output: createTypeGuardSchema(nullableGuard(PATHS_GUARD))

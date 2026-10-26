@@ -82,10 +82,17 @@ export interface AdvancedMetadataCacheApi {
    * answered from the `Properties` module's ordered index, without walking the vault.
    *
    * A value counts as a date when it is shaped `YYYY-MM-DD`, optionally followed by `THH:mm`, `THH:mm:ss` or
-   * `THH:mm:ss.sss`, with no time zone: what Obsidian's own `date` and `datetime` properties write. A list
-   * contributes each such member. Every property whose type is `date` or `datetime` is indexed without being
-   * registered, in each casing a note spells it; a property registered through
-   * {@link AdvancedMetadataCacheApi.registerPropertyName} contributes its date-shaped values too.
+   * `THH:mm:ss.sss`: what Obsidian's own `date` and `datetime` properties write. A value with a time may also
+   * carry an ISO 8601 offset (`Z`, `-06:00`, `+0200`) and an RFC 9557 time zone annotation (`[Europe/Kyiv]`).
+   * Values are ordered and matched by their LOCAL part, the date and time as written with the zone dropped,
+   * so `2026-10-26T23:00-06:00` is on the 26th and the bounds never carry a zone. A list contributes each such
+   * member.
+   *
+   * Every property whose type is `date` or `datetime`, or whose name matches the plugin's `Date properties`
+   * setting (by default `date` and `*Date`), is indexed without being registered, in each casing a note
+   * spells it; a property registered through {@link AdvancedMetadataCacheApi.registerPropertyName}
+   * contributes its date-shaped values too. A value that is not date-shaped is left out, never guessed:
+   * {@link AdvancedMetadataCacheApi.getNonDateValues} lists those of the date properties.
    *
    * With {@link DatedValuesQuery.isRecurring} on, the year is ignored, so a birthday is found in every year:
    * `{ from: '10-26', to: '11-25', isRecurring: true }` lists the next month's birthdays, and a `from`
@@ -113,6 +120,33 @@ export interface AdvancedMetadataCacheApi {
    * @returns The values, in order; `null` as for {@link AdvancedMetadataCacheApi.getDatedValues}.
    */
   getDatedValuesSafe(query: DatedValuesQuery): Promise<DatedValue[] | null>;
+
+  /**
+   * Lists the values of the date properties that are NOT date-shaped, and so are left out of
+   * {@link AdvancedMetadataCacheApi.getDatedValues}: a time alone (`14:30`), a free-text date, a typo. A date
+   * property is one {@link AdvancedMetadataCacheApi.getDatedValues} indexes without a registration, by its
+   * type or by its name; a registered property of another type is not one, so its other values are not
+   * listed.
+   *
+   * Answers from the index as it stands; use {@link AdvancedMetadataCacheApi.getNonDateValuesSafe} when that
+   * matters.
+   *
+   * Added in contract `1.6.0`.
+   *
+   * @returns The values, ordered by path, then by property name, then by value; `null` while the
+   *   `Properties` module is off.
+   */
+  getNonDateValues(): DatedValue[] | null;
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getNonDateValues}, waiting first for the index to be rebuilt from the
+   * metadata cache.
+   *
+   * Added in contract `1.6.0`.
+   *
+   * @returns The values; `null` while the `Properties` module is off.
+   */
+  getNonDateValuesSafe(): Promise<DatedValue[] | null>;
 
   /**
    * Reads when each of a note's headings was created, last modified and last seen.
@@ -419,9 +453,9 @@ export interface CustomArrayDict<T> {
 }
 
 /**
- * One date-shaped value of one indexed frontmatter property, as
- * {@link AdvancedMetadataCacheApi.getDatedValues} reports it. A note whose property lists several dates
- * gives one of these per date.
+ * One value of one indexed frontmatter property, as {@link AdvancedMetadataCacheApi.getDatedValues} reports
+ * its date-shaped values and {@link AdvancedMetadataCacheApi.getNonDateValues} the rest. A note whose
+ * property lists several values gives one of these per value.
  */
 export interface DatedValue {
   /**
@@ -435,14 +469,16 @@ export interface DatedValue {
   readonly propertyName: string;
 
   /**
-   * The value, exactly as the frontmatter holds it, e.g. `2026-10-26` or `2026-10-26T09:30`.
+   * The value, exactly as the frontmatter holds it, e.g. `2026-10-26`, `2026-10-26T09:30` or
+   * `2026-10-26T09:30:00+02:00[Europe/Kyiv]`, zone included.
    */
   readonly value: string;
 }
 
 /**
  * A range for {@link AdvancedMetadataCacheApi.getDatedValues}. Both bounds are inclusive and compared as
- * prefixes, so a bound may be as coarse as a year.
+ * prefixes of each value's local part, the date and time as written without the zone, so a bound may be as
+ * coarse as a year.
  */
 export interface DatedValuesQuery {
   /**

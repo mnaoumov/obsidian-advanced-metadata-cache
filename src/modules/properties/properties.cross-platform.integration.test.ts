@@ -8,6 +8,9 @@
  * - The registration and the values are saved to `property-values.json` in the plugin folder.
  * - Assigning the `date` type to a property registers it with no consumer asking, and its values answer by
  *   range and by recurring month and day — which also pins that `metadataTypeManager` fires `changed`.
+ * - A property whose name matches the default `*Date` is indexed with no type, a value with an offset or a
+ *   time zone is ordered by the time as written, and a value that is not a date is listed apart — which also
+ *   pins that Obsidian's frontmatter parser keeps an unquoted offset datetime a string.
  * - Switching the module off answers `null`.
  *
  * Named `*.cross-platform.integration.test.ts` so the desktop AND android projects both collect it:
@@ -37,6 +40,7 @@ import { applyPluginSettings } from '../../../scripts/helpers/names-module.ts';
 interface AdvancedMetadataCacheApi {
   getDatedValues: (query: DatedValuesQuery) => DatedValue[] | null;
   getDatedValuesSafe: (query: DatedValuesQuery) => Promise<DatedValue[] | null>;
+  getNonDateValuesSafe: () => Promise<DatedValue[] | null>;
   getPathsByPropertyValue: (propertyName: string, value: string) => null | string[];
   getPathsByPropertyValueSafe: (propertyName: string, value: string) => Promise<null | string[]>;
   getPathsWithPropertySafe: (propertyName: string) => Promise<null | string[]>;
@@ -64,6 +68,15 @@ interface DatedValuesResult {
   readonly error: null | string;
   readonly range: DatedValue[] | null;
   readonly recurring: DatedValue[] | null;
+}
+
+/**
+ * What one run of the named-dates scenario answered.
+ */
+interface NamedDatesResult {
+  readonly day: DatedValue[] | null;
+  readonly error: null | string;
+  readonly nonDates: DatedValue[] | null;
 }
 
 interface ObsidianLibStateBag {
@@ -122,6 +135,13 @@ const DATED_NOTES: readonly (readonly [string, string])[] = [
   ['properties-dated-2.md', '2026-03-01'],
   ['properties-dated-3.md', '2026-12-31']
 ];
+const NAMED_DATE_PROPERTY_NAME = 'properties-integration-reviewDate';
+// The offset value is left unquoted, as Obsidian itself writes a datetime.
+const NAMED_DATE_NOTES: readonly (readonly [string, string, string])[] = [
+  ['properties-named-1.md', '2026-10-26T23:00-06:00', '2026-10-26T23:00-06:00'],
+  ['properties-named-2.md', '"2026-10-26T09:00+02:00[Europe/Kyiv]"', '2026-10-26T09:00+02:00[Europe/Kyiv]'],
+  ['properties-named-3.md', '"14:30"', '14:30']
+];
 
 /*
  * Every wait is for work already in flight. Their SUM (25 s, the change wait counted twice) has to stay under the transport's
@@ -162,6 +182,15 @@ describe('Properties module', () => {
     expect(result.all).toEqual([note1, note2, note3]);
     expect(result.range).toEqual([note2]);
     expect(result.recurring).toEqual([note1, note3]);
+  }, SCENARIO_TIMEOUT_IN_MS);
+
+  it('indexes a property by its name, orders zoned values by the time as written, and lists the values that are not dates', async () => {
+    const result = await runNamedDatesScenario();
+    const [note1, note2, note3] = NAMED_DATE_NOTES.map(([path, , value]) => ({ path, propertyName: NAMED_DATE_PROPERTY_NAME, value }));
+
+    expect(result.error).toBeNull();
+    expect(result.day).toEqual([note2, note1]);
+    expect(result.nonDates?.filter((entry) => entry.propertyName === NAMED_DATE_PROPERTY_NAME)).toEqual([note3]);
   }, SCENARIO_TIMEOUT_IN_MS);
 
   it('answers null while the module is off', async () => {
@@ -272,6 +301,84 @@ async function runDatedValuesScenario(): Promise<DatedValuesResult> {
       CHANGE_WAIT_IN_MS,
       DATE_PROPERTY_NAME,
       DATED_NOTES,
+      POLL_IN_MS
+    },
+    vaultPath: getTemporaryVault().path
+  });
+}
+
+/**
+ * Creates notes carrying a property nobody registered and nobody typed, whose name alone makes it a date
+ * property, and asks the dated questions about it.
+ *
+ * @returns What the plugin answered.
+ */
+async function runNamedDatesScenario(): Promise<NamedDatesResult> {
+  return evalInObsidian({
+    async callback({
+      API_WAIT_IN_MS: apiWaitMs,
+      app,
+      CHANGE_WAIT_IN_MS: changeWaitMs,
+      lib: { waitUntil },
+      NAMED_DATE_NOTES: namedDateNotes,
+      NAMED_DATE_PROPERTY_NAME: propertyName,
+      POLL_IN_MS: pollMs
+    }) {
+      const empty: NamedDatesResult = { day: null, error: null, nonDates: null };
+
+      function readLiveRecord(): PluginApiRecord | undefined {
+        const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
+        return (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked);
+      }
+
+      try {
+        await waitUntil({
+          intervalInMilliseconds: pollMs,
+          message: 'the plugin to publish its API to the registry',
+          predicate: () => readLiveRecord() !== undefined,
+          timeoutInMilliseconds: apiWaitMs
+        });
+
+        const api = readLiveRecord()?.api;
+
+        if (!api) {
+          return { ...empty, error: 'No live API record' };
+        }
+
+        for (const [path, yamlValue] of namedDateNotes) {
+          const existing = app.vault.getAbstractFileByPath(path);
+
+          if (existing) {
+            await app.fileManager.trashFile(existing);
+          }
+
+          await app.vault.create(path, `---\n${propertyName}: ${yamlValue}\n---\n`);
+        }
+
+        // Two dates and one value that is not: both answers fill as the metadata cache parses the notes.
+        await waitUntil({
+          intervalInMilliseconds: pollMs,
+          message: 'the name to register the property and index the notes',
+          predicate: async () =>
+            (api.getDatedValues({ propertyNames: [propertyName] }) ?? []).length === 2
+            && ((await api.getNonDateValuesSafe()) ?? []).some((entry) => entry.propertyName === propertyName),
+          timeoutInMilliseconds: changeWaitMs
+        });
+
+        return {
+          ...empty,
+          day: await api.getDatedValuesSafe({ from: '2026-10-26', propertyNames: [propertyName], to: '2026-10-26' }),
+          nonDates: await api.getNonDateValuesSafe()
+        };
+      } catch (error) {
+        return { ...empty, error: String(error) };
+      }
+    },
+    input: {
+      API_WAIT_IN_MS,
+      CHANGE_WAIT_IN_MS,
+      NAMED_DATE_NOTES,
+      NAMED_DATE_PROPERTY_NAME,
       POLL_IN_MS
     },
     vaultPath: getTemporaryVault().path

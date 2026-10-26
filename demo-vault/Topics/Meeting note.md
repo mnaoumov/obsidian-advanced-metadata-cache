@@ -2,6 +2,7 @@
 title: Q3 planning meeting
 status: done
 due: 2025-09-30
+reviewDate: after the release
 ---
 
 # Meeting note
