@@ -121,7 +121,9 @@ Switch the **Unlinked mentions** module on and it keeps an index of which notes 
 
 Measured on a generated vault of 40,000 notes, most of them empty, which is the cheapest case there is for Obsidian's scan: the section filled in about 0.18 s instead of 0.58 s, and most of what is left is drawing the 40 listed notes, which costs the same either way. The lookup itself took about 10 ms. Real notes hold text, which only Obsidian's scan has to read and search each time, so the gap widens with the length of the notes as well as with their number.
 
-The cost is one read of every note when the module starts, in the background, and it is **off by default** for that reason. Until that read finishes the section is filled the built-in way, so it is never incomplete. A note created later, or an alias added later, is picked up by one more full read the first time its section is shown. A name with no letter or digit Obsidian knows of, such as one written only in Chinese or Japanese characters, cannot be indexed by words, so its section is filled the built-in way too.
+The cost is one read of every note the first time the module starts, in the background, and it is **off by default** for that reason. On a real vault of 35,000 notes and 78 MB of text that build took about 6-8 s with the notes already in the system's file cache. Until it finishes the section is filled the built-in way, so it is never incomplete.
+
+The index is then saved to `unlinked-mentions.json` in the plugin's folder, about 9 MB for that vault. Every later start reads only the notes whose modification time or size changed since the save, so the same build took about 1.2 s. A note created later, or an alias added later, is picked up by one more full read the first time its section is shown. A name with no letter or digit Obsidian knows of, such as one written only in Chinese or Japanese characters, cannot be indexed by words, so its section is filled the built-in way too.
 
 ## See also
 

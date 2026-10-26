@@ -343,6 +343,19 @@ describe('Plugin', () => {
     );
   });
 
+  it('should build the unlinked mentions module on demand, keeping its index in the plugin folder', async () => {
+    await createLoadedPlugin(
+      createApp(),
+      createManifest({
+        // eslint-disable-next-line unicorn/name-replacements -- Obsidian's own `PluginManifest` member.
+        dir: 'plugins-root/custom-folder'
+      })
+    );
+    const component = getModuleDefinitions()[5]?.createComponent();
+
+    expect(castTo<HeadingTimesIndexPathReader>(component).getDataFilePath()).toBe('plugins-root/custom-folder/unlinked-mentions.json');
+  });
+
   it('should publish its API under the contract it declares, and only once loaded', async () => {
     const plugin = new Plugin(createApp(), createManifest());
 

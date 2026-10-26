@@ -14,6 +14,7 @@ import { waitForAllAsyncOperations } from '@mnaoumov/typescript-test-toolkit/asy
 import { Component } from 'obsidian';
 import { App } from 'obsidian-test-mocks/obsidian';
 import {
+  afterEach,
   beforeEach,
   describe,
   expect,
@@ -22,6 +23,10 @@ import {
 } from 'vitest';
 
 import type { UnlinkedMentionMatch } from './unlinked-mentions-component.ts';
+
+interface SavedNotesShape {
+  readonly notes: Record<string, unknown>;
+}
 
 interface UserIgnoredSource {
   isUserIgnored: (path: string) => boolean;
@@ -46,9 +51,13 @@ vi.mock('./unlinked-mentions-core-plugin-component.ts', () => ({
 }));
 
 /* eslint-disable import-x/first, import-x/imports-first -- vi.mock must precede imports. */
-import { UnlinkedMentionsComponent } from './unlinked-mentions-component.ts';
+import {
+  SAVE_DEBOUNCE_IN_MILLISECONDS,
+  UnlinkedMentionsComponent
+} from './unlinked-mentions-component.ts';
 /* eslint-enable import-x/first, import-x/imports-first -- End of the mocked imports. */
 
+const DATA_FILE_PATH = 'unlinked-mentions.json';
 describe('UnlinkedMentionsComponent', () => {
   let app: App;
   let component: UnlinkedMentionsComponent;
@@ -59,7 +68,11 @@ describe('UnlinkedMentionsComponent', () => {
     app = App.createConfigured__();
     isUserIgnored = vi.fn(() => false);
     castTo<UserIgnoredSource>(app.metadataCache).isUserIgnored = isUserIgnored;
-    component = new UnlinkedMentionsComponent({ app: castTo<AppOriginal>(app) });
+    component = createComponent();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('should install the pane patch and build the index once the layout is ready', async () => {
@@ -258,6 +271,178 @@ describe('UnlinkedMentionsComponent', () => {
     expect(await component.getUnlinkedMentions(asOriginal(alpha))).toEqual([]);
   });
 
+  it('should save the index on its debounce once built, and not before', async () => {
+    createNote('Alpha.md');
+    createNote('One.md', 'alpha');
+    vi.useFakeTimers();
+    await component.loadWithPromises();
+
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_IN_MILLISECONDS);
+    expect(await app.vault.adapter.exists(DATA_FILE_PATH)).toBe(false);
+
+    app.workspace.setLayoutReady__();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(component.isBuilt).toBe(true);
+    expect(await app.vault.adapter.exists(DATA_FILE_PATH)).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_IN_MILLISECONDS);
+    expect(JSON.parse(await app.vault.adapter.read(DATA_FILE_PATH))).toMatchObject({
+      cleanKeys: [0, 1],
+      keys: ['ALPHA', 'ONE'],
+      notes: { 'Alpha.md': { keys: [] }, 'One.md': { keys: [0] } },
+      version: 1
+    });
+  });
+
+  it('should save on unload, and not when unloaded before the build ended', async () => {
+    createNote('Alpha.md');
+    const loadPromise = load();
+    component.unload();
+    await loadPromise;
+    await waitForAllAsyncOperations();
+    expect(await app.vault.adapter.exists(DATA_FILE_PATH)).toBe(false);
+
+    await restart();
+    component.unload();
+    await waitForAllAsyncOperations();
+    expect(await app.vault.adapter.exists(DATA_FILE_PATH)).toBe(true);
+  });
+
+  it('should reuse the saved index on the next build, reading no note that is unchanged', async () => {
+    const alpha = createNote('Alpha.md');
+    createNote('One.md', 'alpha');
+    createNote('Two.md', 'beta');
+    await load();
+    const cachedRead = vi.spyOn(app.vault, 'cachedRead');
+
+    await restart();
+
+    expect(cachedRead).not.toHaveBeenCalled();
+    expect(summarize(await component.getUnlinkedMentions(asOriginal(alpha)))).toEqual([['One.md', [[0, 5]]]]);
+    expect(cachedRead.mock.calls.map(([file]) => file.path)).toEqual(['One.md']);
+  });
+
+  it('should read again a note changed, created or renamed while nothing watched, and forget a deleted one', async () => {
+    const alpha = createNote('Alpha.md');
+    const one = createNote('One.md', 'beta');
+    const two = createNote('Two.md', 'alpha');
+    createNote('Three.md', 'alpha');
+    await load();
+    await unloadComponent();
+
+    await app.vault.modify(one, 'now alpha');
+    createNote('Four.md', 'alpha');
+    app.vault.deleteVaultAbstractFile__(two.path);
+    await app.vault.rename(castTo<TFile>(app.vault.getFileByPath('Three.md')), 'Five.md');
+    const cachedRead = vi.spyOn(app.vault, 'cachedRead');
+
+    component = createComponent();
+    await load();
+
+    expect(cachedRead.mock.calls.map(([file]) => file.path).sort()).toEqual(['Five.md', 'Four.md', 'One.md']);
+    expect(summarize(await component.getUnlinkedMentions(asOriginal(alpha))).map(([path]) => path)).toEqual(['Five.md', 'Four.md', 'One.md']);
+  });
+
+  it('should keep a note `changed` scanned during the load rather than its saved entry', async () => {
+    const alpha = createNote('Alpha.md');
+    const one = createNote('One.md', 'beta');
+    await load();
+    const read = app.vault.adapter.read.bind(app.vault.adapter);
+    // The note changes while the build reads the saved file, so its saved entry is older than what `changed` scanned.
+    vi.spyOn(app.vault.adapter, 'read').mockImplementation(async (path) => {
+      if (path === DATA_FILE_PATH) {
+        await app.vault.modify(one, 'alpha now');
+        app.metadataCache.trigger('changed', castTo<TFile>(one), 'alpha now', castTo<never>({}));
+      }
+
+      return await read(path);
+    });
+    const cachedRead = vi.spyOn(app.vault, 'cachedRead');
+    await restart();
+
+    // Its `mtime` no longer matches the saved one, but `changed` already scanned it, so the build does not read it.
+    expect(cachedRead).not.toHaveBeenCalled();
+
+    expect(summarize(await component.getUnlinkedMentions(asOriginal(alpha)))).toEqual([['One.md', [[0, 5]]]]);
+  });
+
+  it('should treat a name the saved index had not looked for as dirty', async () => {
+    createNote('One.md', 'gamma');
+    await load();
+    await unloadComponent();
+
+    const gamma = createNote('Gamma.md');
+    component = createComponent();
+    await load();
+    const cachedRead = vi.spyOn(app.vault, 'cachedRead');
+
+    expect(summarize(await component.getUnlinkedMentions(asOriginal(gamma)))).toEqual([['One.md', [[0, 5]]]]);
+    expect(cachedRead.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it('should save a name that was dirty as not looked for', async () => {
+    createNote('One.md', 'gamma');
+    await load();
+    const gamma = createNote('Gamma.md');
+    app.vault.trigger('create', gamma);
+    component.unload();
+    await waitForAllAsyncOperations();
+
+    expect(JSON.parse(await app.vault.adapter.read(DATA_FILE_PATH))).toMatchObject({ cleanKeys: [0], keys: ['ONE'] });
+  });
+
+  it('should save after a deleted note, a deleted folder and a rename', async () => {
+    createNote('Alpha.md');
+    const one = createNote('One.md', 'alpha');
+    const folder = createFolder('Folder');
+    createNote('Folder/Two.md', 'alpha');
+    createNote('Three.md', 'alpha');
+    await load();
+
+    app.vault.trigger('delete', one);
+    app.vault.trigger('delete', folder);
+    await app.fileManager.renameFile(castTo<TFile>(app.vault.getFileByPath('Three.md')), 'Moved.md');
+    app.vault.trigger('rename', castTo<TFile>(app.vault.getFileByPath('Alpha.md')), 'Never scanned.md');
+    component.unload();
+    await waitForAllAsyncOperations();
+
+    const saved = JSON.parse(await app.vault.adapter.read(DATA_FILE_PATH)) as SavedNotesShape;
+    expect(Object.keys(saved.notes).sort()).toEqual(['Alpha.md', 'Moved.md']);
+  });
+
+  it('should stay not built when unloaded while reading the notes changed since the save', async () => {
+    createNote('Alpha.md');
+    const one = createNote('One.md', 'beta');
+    await load();
+    await unloadComponent();
+    await app.vault.modify(one, 'now alpha');
+    vi.spyOn(app.vault, 'cachedRead').mockImplementation((file) => {
+      component.unload();
+      return Promise.resolve(app.vault.readSync__(file));
+    });
+
+    component = createComponent();
+    await load();
+
+    expect(component.isBuilt).toBe(false);
+  });
+
+  it('should build by reading every note when the saved file is not one it can use', async () => {
+    const alpha = createNote('Alpha.md');
+    createNote('One.md', 'alpha');
+    await app.vault.adapter.write(DATA_FILE_PATH, '{"version":0}');
+    const cachedRead = vi.spyOn(app.vault, 'cachedRead');
+
+    await load();
+
+    expect(cachedRead).toHaveBeenCalledTimes(2);
+    expect(summarize(await component.getUnlinkedMentions(asOriginal(alpha)))).toEqual([['One.md', [[0, 5]]]]);
+  });
+
+  function createComponent(): UnlinkedMentionsComponent {
+    return new UnlinkedMentionsComponent({ app: castTo<AppOriginal>(app), getDataFilePath: () => DATA_FILE_PATH });
+  }
+
   function createFolder(path: string): TFolder {
     return app.vault.createFolderSync__(path);
   }
@@ -270,6 +455,18 @@ describe('UnlinkedMentionsComponent', () => {
     await component.loadWithPromises();
     app.workspace.setLayoutReady__();
     await setTimeoutAsync(0);
+    await waitForAllAsyncOperations();
+  }
+
+  // Switches the module off, which saves the index, and on again, which loads it.
+  async function restart(): Promise<void> {
+    await unloadComponent();
+    component = createComponent();
+    await load();
+  }
+
+  async function unloadComponent(): Promise<void> {
+    component.unload();
     await waitForAllAsyncOperations();
   }
 

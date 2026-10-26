@@ -1,18 +1,29 @@
 import type {
   App,
+  Debouncer,
   TAbstractFile
 } from 'obsidian';
 
 import { LayoutReadyComponent } from '@mnaoumov/obsidian-lib/components/layout-ready-component';
 import { isFolder } from '@mnaoumov/obsidian-lib/file-system';
 import { ensureMetadataCacheReady } from '@mnaoumov/obsidian-lib/metadata-cache';
+import { invokeAsyncSafely } from '@mnaoumov/typescript-lib/async';
 import {
+  debounce,
   TFile,
   Vault
 } from 'obsidian';
 
+import type {
+  SavedNoteMentions,
+  SavedUnlinkedMentions
+} from './persisted-unlinked-mentions.ts';
 import type { MentionRange } from './unlinked-mention-ranges.ts';
 
+import {
+  parsePersistedUnlinkedMentions,
+  stringifyPersistedUnlinkedMentions
+} from './persisted-unlinked-mentions.ts';
 import {
   getNameKey,
   UnlinkedMentionIndex
@@ -43,8 +54,18 @@ export interface UnlinkedMentionMatch {
   readonly ranges: MentionRange[];
 }
 
+interface ScannedStat {
+  readonly mtime: number;
+  readonly size: number;
+}
+
 interface UnlinkedMentionsComponentConstructorParams {
   readonly app: App;
+
+  /**
+   * Where the index is saved: `unlinked-mentions.json` in the plugin's folder.
+   */
+  readonly getDataFilePath: (this: void) => string;
 }
 
 /*
@@ -54,12 +75,22 @@ interface UnlinkedMentionsComponentConstructorParams {
 const READ_BATCH_SIZE = 20;
 
 /**
+ * How long changes are gathered before the index is written to disk. Not reset by each change, so a vault edited
+ * without pause is still saved this often.
+ */
+export const SAVE_DEBOUNCE_IN_MILLISECONDS = 5000;
+
+/**
  * The `unlinked mentions` module: keeps an {@link UnlinkedMentionIndex} of which notes' text holds which names, and
  * answers a note's unlinked mentions by reading only the notes that can hold one.
  *
  * The Backlinks pane's `Unlinked mentions` section is answered from it through a patch of
  * `BacklinkComponent.recomputeUnlinked`, installed BEFORE the build: until the build ends the patch falls through to
  * Obsidian's own full scan, so no caller is handed an answer from a half-built index.
+ *
+ * The index is saved to `unlinked-mentions.json`, with the `mtime` and `size` each note had when it was scanned, on a
+ * debounce and once more when the module is switched off. The next build reuses every note whose `mtime` and `size`
+ * still match and reads only the rest; a name the saved index had not looked for is dirty, as after any full scan.
  */
 export class UnlinkedMentionsComponent extends LayoutReadyComponent {
   /**
@@ -73,11 +104,24 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
 
   private buildPromise: null | Promise<void> = null;
   private fullScanPromise: null | Promise<void> = null;
+  private readonly getDataFilePath: () => string;
   private readonly index = new UnlinkedMentionIndex();
   private isBuiltValue = false;
+  private isDirty = false;
+  private readonly requestSave: Debouncer<[], void>;
+
+  /*
+   * The `mtime` and `size` each note had when its text was last scanned: what a saved entry is checked against, so a
+   * note edited while nothing watched is read again.
+   */
+  private readonly scannedStats = new Map<string, ScannedStat>();
 
   public constructor(params: UnlinkedMentionsComponentConstructorParams) {
     super(params.app);
+    this.getDataFilePath = params.getDataFilePath;
+    this.requestSave = debounce(() => {
+      invokeAsyncSafely(() => this.save());
+    }, SAVE_DEBOUNCE_IN_MILLISECONDS);
   }
 
   /**
@@ -129,8 +173,17 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
   }
 
   public override onunload(): void {
+    this.requestSave.cancel();
+
+    // Only once built: before that the index holds less than the file it would overwrite.
+    if (this.isBuiltValue && this.isDirty) {
+      // `save` serializes before its first `await`, so clearing straight after it still saves this state.
+      invokeAsyncSafely(() => this.save());
+    }
+
     super.onunload();
     this.index.clear();
+    this.scannedStats.clear();
   }
 
   protected override async onLayoutReady(): Promise<void> {
@@ -140,7 +193,7 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
     // Registered before the build too, so a change made while it reads the vault is not lost.
     this.registerEvent(this.app.metadataCache.on('changed', (file, data, cache) => {
       this.index.setNames(file.path, getMentionNames(file, cache));
-      this.index.setText(file.path, data);
+      this.setText(file, data);
     }));
 
     this.registerEvent(this.app.vault.on('create', (abstractFile) => {
@@ -152,11 +205,21 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
     this.registerEvent(this.app.vault.on('delete', (abstractFile) => {
       if (isFolder(abstractFile)) {
         this.index.removeSubtree(abstractFile.path);
+        const prefix = `${abstractFile.path}/`;
+        for (const path of this.scannedStats.keys()) {
+          if (path.startsWith(prefix)) {
+            this.scannedStats.delete(path);
+          }
+        }
+
+        this.markDirty();
         return;
       }
 
       this.index.removeNames(abstractFile.path);
       this.index.removeText(abstractFile.path);
+      this.scannedStats.delete(abstractFile.path);
+      this.markDirty();
     }));
 
     this.registerEvent(this.app.vault.on('rename', (abstractFile, oldPath) => {
@@ -174,8 +237,17 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
       this.index.setNames(file.path, getMentionNames(file, this.app.metadataCache.getFileCache(file)));
     }
 
-    await this.runFullScan();
+    const saved = await this.readSaved();
+    if (saved) {
+      await this.restore(saved);
+    } else {
+      await this.runFullScan();
+    }
+
     this.isBuiltValue = !this.isUnloaded();
+    if (this.isBuiltValue) {
+      this.markDirty();
+    }
   }
 
   private async ensureBuilt(): Promise<void> {
@@ -215,10 +287,64 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
     });
   }
 
+  private markDirty(): void {
+    this.isDirty = true;
+    if (this.isBuiltValue) {
+      this.requestSave();
+    }
+  }
+
+  /**
+   * Reads the saved index.
+   *
+   * @returns It, or `null` when there is none this version can use, and every note must be read.
+   */
+  private async readSaved(): Promise<null | SavedUnlinkedMentions> {
+    const dataFilePath = this.getDataFilePath();
+    return await this.app.vault.adapter.exists(dataFilePath) ? parsePersistedUnlinkedMentions(await this.app.vault.adapter.read(dataFilePath)) : null;
+  }
+
   private renameFile(file: TFile, oldPath: string): void {
     this.index.removeNames(oldPath);
     this.index.setNames(file.path, getMentionNames(file, this.app.metadataCache.getFileCache(file)));
     this.index.renameText(oldPath, file.path);
+
+    const stat = this.scannedStats.get(oldPath);
+    this.scannedStats.delete(oldPath);
+    if (stat) {
+      this.scannedStats.set(file.path, stat);
+    }
+
+    this.markDirty();
+  }
+
+  /**
+   * Builds the index from a saved one: every note whose `mtime` and `size` match its saved entry keeps what it was
+   * found to mention, every other note is read, and the names the saved index had looked for are clean.
+   *
+   * @param saved - The saved index.
+   */
+  private async restore(saved: SavedUnlinkedMentions): Promise<void> {
+    const changedFiles: TFile[] = [];
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const note: SavedNoteMentions | undefined = saved.notes.get(file.path);
+      // A note `changed` already scanned during the load is newer than anything saved.
+      if (this.scannedStats.has(file.path)) {
+        continue;
+      }
+
+      if (note?.mtime === file.stat.mtime && note.size === file.stat.size) {
+        this.index.restoreText(file.path, note.mentionKeys);
+        this.scannedStats.set(file.path, { mtime: note.mtime, size: note.size });
+      } else {
+        changedFiles.push(file);
+      }
+    }
+
+    await this.scanFiles(changedFiles);
+    if (!this.isUnloaded()) {
+      this.index.markClean(saved.cleanKeys);
+    }
   }
 
   /**
@@ -231,20 +357,11 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
     this.fullScanPromise ??= (async (): Promise<void> => {
       try {
         const marker = this.index.beginFullScan();
-        await forEachBatch(this.app.vault.getMarkdownFiles(), async (file) => {
-          if (this.isUnloaded()) {
-            return;
-          }
-
-          const content = await this.app.vault.cachedRead(file);
-          // A note deleted or renamed during the read is the event handlers' to account for.
-          if (!this.isUnloaded() && this.app.vault.getFileByPath(file.path) === file) {
-            this.index.setText(file.path, content);
-          }
-        });
+        await this.scanFiles(this.app.vault.getMarkdownFiles());
 
         if (!this.isUnloaded()) {
           this.index.completeFullScan(marker);
+          this.markDirty();
         }
       } finally {
         this.fullScanPromise = null;
@@ -252,6 +369,48 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
     })();
 
     await this.fullScanPromise;
+  }
+
+  /**
+   * Writes the index to disk.
+   *
+   * The JSON is built synchronously, before the first `await`, so a caller may clear the index straight after calling
+   * this and still have the state it held saved.
+   */
+  private async save(): Promise<void> {
+    const notes = new Map<string, SavedNoteMentions>();
+    for (const [path, stat] of this.scannedStats) {
+      notes.set(path, { mentionKeys: this.index.getMentionKeys(path), mtime: stat.mtime, size: stat.size });
+    }
+
+    const json = stringifyPersistedUnlinkedMentions({ cleanKeys: this.index.getCleanKeys(), notes });
+    this.isDirty = false;
+    await this.app.vault.adapter.write(this.getDataFilePath(), json);
+  }
+
+  /**
+   * Reads notes' text into the index.
+   *
+   * @param files - The notes.
+   */
+  private async scanFiles(files: readonly TFile[]): Promise<void> {
+    await forEachBatch(files, async (file) => {
+      if (this.isUnloaded()) {
+        return;
+      }
+
+      const content = await this.app.vault.cachedRead(file);
+      // A note deleted or renamed during the read is the event handlers' to account for.
+      if (!this.isUnloaded() && this.app.vault.getFileByPath(file.path) === file) {
+        this.setText(file, content);
+      }
+    });
+  }
+
+  private setText(file: TFile, content: string): void {
+    this.index.setText(file.path, content);
+    this.scannedStats.set(file.path, { mtime: file.stat.mtime, size: file.stat.size });
+    this.markDirty();
   }
 }
 

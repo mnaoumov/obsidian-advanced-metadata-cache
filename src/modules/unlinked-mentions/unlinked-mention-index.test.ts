@@ -22,6 +22,28 @@ describe('UnlinkedMentionIndex', () => {
     expect(getNameKey('東京')).toBeNull();
   });
 
+  it('should list the clean keys and a note\'s mention keys, and restore them without a scan', () => {
+    index.setNames('Alpha.md', ['Alpha']);
+    index.setNames('Beta.md', ['Beta']);
+    const marker = index.beginFullScan();
+    index.setText('One.md', 'alpha beta');
+    index.completeFullScan(marker);
+    index.setNames('Gamma.md', ['Gamma']);
+
+    expect(index.getCleanKeys()).toEqual(['ALPHA', 'BETA']);
+    expect(index.getMentionKeys('One.md')).toEqual(['ALPHA', 'BETA']);
+    expect(index.getMentionKeys('Two.md')).toEqual([]);
+
+    const restored = new UnlinkedMentionIndex();
+    restored.setNames('Alpha.md', ['Alpha']);
+    restored.restoreText('One.md', ['ALPHA', 'BETA']);
+    expect(restored.getCandidatePaths(['Alpha'])).toBeNull();
+
+    restored.markClean(['ALPHA']);
+    expect(restored.getCandidatePaths(['Alpha'])).toEqual(new Set(['One.md']));
+    expect(restored.getMentionKeys('One.md')).toEqual(['ALPHA']);
+  });
+
   it('should answer null for a name that is dirty, unknown or not indexable', () => {
     index.setNames('Alpha.md', ['Alpha']);
 

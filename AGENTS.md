@@ -201,8 +201,23 @@ original's `unlinkedQueue`, so `onFileChanged` re-checks a changed note itself; 
 original does, because the original `onMetadataChanged` compares it to decide on a recompute. Until the first full scan
 ends, both methods fall through to Obsidian's.
 
-There is no persistence: the build reads every note on each start, in the background, and the pane falls through until
-it ends. `unlinked-mentions-parity.desktop.integration.test.ts` compares the section filled both ways in a real
+**The index is persisted, and a saved entry is trusted only as far as its `mtime` and `size`.** `UnlinkedMentionsComponent`
+saves `unlinked-mentions.json` (format in `persisted-unlinked-mentions.ts`) on a non-resetting 5 s debounce and on unload,
+and only once built, so a half-built index never overwrites a whole one. Per note it holds the `mtime`/`size` the text had
+WHEN IT WAS SCANNED (`scannedStats`, not the file's current stat, which may already be ahead of a pending `changed`) and
+the keys found; at top level, the CLEAN keys (`getCleanKeys`), because a key dirty at save time was never looked for in
+the notes scanned before it. The next build sets every name from the metadata cache (all dirty), restores each note whose
+stat matches, reads the rest, then `markClean`s the saved clean keys: every other name stays dirty and the first query
+about it runs the full scan as before. A note `changed` already scanned during the load is skipped, since it is newer
+than anything saved. Bump `PERSISTED_VERSION` whenever what a key means changes (`word-characters.ts` above all).
+
+Measured on a copy of a real vault (35,493 notes, 78 MB): the build read every note in ~6-8 s with the notes already in
+the OS file cache; from the saved file (9.2 MB) it took 1.2 s. `npm run test:integration:real-vault` with
+`AMC_REAL_VAULT_PATH` set re-measures it (`unlinked-mentions-build.desktop-real-vault.integration.test.ts`); that
+project is opt-in and in no gate, because the vault it copies is private. Its first read of every note right after the
+copy took 231 s, most likely cold disk reads, so a start after a reboot is where the saved file saves the most.
+
+The pane falls through until the build ends. `unlinked-mentions-parity.desktop.integration.test.ts` compares the section filled both ways in a real
 Obsidian, and `unlinked-mentions-on-off.desktop-performance.integration.test.ts` times them. Read its numbers with the
 vault in mind: the generated filler notes are EMPTY, the cheapest case for Obsidian's scan, so most of the indexed
 section's time is rendering, which both sides pay (40k notes: 0.58 s against 0.18 s for the section, ~10 ms for the
