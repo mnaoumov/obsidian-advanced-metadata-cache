@@ -43,7 +43,7 @@ export interface SavedUnlinkedMentions {
 }
 
 /*
- * Bumped whenever what a key means changes, `word-characters.ts`'s tokenizing above all: a file saved under another
+ * Bumped whenever what a key means changes, `obsidian-word-characters`'s tokenizing above all: a file saved under another
  * version is ignored, and the index is built by reading every note.
  */
 const PERSISTED_VERSION = 1;

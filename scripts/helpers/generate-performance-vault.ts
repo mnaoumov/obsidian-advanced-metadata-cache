@@ -1,118 +1,45 @@
-import type { PopulateFilesParams } from 'obsidian-integration-testing';
+import type { GeneratePerformanceVaultOptions } from '@mnaoumov/obsidian-dev-toolkit/test-runners/performance-vault';
+
+export {
+  PERFORMANCE_VAULT_DELETE_FOLDER_A,
+  PERFORMANCE_VAULT_DELETE_FOLDER_B,
+  PERFORMANCE_VAULT_DELETE_TARGET,
+  PERFORMANCE_VAULT_FILLER_FOLDER,
+  PERFORMANCE_VAULT_LINKER_FOLDER,
+  PERFORMANCE_VAULT_MENTION_FOLDER,
+  PERFORMANCE_VAULT_TARGET
+} from '@mnaoumov/obsidian-dev-toolkit/test-runners/performance-vault';
 
 /**
- * The link target every linker note points at. The
- * `update-related-links.desktop-performance.integration.test.ts` test calls
- * `updateRelatedLinks` with this note's basename, so the two must agree.
- */
-export const PERFORMANCE_VAULT_TARGET = 'target.md';
-
-/**
- * Folder holding the notes that link to {@link PERFORMANCE_VAULT_TARGET}. These are
- * the only files a correct `updateRelatedLinks(['target.md'])` should queue.
- */
-export const PERFORMANCE_VAULT_LINKER_FOLDER = 'links';
-
-/**
- * How many notes link to {@link PERFORMANCE_VAULT_TARGET}.
- */
+Number of linker fixtures asserted by AMC's performance suites.
+*/
 export const PERFORMANCE_VAULT_LINKER_COUNT = 50;
-
+const DEFAULT_DELETE_COUNT = 1000;
+const DEFAULT_FILLER_COUNT = 90_000;
+const MENTION_INTERVAL = 25;
 /**
- * Folder holding notes of prose, a few of which name {@link PERFORMANCE_VAULT_TARGET} without linking to it, for the
- * `Unlinked mentions` module's suite to find. Kept small and apart from the filler: giving every filler note text
- * would keep Obsidian's own startup parse running into the suites that measure against it.
- */
-export const PERFORMANCE_VAULT_MENTION_FOLDER = 'mentions';
-
+Number of notes in each deletion scenario.
+*/
+export const PERFORMANCE_VAULT_DELETE_COUNT = Number(process.env['BC_PERF_DELETE_COUNT']) || DEFAULT_DELETE_COUNT;
+const FILLER_COUNT = Number(process.env['BC_PERF_VAULT_SIZE']) || DEFAULT_FILLER_COUNT;
+const MENTION_COUNT = 1000;
+const TARGET_COUNT = 2;
+const DELETION_FOLDER_COUNT = 2;
 /**
- * How many notes {@link PERFORMANCE_VAULT_MENTION_FOLDER} holds, and every how many of them names the target.
- */
-const PERFORMANCE_VAULT_MENTION_NOTE_COUNT = 1000;
-const PERFORMANCE_VAULT_MENTION_INTERVAL = 25;
-
-const PROSE_SENTENCE_REPEAT_COUNT = 5;
-
-/*
- * About a kilobyte of prose with no link syntax and no mention of the target in it.
- */
-const PROSE = 'A paragraph of ordinary prose that stands in for what a real note holds: a few sentences about a day, a meeting, a book or an idea, written in plain words and long enough that reading the note costs something. '.repeat(PROSE_SENTENCE_REPEAT_COUNT);
-
+Exact corpus size, including AMC's scenario fixtures.
+*/
+export const PERFORMANCE_VAULT_FILE_COUNT = FILLER_COUNT + PERFORMANCE_VAULT_LINKER_COUNT + MENTION_COUNT + DELETION_FOLDER_COUNT * PERFORMANCE_VAULT_DELETE_COUNT + TARGET_COUNT;
+const BYTES_PER_NOTE = 1200;
 /**
- * Folder holding the bulk of unrelated filler notes (no links). Their count is what
- * Obsidian's original `updateRelatedLinks` would scan via `getCachedFiles`; the
- * patch must ignore them entirely.
+ * AMC scenario dimensions for the shared generator. Filler count retains the historical environment variable's
+ * meaning. Filler now holds deterministic synthetic prose, so timings require a new baseline.
  */
-export const PERFORMANCE_VAULT_FILLER_FOLDER = 'big';
-
-/**
- * Link target every note in the bulk-delete folders points at. Kept separate from
- * {@link PERFORMANCE_VAULT_TARGET} so the bulk-delete notes do not perturb the
- * `target.md` backlink count the other performance tests assert on.
- */
-export const PERFORMANCE_VAULT_DELETE_TARGET = 'delete-target.md';
-
-/**
- * Two equal-sized folders of notes that link to {@link PERFORMANCE_VAULT_DELETE_TARGET}.
- * The bulk-deletion troubleshooting test deletes folder A with the plugin enabled and
- * folder B with it disabled, so the per-delete cost of the `getCache` patch can be
- * compared against Obsidian's native delete cascade on an identical file set.
- */
-export const PERFORMANCE_VAULT_DELETE_FOLDER_A = 'to-delete-a';
-export const PERFORMANCE_VAULT_DELETE_FOLDER_B = 'to-delete-b';
-
-// Large enough that an O(vault) scan would be obvious; overridable via
-// BC_PERF_VAULT_SIZE for bounded runs (e.g. 2000 for a quick check, 90000 for real scale).
-const DEFAULT_PERFORMANCE_VAULT_SIZE = 90_000;
-const PERFORMANCE_VAULT_SIZE = Number(process.env['BC_PERF_VAULT_SIZE']) || DEFAULT_PERFORMANCE_VAULT_SIZE;
-const FILES_PER_FOLDER = 30;
-
-/**
- * How many notes each bulk-delete folder holds. Close to the ~943-file cascade
- * measured in the real freeze; overridable via `BC_PERF_DELETE_COUNT` for quick runs.
- */
-const DEFAULT_PERFORMANCE_VAULT_DELETE_COUNT = 1000;
-export const PERFORMANCE_VAULT_DELETE_COUNT = Number(process.env['BC_PERF_DELETE_COUNT']) || DEFAULT_PERFORMANCE_VAULT_DELETE_COUNT;
-
-/**
- * Builds the file map for a large vault, written to disk by `TemporaryVault.populate()`
- * before Obsidian opens it (so its startup scan indexes it in one pass). The vault
- * contains one link {@link PERFORMANCE_VAULT_TARGET}, {@link PERFORMANCE_VAULT_LINKER_COUNT}
- * notes that resolve-link to it, and a large filler folder of unrelated notes.
- *
- * @returns A map of vault-relative note paths to content.
- */
-export function generatePerformanceVault(): PopulateFilesParams {
-  const files: PopulateFilesParams = {
-    [PERFORMANCE_VAULT_DELETE_TARGET]: '',
-    [PERFORMANCE_VAULT_TARGET]: ''
-  };
-
-  for (let linkerIndex = 0; linkerIndex < PERFORMANCE_VAULT_LINKER_COUNT; linkerIndex++) {
-    files[`${PERFORMANCE_VAULT_LINKER_FOLDER}/link-${String(linkerIndex)}.md`] = '[[target]]\n';
-  }
-
-  for (const deletionFolder of [PERFORMANCE_VAULT_DELETE_FOLDER_A, PERFORMANCE_VAULT_DELETE_FOLDER_B]) {
-    for (let deletionIndex = 0; deletionIndex < PERFORMANCE_VAULT_DELETE_COUNT; deletionIndex++) {
-      files[`${deletionFolder}/del-${String(deletionIndex)}.md`] = '[[delete-target]]\n';
-    }
-  }
-
-  for (let mentionIndex = 0; mentionIndex < PERFORMANCE_VAULT_MENTION_NOTE_COUNT; mentionIndex++) {
-    files[`${PERFORMANCE_VAULT_MENTION_FOLDER}/note-${String(mentionIndex)}.md`] = mentionIndex % PERFORMANCE_VAULT_MENTION_INTERVAL === 0
-      ? `${PROSE}\nThis note is about the target, without linking to it.\n`
-      : `${PROSE}\n`;
-  }
-
-  let written = 0;
-  let folderIndex = 0;
-  while (written < PERFORMANCE_VAULT_SIZE) {
-    for (let fileIndex = 0; fileIndex < FILES_PER_FOLDER && written < PERFORMANCE_VAULT_SIZE; fileIndex++) {
-      files[`${PERFORMANCE_VAULT_FILLER_FOLDER}/dir-${String(folderIndex)}/file-${String(fileIndex)}.md`] = '';
-      written++;
-    }
-    folderIndex++;
-  }
-
-  return files;
-}
+export const PERFORMANCE_VAULT_OPTIONS: GeneratePerformanceVaultOptions = {
+  cyrillicShare: 0,
+  deletionCount: PERFORMANCE_VAULT_DELETE_COUNT,
+  linkerCount: PERFORMANCE_VAULT_LINKER_COUNT,
+  mentionCount: MENTION_COUNT,
+  mentionInterval: MENTION_INTERVAL,
+  noteCount: PERFORMANCE_VAULT_FILE_COUNT,
+  totalBytes: PERFORMANCE_VAULT_FILE_COUNT * BYTES_PER_NOTE
+};

@@ -1,7 +1,7 @@
 import {
-  getNameTokens,
-  tokenize
-} from './word-characters.ts';
+  getObsidianNameTokens,
+  tokenizeObsidianWords
+} from '@mnaoumov/obsidian-lib/obsidian-word-characters';
 
 interface TrieNode {
   readonly children: Map<string, TrieNode>;
@@ -15,7 +15,7 @@ const KEY_SEPARATOR = ' ';
  * Which notes' text contains which names, so the unlinked mentions of a note are looked for only in the notes that
  * can hold one.
  *
- * Every basename and alias in the vault is a NAME, keyed by its canonical word tokens (`word-characters.ts`). A note's
+ * Every basename and alias in the vault is a NAME, keyed by its canonical word tokens (`obsidian-word-characters`). A note's
  * text is scanned once per change against all of them at once, through a trie over those tokens, and the index
  * records which names it contains. The answer is a CANDIDATE set: it is a superset of the notes Obsidian would list,
  * because two names with the same tokens share a key and a name inside a link still counts here, so the caller
@@ -221,7 +221,7 @@ export class UnlinkedMentionIndex {
    * @param text - Its text.
    */
   public setText(path: string, text: string): void {
-    const tokens = tokenize(text);
+    const tokens = tokenizeObsidianWords(text);
     const mentionKeys = new Set<string>();
 
     for (const [start, token] of tokens.entries()) {
@@ -328,7 +328,7 @@ export class UnlinkedMentionIndex {
  * @returns The key, or `null` when the name cannot be indexed.
  */
 export function getNameKey(name: string): null | string {
-  return getNameTokens(name)?.join(KEY_SEPARATOR) ?? null;
+  return getObsidianNameTokens(name)?.join(KEY_SEPARATOR) ?? null;
 }
 
 /*

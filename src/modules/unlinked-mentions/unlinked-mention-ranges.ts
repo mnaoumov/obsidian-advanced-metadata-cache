@@ -3,9 +3,8 @@ import type {
   TFile
 } from 'obsidian';
 
+import { createObsidianMentionRegExp } from '@mnaoumov/obsidian-lib/obsidian-word-characters';
 import { parseFrontMatterAliases } from 'obsidian';
-
-import { createMentionRegExp } from './word-characters.ts';
 
 /**
  * A matched span of a note's text, `[start, end)` in UTF-16 offsets: the shape Obsidian's search results take.
@@ -47,7 +46,7 @@ export function findMentionRanges(params: FindMentionRangesParams): MentionRange
       continue;
     }
 
-    const regExp = createMentionRegExp(name);
+    const regExp = createObsidianMentionRegExp(name);
     for (let match = regExp.exec(content); match; match = regExp.exec(content)) {
       const end = regExp.lastIndex;
       /* v8 ignore start -- Group 1 is the name itself, which every match captures. */
