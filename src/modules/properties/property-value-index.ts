@@ -204,16 +204,20 @@ export class PropertyValueIndex {
     // Asked per query, so a type or setting changed since a value was indexed needs no re-index.
     const datePropertyFlags = new Map<string, boolean>();
 
-    return this.datedValueIndex.getDatedValues(query, (propertyName) => propertyNames?.has(propertyName) ?? true, (propertyName) => {
-      let isDateProperty = datePropertyFlags.get(propertyName);
+    return this.datedValueIndex.getDatedValues(query, {
+      defaultTimeZone: this.pluginSettingsComponent.settings.defaultTimeZone,
+      isDateProperty: (propertyName) => {
+        let isDateProperty = datePropertyFlags.get(propertyName);
 
-      if (isDateProperty === undefined) {
-        isDateProperty = isDatePropertyName(this.app, this.pluginSettingsComponent.settings, propertyName);
-        datePropertyFlags.set(propertyName, isDateProperty);
-      }
+        if (isDateProperty === undefined) {
+          isDateProperty = isDatePropertyName(this.app, this.pluginSettingsComponent.settings, propertyName);
+          datePropertyFlags.set(propertyName, isDateProperty);
+        }
 
-      return isDateProperty;
-    }, this.pluginSettingsComponent.settings.defaultTimeZone);
+        return isDateProperty;
+      },
+      isIncluded: (propertyName) => propertyNames?.has(propertyName) ?? true
+    });
   }
 
   /**

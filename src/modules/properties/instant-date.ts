@@ -15,6 +15,11 @@ const OFFSET_SAMPLE_DAY_RADIUS = 2;
 const OFFSET_SAMPLE_DAYS = [-OFFSET_SAMPLE_DAY_RADIUS, -1, 0, 1, OFFSET_SAMPLE_DAY_RADIUS];
 const formatters = new Map<string, Intl.DateTimeFormat>();
 
+interface GetInstantPeriodParams {
+  readonly fallbackZone: string;
+  readonly value: string;
+}
+
 interface InstantPeriod {
   readonly end: number;
   readonly start: number;
@@ -23,7 +28,8 @@ interface InstantPeriod {
 /**
  * Converts a date value to an instant or a whole calendar period in the requested zone.
  */
-export function getInstantPeriod(value: string, fallbackZone: string): InstantPeriod {
+export function getInstantPeriod(params: GetInstantPeriodParams): InstantPeriod {
+  const { fallbackZone, value } = params;
   const annotation = ZONE_SUFFIX.exec(value);
   const datetime = value.replace(ZONE_SUFFIX, '');
   const zone = annotation?.groups?.['zone'] ?? fallbackZone;
