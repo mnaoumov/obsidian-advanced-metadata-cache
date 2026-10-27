@@ -76,7 +76,7 @@ describe('the names module makes getLinkSuggestions cheaper', () => {
            * so the API answers `null` until it is there; and the patch is installed BEFORE the index
            * is built, so the module being there says nothing about whether an ordinary call is yet
            * answered from the index. `getLinkSuggestionsSafe()` is the documented way to wait for the
-           * second — this is the README's own recipe, run as written.
+           * second — this is docs/api.md's own recipe, run as written.
            */
           const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
           const api = (records?.[pluginId] ?? []).find((record) => !record.isRevoked)?.api;

@@ -21,7 +21,7 @@ import { waitForPerformanceVaultScan } from '../../../scripts/helpers/wait-for-p
  * The section is timed the way a user meets it, from `recomputeUnlinked` to its loader stopping, both ways, in the
  * same process seconds apart.
  *
- * It also prints what the module costs to build, one read of every note, so the README's numbers have a source to be
+ * It also prints what the module costs to build, one read of every note, so the numbers the demo vault quotes have a source to be
  * re-measured from.
  */
 

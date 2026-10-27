@@ -22,7 +22,7 @@ Open the core **Backlinks** pane on [Central topic](<./Topics/Central topic.md>)
 
 > [!NOTE] getCache for canvas
 >
-> Obsidian resolves canvas backlinks natively (Backlinks pane, graph, `getBacklinksForFile`, `resolvedLinks`), but it leaves `app.metadataCache.getCache()` empty for a canvas file. `Advanced Metadata Cache` additionally fills that per-file cache, so tools that read `getCache()` for a canvas still see its links. When another plugin such as `Advanced Canvas` already answers a full entry for the canvas, with its `frontmatter`, that entry is returned unchanged.
+> Obsidian resolves canvas backlinks natively (Backlinks pane, graph, `getBacklinksForFile`, `resolvedLinks`), but it leaves `app.metadataCache.getCache()` empty for a canvas file. `Advanced Metadata Cache` additionally fills that per-file cache, so tools that read `getCache()` for a canvas still see its links. That answer is kept in memory and never written into Obsidian's persisted cache. When another plugin such as `Advanced Canvas` already answers a full entry for the canvas, with its `frontmatter`, that entry is returned unchanged.
 
 ```code-button
 ---
@@ -33,5 +33,9 @@ const cache = app.metadataCache.getCache('Topics/Canvas map.canvas');
 const links = cache?.frontmatterLinks ?? [];
 new Notice(`getCache('Topics/Canvas map.canvas') exposes ${links.length.toString()} link(s):\n${links.map((link) => link.link).join('\n')}`);
 ```
+
+## Frontmatter markdown links
+
+A markdown link in a frontmatter property, such as `source: "[Central topic](Topics/Central topic.md)"`, is not a link to Obsidian. With the [`Frontmatter Markdown Links`](https://community.obsidian.md/plugins/frontmatter-markdown-links) plugin installed it becomes one, and the backlink index counts it like any other backlink.
 
 See [04 Settings](<./04 Settings.md>) for the options that control refresh behavior.

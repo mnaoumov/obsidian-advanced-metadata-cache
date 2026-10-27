@@ -45,85 +45,13 @@ A copy of the vault ships with every release. You can access it via any of the f
 
 - **A backlink index that keeps itself current**, so the Backlinks pane and every plugin that asks for backlinks stop rescanning the vault. [01 Backlink cache](<./demo-vault/01 Backlink cache.md>)
 - **Three ways to ask** — fast from the cache, safe after pending changes settle, or the original built-in implementation for comparison. [02 Fast, safe, and original backlinks](<./demo-vault/02 Fast, safe, and original backlinks.md>)
-- **Canvas files are indexed too**, and their links are exposed through `getCache()`, which is otherwise left empty for canvas files. That answer is kept in memory and never written into Obsidian's persisted cache, and a full canvas entry another plugin answers, such as the one `Advanced Canvas` builds with the canvas's `frontmatter`, is returned as it is. [03 Canvas backlinks](<./demo-vault/03 Canvas backlinks.md>)
-- **Frontmatter markdown links count as backlinks** when the [`Frontmatter Markdown Links`](https://community.obsidian.md/plugins/frontmatter-markdown-links) plugin is installed. [03 Canvas backlinks](<./demo-vault/03 Canvas backlinks.md>)
+- **Canvas files are indexed too**, and so are frontmatter markdown links when [`Frontmatter Markdown Links`](https://community.obsidian.md/plugins/frontmatter-markdown-links) is installed. [03 Canvas backlinks](<./demo-vault/03 Canvas backlinks.md>)
 - **A name index behind the `[[` autocomplete**, so opening it stops rescanning every note in the vault for its name and aliases. [05 Name index](<./demo-vault/05 Name index.md>)
-- **A frontmatter property can name a note too**, so a note titled in its `title` property is found under that title — and, if you ask for it, offered under that title by the `[[` autocomplete. [06 Titles](<./demo-vault/06 Titles.md>)
+- **A frontmatter property can name a note too**, found under its `title` and, if you ask, offered under it by the `[[` autocomplete. [06 Titles](<./demo-vault/06 Titles.md>)
 - **When each heading was created, modified and seen**, recorded per heading without touching the note, so other plugins can sort a note's headings by time. [07 Heading times](<./demo-vault/07 Heading times.md>)
-- **Notes by frontmatter property value**, for other plugins to ask which notes carry a property, or a given value of it, without scanning the vault, answered straight from disk at startup. [08 Property index](<./demo-vault/08 Property index.md>)
+- **Notes by frontmatter property value**, dates kept in order, for other plugins to ask without scanning the vault, answered from disk at startup. [08 Property index](<./demo-vault/08 Property index.md>)
 - **Unlinked mentions without reading every note**, so the Backlinks pane's **Unlinked mentions** section reads only the notes that mention the note, and lists exactly what it listed before. [09 Unlinked mentions](<./demo-vault/09 Unlinked mentions.md>)
-- **Every index is a module of its own**, switched on or off without touching the others, and refresh behavior is configurable. [04 Settings](<./demo-vault/04 Settings.md>)
-
-## Modules
-
-| Module            | What it indexes                                                                                 | Default |
-|-------------------|-------------------------------------------------------------------------------------------------|---------|
-| Backlinks         | Which notes link to a note, answering `getBacklinksForFile()`.                                  | On      |
-| Names             | What each note is called - its name and its `aliases` - answering `getLinkSuggestions()`.       | Off     |
-| Titles            | What a note's own frontmatter says it is called, read per note and on demand.                   | Off     |
-| Headings          | When each heading of a note was created, last modified and last seen.                           | Off     |
-| Properties        | Which notes carry the frontmatter properties other plugins registered, and with which values.   | On      |
-| Unlinked mentions | Which notes name which note in plain text, answering the Backlinks pane's `Unlinked mentions`.  | Off     |
-
-Switching a module off unloads it completely — its index, its listeners and the commands it registers all go with it, and the built-in implementation answers again. Switching one back on rebuilds its index from scratch.
-
-### Titles
-
-A note can carry its real name in a frontmatter property rather than in its filename — `title` is the usual one, and several plugins write it. Obsidian itself does not treat that value as a name, so nothing can find the note by it.
-
-Switch the **Titles** module on and every property you list there is read as a name. The list defaults to `title` alone, and it joins the note's own name and its `aliases`:
-
-```yaml
----
-title: The Real Name
----
-```
-
-Two things then know about it. `getPathsByName('The Real Name')` finds the note, while the **Names** module is on — and any other plugin can read the same properties and the same per-note answer, so you name the property here once instead of once per plugin.
-
-**It does not change the `[[` autocomplete unless you ask it to.** Out of the box the list Obsidian offers there is answered faster by this plugin, not differently, so nothing about typing a link moves. Switch **Offer titles in the `[[` autocomplete** on — it appears under **Settings** once both the **Names** and **Titles** modules are on — and every title is offered there too, appended after everything Obsidian itself would have offered rather than ranked against it. Accepting one writes a link like:
-
-```markdown
-[[Notes/some-note|The Real Name]]
-```
-
-which resolves through Obsidian's own machinery, survives a rename, and keeps working if you ever switch this plugin off. A title that already matches the note's own name or one of its `aliases` is not offered a second time.
-
-This is the reverse direction from [Front Matter Title](https://github.com/snezhig/obsidian-front-matter-title), and the two are independent by design: that plugin takes a note and shows you its title, in the explorer, the tabs and the graph. This one takes a title and finds you the note. If you run both, name the property in each — one setting silently changing what another plugin answers would be worse than typing it twice.
-
-### Headings
-
-Obsidian records when a note was created and modified, but nothing about the headings inside it. Switch the **Headings** module on and, for every heading of the notes you work on, it records:
-
-- **created**: when the heading first appeared;
-- **modified**: when its section last changed (its text, its level, or anything under it, subheadings included). Moving a whole section elsewhere in the note does not count;
-- **seen**: when its own section was last on screen in the editor for a couple of seconds, while the window had focus. Reading view is not measured.
-
-Obsidian keeps no identity for a heading, so the module works one out by comparing each version of a note with the previous one: same text first, then the same text under the heading (a rename), then the same place between the same neighbors (a rename plus an edit). Renaming a heading, moving a section, changing its level or renaming the note keeps the history. A heading deleted and the same text typed elsewhere reads as a move, and two headings with the same text that swap places keep each other's history.
-
-Nothing is written into the note. The times live in `heading-times.json` in the plugin folder, for notes opened, created or changed while the module is on, so a vault nobody is working in costs nothing. They are what this device saw: a change made on another device is stamped when it arrives here. A heading that was already there when its note started being tracked has no `created` or `modified` time, rather than a guessed one.
-
-The module has no user interface of its own: it is there for other plugins to read, through the API below. [Advanced Note Composer](https://github.com/mnaoumov/obsidian-advanced-note-composer) sorts headings by these times.
-
-### Properties
-
-Some plugins need to find notes by a frontmatter value: which note holds the key `abc123`, which notes carry a `keys` property at all. Obsidian has no index for that, so every such plugin scans the vault, and at startup it scans it before it can answer anything.
-
-The **Properties** module keeps that index for them. It indexes only the properties another plugin registers, plus every property whose type is `Date` or `Date & time`, so a vault with none of either costs nothing, and it is **on by default** for that reason. Dates are also kept in order, so a plugin can ask for every note dated within a range, or for every birthday in the coming month, without reading the vault. The index lives in `property-values.json` in the plugin folder, so at the next startup it answers straight from disk, and it is brought up to date from Obsidian's own metadata cache once that is ready, never by reading the notes themselves.
-
-The module has no user interface of its own: it is there for other plugins to read, through the API below.
-
-### Unlinked mentions
-
-The core Backlinks pane lists, under **Unlinked mentions**, the notes that name a note in plain text without linking to it. To fill that section Obsidian reads every note in the vault and searches each one for the note's name and its `aliases`, every time a note is shown with the section expanded. In a vault of tens of thousands of notes that takes seconds.
-
-Switch the **Unlinked mentions** module on and it keeps an index of which notes mention which note names, updated as each note changes, so the section reads only the notes that do mention the shown note. It finds exactly what Obsidian finds, match for match: the name or an alias, case-insensitively but without folding accents, as a whole word where it starts or ends with a letter or a digit, and not inside a link, an embed or the frontmatter (inside code it still counts, as it does in Obsidian). The **Link** buttons work as before.
-
-Measured on a generated vault of 40,000 notes, most of them empty, which is the cheapest case there is for Obsidian's scan: the section filled in about 0.18 s instead of 0.58 s, and most of what is left is drawing the 40 listed notes, which costs the same either way. The lookup itself took about 10 ms. Real notes hold text, which only Obsidian's scan has to read and search each time, so the gap widens with the length of the notes as well as with their number.
-
-The cost is one read of every note the first time the module starts, in the background, and it is **off by default** for that reason. On a real vault of 35,000 notes and 78 MB of text that build took about 6-8 s with the notes already in the system's file cache. Until it finishes the section is filled the built-in way, so it is never incomplete.
-
-The index is then saved to `unlinked-mentions.json` in the plugin's folder, about 9 MB for that vault. Every later start reads only the notes whose modification time or size changed since the save, so the same build took about 1.2 s. A note created later, or an alias added later, is picked up by one more full read the first time its section is shown. A name with no letter or digit Obsidian knows of, such as one written only in Chinese or Japanese characters, cannot be indexed by words, so its section is filled the built-in way too.
+- **Every index is a module of its own**, switched on or off without touching the others; only **Backlinks** and **Properties** are on by default, and a module switched off unloads completely. [04 Settings](<./demo-vault/04 Settings.md>)
 
 ## See also
 
@@ -142,17 +70,11 @@ Last searched for similar plugins on 2026-10-26.
 
 ## For plugin developers
 
-Everything this plugin offers another plugin is declared in one hand-written file — [api.d.ts](./api.d.ts) at the repository root. It imports from `obsidian` and nothing else, so you can copy it into your own code or reference it where it sits, with no build-time dependency on this repository.
+This plugin makes two core calls faster for every plugin that makes them, and publishes an API, declared in [api.d.ts](./api.d.ts), for what core has no call for. **The member-by-member reference is [docs/api.md](./docs/api.md).**
 
-Beside it, [api-contract.ts](./api-contract.ts) holds the published API's contract, `ADVANCED_METADATA_CACHE_API_CONTRACT`: for every method, a schema over its arguments and a schema over what it returns. It is the constant this plugin publishes with the API, so copy it next to `api.d.ts` and pass it as the `contract`, and both sides check the same definition. Its [Standard Schema](https://standardschema.dev) builders, contract types and guard builders come from [`@mnaoumov/typescript-lib`](https://github.com/mnaoumov/typescript-lib#api-contracts), and its file guards from [`@mnaoumov/obsidian-lib`](https://www.npmjs.com/package/@mnaoumov/obsidian-lib), so copying it means adding both packages to your dependencies (`npm install @mnaoumov/typescript-lib @mnaoumov/obsidian-lib`, typescript-lib `1.3.0` or later); `api.d.ts` alone needs nothing but `obsidian`. (It is not named `api.ts`: TypeScript would read `api.d.ts` as that file's own declarations.)
+`app.metadataCache.getBacklinksForFile(file)` (the **Backlinks** module) and `app.metadataCache.getLinkSuggestions()` (the **Names** module) keep Obsidian's own signature and answer what Obsidian would, so there is nothing to do to use them.
 
-### The faster core calls
-
-While the **Backlinks** module is on, `app.metadataCache.getBacklinksForFile(file)` is answered from this plugin's cache, and while the **Names** module is on, `app.metadataCache.getLinkSuggestions()` is answered from the name index instead of from a full vault walk. Both keep Obsidian's own signature and answer what Obsidian would, so every plugin that calls them gets the faster answer without knowing this plugin exists. There is nothing to do to use them.
-
-### The published API
-
-Everything beyond that — the titles and heading times core has no method for, and the safe, original and reverse-lookup variants of the two core calls — is published as an API, `AdvancedMetadataCacheApi` in [api.d.ts](./api.d.ts):
+Everything else (the safe, original and reverse-lookup variants of those two calls, titles, heading times, notes by property value or date, and unlinked mentions) is `AdvancedMetadataCacheApi`:
 
 ```ts
 import { watchPluginApi } from '@mnaoumov/obsidian-lib/plugin/plugin-api';
@@ -173,165 +95,13 @@ const apiRef = watchPluginApi<AdvancedMetadataCacheApi>({
 // on its own once it is.
 const api = apiRef.value;
 if (api) {
-  console.log(api.getTitlePropertyNames()); // ['title']
   console.log(api.getTitles('Notes/Some note.md')); // ['The Real Name']
 }
 ```
 
-The handle comes from the `@mnaoumov/obsidian-lib` plugin registry; [Cross-plugin APIs](https://mnaoumov.dev/obsidian-lib/guides/cross-plugin-apis/) covers `watchPluginApi` and the registry from the library's side. The contract version moves independently of the plugin's own, so ask for a range, and ask for the lowest version that has every member you call — each one below says which it arrived in.
-
-#### Backlinks
-
-Added in contract `1.3.0`:
-
-```ts
-const fast = api.getBacklinksForFile(pathOrFile);
-const safe = await api.getBacklinksForFileSafe(pathOrFile);
-const original = api.getBacklinksForFileOriginal(file);
-```
-
-`getBacklinksForFile` reads straight from the cache and accepts a vault path as well as a `TFile`; it may be a moment behind a change Obsidian has not finished processing. `getBacklinksForFileSafe` waits for those changes first. Both answer **`null` while the Backlinks module is off** — call the core method then. `getBacklinksForFileOriginal` is Obsidian's own implementation, bypassing the cache, and always answers. [02 Fast, safe, and original backlinks](<./demo-vault/02 Fast, safe, and original backlinks.md>) runs all three side by side.
-
-#### Names
-
-Added in contract `1.3.0`:
-
-```ts
-const fast = api.getLinkSuggestions();
-const safe = await api.getLinkSuggestionsSafe();
-const original = api.getLinkSuggestionsOriginal();
-
-const paths = api.getPathsByName('Some Alias');
-const safePaths = await api.getPathsByNameSafe('Some Alias');
-```
-
-`getPathsByName` answers "which notes are called this?" — matching a note's own name, any of its `aliases` or any of its [titles](#titles), case-insensitively and with runs of whitespace collapsed, exactly as Obsidian resolves a wikilink. The answer is a **list** and is deliberately unranked: several notes may declare the same alias, and which one the user meant is a question about your context, not about the vault.
-
-**The array `getLinkSuggestions()` answers with is Obsidian's own, entry for entry** — `getLinkSuggestionsOriginal()` is there so you can check. The single exception is the **Offer titles in the `[[` autocomplete** setting described under [Titles](#titles): with it on, the title entries are *appended*, so Obsidian's array stays a strict prefix of what you get and the difference is exactly a suffix. It is off by default, so a consumer that has not been told otherwise can treat the two as identical.
-
-**Use the `Safe` variants when you may be asked early.** The index is built once the metadata cache can answer; until then `getLinkSuggestions()` falls through to Obsidian's implementation and `getPathsByName` answers with nothing. `getLinkSuggestionsSafe()` / `getPathsByNameSafe()` wait for the build. All four answer **`null` while the Names module is off**; `getLinkSuggestionsOriginal` always answers. [05 Name index](<./demo-vault/05 Name index.md>) runs them.
-
-#### Removed in 2.0.0: the members on the core methods
-
-Before `1.3.0` these calls were reached through members this plugin added to the patched core methods. `1.3.0` deprecated them and **2.0.0 removed them**, because nothing of this plugin's own belongs on an Obsidian function: the patched methods now keep Obsidian's own signature and carry nothing else. Each has a replacement on the API:
-
-| Removed                                                     | Use instead                                  |
-|-------------------------------------------------------------|----------------------------------------------|
-| `app.metadataCache.getBacklinksForFile(path)`, with a path  | `api.getBacklinksForFile(path)`              |
-| `app.metadataCache.getBacklinksForFile.safe(pathOrFile)`    | `api.getBacklinksForFileSafe(pathOrFile)`    |
-| `app.metadataCache.getBacklinksForFile.originalFn(file)`    | `api.getBacklinksForFileOriginal(file)`      |
-| `app.metadataCache.getLinkSuggestions.safe()`               | `api.getLinkSuggestionsSafe()`               |
-| `app.metadataCache.getLinkSuggestions.originalFn()`         | `api.getLinkSuggestionsOriginal()`           |
-| `app.metadataCache.getLinkSuggestions.getPathsByName(n)`    | `api.getPathsByName(n)`                      |
-| `app.metadataCache.getLinkSuggestions.getPathsByNameSafe(n)`| `api.getPathsByNameSafe(n)`                  |
-
-#### Titles
-
-`getTitlePropertyNames` and `getTitles` arrived in contract `1.0.0`. Both answer **empty while the Titles module is off**, which is the same answer as "no property is configured" and is meant to be.
-
-`getTitles` is synchronous and lazily memoized per note, so it is safe on a per-keystroke path. Read `getTitlePropertyNames()` and show that list rather than offering a property setting of your own — one place to type `title` is the point of the setting living here.
-
-#### Handing over a title property of your own
-
-A plugin that used to own a title property setting hands its value over with `migrateSettings`, added in contract `1.1.0`. It is the envelope of `@mnaoumov/obsidian-lib`'s `SettingsMigrationApi`, so `SettingsMigrationComponent` drives it for you. Watch this plugin's API with the contract `{ migrateSettings: {} }` and the range `^1`, then propose `{ titlePropertyNames: ['subtitle'] }`. Against a `1.0.0` provider, the offer waits instead of failing.
-
-This plugin owns the list, so it owns the dialog. The dialog names your plugin, shows the proposed names beside the current list, and suggests the proposed names ADDED to that list (a name already on it in any casing is not added twice), which the user can approve, edit or decline. While the Titles module is off, it also offers to switch it on. The call resolves `{ isApplied: false }` on a cancel, so retire your pending value only on `true`. When there is nothing to change, it resolves `true` without showing anything.
-
-#### Heading times
-
-`getHeadingTimes(pathOrFile)`, added in contract `1.2.0`, answers a note's headings in document order, each with its text, level, line and three times, Unix epoch milliseconds:
-
-```ts
-for (const { created, heading, level, modified, seen } of api.getHeadingTimes('Notes/Changelog.md')) {
-  console.log(level, heading, created, modified, seen);
-}
-```
-
-A time is `null` when the plugin did not see the event happen, so sort `null` as the oldest and keep document order among equals. It is synchronous and current as of the last parse Obsidian announced: if you have just edited the note, await `getCacheSafe` from `@mnaoumov/obsidian-lib` first. It answers empty while the **Headings** module is off, and a note that is not tracked yet answers its current headings with every time `null`. Ask for the range `^1.2`.
-
-#### Notes by property value
-
-Added in contract `1.4.0`. Register the property once on load, then ask:
-
-```ts
-api.registerPropertyName('keys');
-
-const paths = api.getPathsByPropertyValue('keys', 'abc123');
-const withKeys = api.getPathsWithProperty('keys');
-
-const safePaths = await api.getPathsByPropertyValueSafe('keys', 'abc123');
-const safeWithKeys = await api.getPathsWithPropertySafe('keys');
-```
-
-`getPathsByPropertyValue` finds the notes whose property holds the value — the property itself when it is a scalar, or one of its members when it is a list. Names and values are matched exactly. A number or a boolean is matched by its string form, so `'7'` finds `keys: 7`, and `null` or an object is never matched. `getPathsWithProperty` finds every note carrying the property at all, `null` and an empty list included. Both answer unordered paths.
-
-**A registration is durable**: it is saved with the index, so at the next startup the property is answered from disk before your plugin has even loaded. There is no unregister; registering again is harmless.
-
-**Use the `Safe` variants when the answer must be current.** At startup the index answers with what the previous session saved, at once, but it does not know yet what changed while Obsidian was closed — a note synced or edited outside Obsidian. Once the metadata cache is ready the index is rebuilt from it, and the `Safe` variants wait for that. All four answer **`null` for a property nobody registered and while the Properties module is off** — scan the vault yourself then. Ask for the range `^1.4`.
-
-#### Notes by date
-
-Added in contract `1.5.0`. Every **date property** is indexed with no registration, in each casing a note spells it, and its values are kept in order. A date property is one whose type is `Date` or `Date & time`, or, since contract `1.6.0`, one whose name matches the **Date properties** setting: exact names, or patterns where `*` stands for anything, matched case-sensitively. The default is `date` and `*Date`, so `birthDate` and `startDate` are date properties whatever their type. A vault that names its dates differently lists its own, e.g. `date_*`, `*DateTime`, `ctime`, `mtime`.
-
-```ts
-// Every dated value in the vault, oldest first.
-const all = api.getDatedValues({});
-
-// Every note dated in the first half of 2026, by one property.
-const due = api.getDatedValues({ from: '2026', propertyNames: ['due'], to: '2026-06' });
-
-// Every birthday from today to a month from now, whatever the year; `from` after `to` wraps the year end.
-const upcoming = api.getDatedValues({ from: '10-26', isRecurring: true, propertyNames: ['birthday'], to: '11-25' });
-
-const safeAll = await api.getDatedValuesSafe({});
-
-// The values of the date properties that are not dates, which every answer above leaves out.
-const skipped = await api.getNonDateValuesSafe();
-```
-
-Each entry is `{ path, propertyName, value }`, and a list property gives one entry per date it lists. A value counts as a date when it is shaped `YYYY-MM-DD`, optionally followed by `THH:mm`, `THH:mm:ss` or `THH:mm:ss.sss`: what Obsidian's own date pickers write. A registered property of any type contributes the values of that shape too. A date property also counts a year or a month alone, since contract `1.6.0`.
-
-What a value may carry beyond that, since contract `1.6.0`:
-
-| Value | Example | Handled as |
-| --- | --- | --- |
-| A date, or a datetime with no zone | `2026-10-26`, `2026-10-26T09:30` | A date. |
-| A datetime with an ISO 8601 offset | `2026-10-26T00:21:46-06:00`, `2026-10-26T09:30Z` | A date, **ordered and matched by the date and time as written**, the offset dropped. |
-| A datetime with an RFC 9557 time zone, after or instead of the offset | `2026-10-26T09:30+02:00[Europe/Kyiv]` | The same as an offset. |
-| A year, or a year and a month, in a date property | `2019`, `2019-05` | A date of **reduced precision**, standing for its whole year or month. See below. |
-| Anything else: a time alone, a space instead of the `T`, a zone name without brackets, free text | `14:30`, `2026-10-26 09:30`, `next week` | Not a date: left out, never guessed. |
-
-**A zoned value sorts by its wall-clock time, not by its instant**, so `2026-10-26T23:00-06:00` is found on the 26th, the day the note says, although it is the 27th in UTC. Mixed with values without a zone, which have no instant at all, that is the only order every value has. Two values with the same wall-clock time are ordered by their text, and the bounds of a query never carry a zone. Each entry still reports the value as written, zone included, so a consumer that wants the instant parses it itself.
-
-**A partly known date is written with reduced precision, as ISO 8601 has it**: `closedDate: 2019` when only the year is known, `closedDate: 2019-05` when the month is known too. Such a value means *some time in 2019*, not *the 1st of January 2019*, and the index never treats it as one day:
-
-- It is reported as written, `2019` or `2019-05`, never padded, so its precision is the length of its `value`. An unquoted `2019` is a YAML number, and it is reported as `'2019'` all the same.
-- It sorts at the start of its period: `2019` before `2019-01-01`, `2019-05` before `2019-05-01`.
-- A range matches it whenever the two **overlap**: `{ from: '2019-05-10', to: '2019-05-20' }` lists both `2019` and `2019-05`, because either may have been in those days. Drop the short values when you want only the dates certainly in the range.
-- With `isRecurring` on, a year alone has no month and day and is skipped, and `2019-05` matches any range that touches May.
-- It counts only in a **date property**, by type or by name. A registered `pages` property holding `1500` is not a year.
-
-Obsidian's own `Date` property type shows such a value as the first day of its period: `2019` reads as `2019-01-01` in the date picker, and picking a date there writes a full date in its place. Showing it writes nothing back, and the value in the note stays valid ISO 8601. To keep reduced precision visible while editing, leave such a property as `Text` and make it a date property by name instead, which the default `*Date` pattern already does for `closedDate`.
-
-`getNonDateValues` lists the values of the date properties that are not dates, ordered by path, then property name, then value, so a typo in a `birthDate` can be found rather than silently missing from every range.
-
-Both bounds are **inclusive and compared as prefixes**, so `to: '2026-06'` includes the whole of June and `to: '2026-06-30'` includes `2026-06-30T23:59`; leave a bound out for no bound. With `isRecurring` on, the bounds are a month and day (`'10-26'`) or a month (`'10'`), and the answer is ordered by month and day, then by year. Otherwise it is ordered by value. Ties are broken by property name, then by path.
-
-A property is registered the first time a note carries it as a date property, when the type is assigned to it, or when a name added to the setting matches it, and like any registration that lasts: changing its type back, or taking the name off the setting, keeps it indexed. The answer is `null` when `propertyNames` names a property that is not indexed, and while the Properties module is off. Ask for the range `^1.5`, or `^1.6` for `getNonDateValues`.
+The handle comes from the `@mnaoumov/obsidian-lib` plugin registry; [Cross-plugin APIs](https://mnaoumov.dev/obsidian-lib/guides/cross-plugin-apis/) covers `watchPluginApi` and the registry from the library's side. The contract version moves independently of the plugin's own, so ask for a range, and ask for the lowest version that has every member you call; the reference says which version each one arrived in.
 
 If you would rather not depend on `@mnaoumov/obsidian-lib` for the handle, the registry is a documented wire protocol you can read directly — see [Plugin API protocol](https://mnaoumov.dev/obsidian-lib/guides/plugin-api-protocol/).
-
-#### Unlinked mentions
-
-Added in contract `1.7.0`:
-
-```ts
-for (const { path, ranges } of await api.getUnlinkedMentions('Notes/Some note.md') ?? []) {
-  console.log(path, ranges.map(({ end, start }) => `${String(start)}-${String(end)}`));
-}
-```
-
-`getUnlinkedMentions(pathOrFile)` answers the notes the Backlinks pane's **Unlinked mentions** section lists for a note, ordered by path, each with the spans of its text that mention the note, as UTF-16 offsets from the start of the file, ordered by position. It is always asynchronous, because each candidate note is read to confirm its matches, and it waits for the index to be built first. It answers **`null` while the Unlinked mentions module is off** — read the vault yourself then. Ask for the range `^1.7`.
 
 ## Installation
 

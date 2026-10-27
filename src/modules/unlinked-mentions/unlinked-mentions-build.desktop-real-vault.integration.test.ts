@@ -15,7 +15,7 @@ import type { PluginApiRegistryHolder } from '../../../scripts/helpers/plugin-ap
 /*
  * What the `Unlinked mentions` module costs to build on a vault whose notes hold real text, which the generated
  * performance vault's empty filler notes cannot say. Opt-in: `integration-tests:real-vault` copies the notes of the
- * vault named by `AMC_REAL_VAULT_PATH`, and this suite prints the numbers the README quotes.
+ * vault named by `AMC_REAL_VAULT_PATH`, and this suite prints the numbers the demo vault's 09 Unlinked mentions note quotes.
  *
  * Three timings, each to the first answer of `getUnlinkedMentions`, which waits for the build:
  *
