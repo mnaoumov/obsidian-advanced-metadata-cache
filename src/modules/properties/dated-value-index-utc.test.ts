@@ -10,6 +10,21 @@ import type { DatedValuesQuery } from '../../plugin-api.ts';
 import { DatedValueIndex } from './dated-value-index.ts';
 
 describe('UTC date queries', () => {
+  it('orders and bounds instants that cross the four-digit year boundary', () => {
+    const index = new DatedValueIndex();
+    index.add({ path: 'A.md', propertyName: 'date', value: '9999-12-31T20:00Z' });
+    index.add({ path: 'B.md', propertyName: 'date', value: '9999-12-31T23:30-02:00' });
+    expect(paths(index, { from: '9999-12-31T00:00Z', missingTimeZone: 'skip', to: '9999-12-31T23:59-23:59' })).toEqual(['A.md', 'B.md']);
+  });
+
+  it('retains zone-free periods at both ends of the four-digit calendar', () => {
+    const index = new DatedValueIndex();
+    index.add({ path: 'First.md', propertyName: 'date', value: '0000-01-01' });
+    index.add({ path: 'Last.md', propertyName: 'date', value: '9999-12-31' });
+    expect(paths(index, { from: '0000-01-01T00:00Z', missingTimeZone: 'utc', to: '0000-01-01T00:00Z' })).toEqual(['First.md']);
+    expect(paths(index, { from: '9999-12-31T00:00Z', missingTimeZone: 'utc', to: '9999-12-31T23:59-23:59' })).toEqual(['Last.md']);
+  });
+
   function createIndex(): DatedValueIndex {
     const index = new DatedValueIndex();
     for (

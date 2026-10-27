@@ -69,6 +69,13 @@ interface LocalDatedValue extends DatedValue {
 }
 
 const UTC_CANDIDATE_PADDING = 172_800_000;
+// A positive, fixed-width epoch key preserves order when an offset pushes a four-digit year into
+// year -1 or 10000, where Date.toISOString switches to a signed, extended year.
+const INSTANT_KEY_OFFSET = 1_000_000_000_000_000;
+const INSTANT_KEY_LENGTH = String(INSTANT_KEY_OFFSET).length;
+const MIN_CALENDAR_INSTANT = Date.parse('0000-01-01T00:00Z');
+const MAX_CALENDAR_INSTANT = Date.parse('9999-12-31T23:59:59.999Z');
+const CALENDAR_DATE_LENGTH = 'YYYY-MM-DD'.length;
 
 const DATE_PATTERN = String.raw`\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])`;
 const TIME_PATTERN = String.raw`T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?`;
@@ -304,7 +311,7 @@ export class DatedValueIndex {
     if (from > to) {
       return [];
     }
-    const entries = this.byInstant.getRange(Number.isFinite(from) ? new Date(from).toISOString() : '', Number.isFinite(to) ? new Date(to).toISOString() : undefined)
+    const entries = this.byInstant.getRange(Number.isFinite(from) ? getInstantKey(from) : '', Number.isFinite(to) ? getInstantKey(to) : undefined)
       .filter((entry) => isIncluded(entry.propertyName));
     if (policy !== 'skip') {
       entries.push(...this.getZonelessValues({ ...params, from, to, zone }));
@@ -323,8 +330,8 @@ export class DatedValueIndex {
     // All IANA offsets, including a skipped calendar day, fit within this two-day envelope.
     // Reduced precision entries preceding the lower bound are included by getRange's period slices.
     const candidates = this.byValue.getRange(
-      Number.isFinite(from) ? new Date(from - UTC_CANDIDATE_PADDING).toISOString().slice(0, -1) : '',
-      Number.isFinite(to) ? new Date(to + UTC_CANDIDATE_PADDING).toISOString().slice(0, -1) : undefined
+      Number.isFinite(from) ? getCandidateDateKey(from - UTC_CANDIDATE_PADDING) : '',
+      Number.isFinite(to) ? getCandidateDateKey(to + UTC_CANDIDATE_PADDING) : undefined
     );
     for (const entry of candidates) {
       if (hasTimeZone(entry.value) || !isIncluded(entry.propertyName) || (entry.isReduced && !isDateProperty(entry.propertyName))) {
@@ -338,7 +345,7 @@ export class DatedValueIndex {
       if (query.missingTimeZone === 'fail') {
         throw new RangeError(`Missing time zone: ${entry.value} (${entry.path}, ${entry.propertyName})`);
       }
-      entries.push({ ...entry, localValue: new Date(period.start).toISOString() });
+      entries.push({ ...entry, localValue: getInstantKey(period.start) });
     }
     return entries;
   }
@@ -396,6 +403,15 @@ function compareStrings(string1: string, string2: string): number {
   return string1 < string2 ? -1 : 1;
 }
 
+function getCandidateDateKey(instant: number): string {
+  const clamped = Math.max(MIN_CALENDAR_INSTANT, Math.min(MAX_CALENDAR_INSTANT, instant));
+  return new Date(clamped).toISOString().slice(0, CALENDAR_DATE_LENGTH);
+}
+
+function getInstantKey(instant: number): string {
+  return String(INSTANT_KEY_OFFSET + instant).padStart(INSTANT_KEY_LENGTH, '0');
+}
+
 function getMonthDayKey(entry: LocalDatedValue): string {
   return entry.localValue.slice(YEAR_LENGTH);
 }
@@ -406,7 +422,7 @@ function getValueKey(entry: LocalDatedValue): string {
 
 function toInstantEntry(entry: LocalDatedValue): LocalDatedValue | null {
   try {
-    return { ...entry, localValue: new Date(getInstantPeriod(entry.value, 'UTC').start).toISOString() };
+    return { ...entry, localValue: getInstantKey(getInstantPeriod(entry.value, 'UTC').start) };
   } catch (error) {
     // Wall-clock indexing has always accepted date SHAPES. An unknown zone or an impossible calendar
     // date must not break that index or a metadata-change listener; it simply supplies no UTC instant.
