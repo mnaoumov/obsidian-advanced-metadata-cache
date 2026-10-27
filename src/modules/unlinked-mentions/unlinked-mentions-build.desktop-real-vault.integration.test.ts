@@ -39,7 +39,9 @@ interface BuildTimings {
 }
 
 interface TimingsHolder {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The benchmark replaces and clears its shared run state.
   __amcRealVaultRun?: Promise<void>;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The benchmark replaces and clears its shared run state.
   __amcRealVaultTimings?: BuildTimings;
 }
 

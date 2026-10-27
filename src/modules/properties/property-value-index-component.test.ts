@@ -44,7 +44,7 @@ import {
  * The part of the settings component both read: its settings, and the event a settings change fires.
  */
 interface SettingsComponentStub extends Events {
-  settings: PluginSettings;
+  readonly settings: PluginSettings;
 }
 
 const DATA_FILE_PATH = 'property-values.json';

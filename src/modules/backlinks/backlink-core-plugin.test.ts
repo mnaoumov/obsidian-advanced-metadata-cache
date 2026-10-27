@@ -48,11 +48,12 @@ import {
 } from './backlink-core-plugin.ts';
 
 interface BacklinksCorePluginComponentInternals {
-  patchBacklinksPane: () => Promise<boolean>;
-  patchLateBacklinks: () => Promise<void>;
+  readonly patchBacklinksPane: () => Promise<boolean>;
+  readonly patchLateBacklinks: () => Promise<void>;
 }
 
 interface BacklinksCorePluginStub {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Tests toggle the core plugin during its lifecycle.
   enabled: boolean;
 }
 
@@ -61,8 +62,8 @@ interface LoadedBacklinksCorePluginComponent {
   readonly component: BacklinksCorePluginComponent;
   readonly getLeavesOfType: ReturnType<typeof vi.fn>;
   readonly on: ReturnType<typeof vi.fn>;
-  triggerChange: () => void;
-  triggerLayoutChange: () => void;
+  readonly triggerChange: () => void;
+  readonly triggerLayoutChange: () => void;
   readonly workspaceOn: ReturnType<typeof vi.fn>;
 }
 

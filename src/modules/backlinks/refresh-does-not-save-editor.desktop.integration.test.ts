@@ -30,7 +30,7 @@ import type { PluginApiRegistryHolder } from '../../../scripts/helpers/plugin-ap
  */
 
 interface BacklinkStatus {
-  hasBacklink: boolean;
+  readonly hasBacklink: boolean;
 }
 
 const SOURCE_PATH = 'refresh-source.md';

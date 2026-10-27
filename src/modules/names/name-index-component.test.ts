@@ -26,6 +26,7 @@ import { PluginSettings } from '../../plugin-settings.ts';
 import { TitleIndex } from '../titles/title-index.ts';
 
 interface LinkSuggestionsSource {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Tests replace the core method to exercise patch installation.
   getLinkSuggestions: () => unknown;
 }
 

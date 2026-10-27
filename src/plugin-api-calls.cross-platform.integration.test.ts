@@ -39,14 +39,14 @@ import { applyPluginSettings } from '../scripts/helpers/names-module.ts';
  * module's scope but cannot carry a value across.
  */
 interface AdvancedMetadataCacheApi {
-  getBacklinksForFile: (pathOrFile: string | TFile) => BacklinksDict | null;
-  getBacklinksForFileOriginal: (file: TFile) => BacklinksDict;
-  getBacklinksForFileSafe: (pathOrFile: string | TFile) => Promise<BacklinksDict | null>;
-  getLinkSuggestions: () => LinkSuggestion[] | null;
-  getLinkSuggestionsOriginal: () => LinkSuggestion[];
-  getLinkSuggestionsSafe: () => Promise<LinkSuggestion[] | null>;
-  getPathsByName: (name: string) => null | string[];
-  getPathsByNameSafe: (name: string) => Promise<null | string[]>;
+  readonly getBacklinksForFile: (pathOrFile: string | TFile) => BacklinksDict | null;
+  readonly getBacklinksForFileOriginal: (file: TFile) => BacklinksDict;
+  readonly getBacklinksForFileSafe: (pathOrFile: string | TFile) => Promise<BacklinksDict | null>;
+  readonly getLinkSuggestions: () => LinkSuggestion[] | null;
+  readonly getLinkSuggestionsOriginal: () => LinkSuggestion[];
+  readonly getLinkSuggestionsSafe: () => Promise<LinkSuggestion[] | null>;
+  readonly getPathsByName: (name: string) => null | string[];
+  readonly getPathsByNameSafe: (name: string) => Promise<null | string[]>;
 }
 
 /**
@@ -66,7 +66,7 @@ interface ApiCallsResult {
 }
 
 interface BacklinksDict {
-  keys: () => string[];
+  readonly keys: () => string[];
 }
 
 interface ObsidianLibStateBag {

@@ -16,7 +16,7 @@ export interface ModuleSwitchResult {
  * The settings component, seen through the one method a suite needs.
  */
 export interface PluginSettingsEditor {
-  editAndSave: (editor: (settings: SwitchablePluginSettings) => void) => Promise<void>;
+  readonly editAndSave: (editor: (settings: SwitchablePluginSettings) => void) => Promise<void>;
 }
 
 /**
@@ -24,21 +24,23 @@ export interface PluginSettingsEditor {
  * settings component.
  */
 export interface SettingsEditorPlugin extends Plugin {
-  pluginSettingsComponent: PluginSettingsEditor;
+  readonly pluginSettingsComponent: PluginSettingsEditor;
 }
 
 /**
  * The settings a suite switches.
  */
 export interface SwitchablePluginSettings {
-  defaultTimeZone: string;
-  isHeadingsModuleEnabled: boolean;
+  readonly defaultTimeZone: string;
+  readonly isHeadingsModuleEnabled: boolean;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Integration tests toggle this module through the settings object.
   isNamesModuleEnabled: boolean;
-  isPropertiesModuleEnabled: boolean;
-  isTitlesModuleEnabled: boolean;
+  readonly isPropertiesModuleEnabled: boolean;
+  readonly isTitlesModuleEnabled: boolean;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Integration tests toggle this module through the settings object.
   isUnlinkedMentionsModuleEnabled: boolean;
-  shouldOfferTitlesInLinkSuggestions: boolean;
-  titlePropertyNames: string[];
+  readonly shouldOfferTitlesInLinkSuggestions: boolean;
+  readonly titlePropertyNames: string[];
 }
 
 /**

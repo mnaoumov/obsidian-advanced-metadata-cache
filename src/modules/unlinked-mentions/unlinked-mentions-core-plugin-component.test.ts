@@ -33,8 +33,8 @@ import { UnlinkedMentionsCorePluginComponent } from './unlinked-mentions-core-pl
 /* eslint-enable import-x/first, import-x/imports-first -- End of the mocked imports. */
 
 interface UnlinkedMentionsCorePluginComponentInternals {
-  createPanePatchComponent: (backlinkComponent: BacklinkComponent) => Component;
-  recomputeLatePatchedBacklinkComponent: (backlinkComponent: BacklinkComponent) => void;
+  readonly createPanePatchComponent: (backlinkComponent: BacklinkComponent) => Component;
+  readonly recomputeLatePatchedBacklinkComponent: (backlinkComponent: BacklinkComponent) => void;
 }
 
 describe('UnlinkedMentionsCorePluginComponent', () => {

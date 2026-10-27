@@ -99,31 +99,31 @@ vi.mock('./canvas.ts', () => ({
 }));
 
 interface ComponentInternals {
-  backlinksMap: Map<string, Map<string, Set<Reference>>>;
-  linksMap: Map<string, Set<string>>;
-  onLayoutReady: () => Promise<void>;
-  pendingActions: Map<string, number>;
-  processPendingActions: () => Promise<void>;
-  refreshBacklinks: (path: string) => void;
-  removeLinkedPathEntries: (path: string) => void;
-  resolvedBasenameMap: Map<string, Set<string>>;
-  unresolvedBasenameMap: Map<string, Set<string>>;
-  unresolvedLinksMap: Map<string, Set<string>>;
+  readonly backlinksMap: Map<string, Map<string, Set<Reference>>>;
+  readonly linksMap: Map<string, Set<string>>;
+  readonly onLayoutReady: () => Promise<void>;
+  readonly pendingActions: Map<string, number>;
+  readonly processPendingActions: () => Promise<void>;
+  readonly refreshBacklinks: (path: string) => void;
+  readonly removeLinkedPathEntries: (path: string) => void;
+  readonly resolvedBasenameMap: Map<string, Set<string>>;
+  readonly unresolvedBasenameMap: Map<string, Set<string>>;
+  readonly unresolvedLinksMap: Map<string, Set<string>>;
 }
 
 interface DifferentialCase {
-  existingSources: Set<string>;
-  fileNames: string[];
-  graph: LinkGraph;
-  name: string;
+  readonly existingSources: Set<string>;
+  readonly fileNames: string[];
+  readonly graph: LinkGraph;
+  readonly name: string;
 }
 
 interface EventHandlers {
-  changed: (file: TFile) => void;
-  create: (file: TAbstractFile) => void;
-  delete: (file: TAbstractFile) => void;
-  modify: (file: TAbstractFile) => void;
-  rename: (file: TAbstractFile, oldPath: string) => void;
+  readonly changed: (file: TFile) => void;
+  readonly create: (file: TAbstractFile) => void;
+  readonly delete: (file: TAbstractFile) => void;
+  readonly modify: (file: TAbstractFile) => void;
+  readonly rename: (file: TAbstractFile, oldPath: string) => void;
 }
 
 type GetBacklinksForFileFunction = (path: string) => CustomArrayDict<Reference>;
@@ -131,20 +131,21 @@ type GetBacklinksForFileFunction = (path: string) => CustomArrayDict<Reference>;
 type LinkGraph = Map<string, SourceLinks>;
 
 interface MutableAbortSignal {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The abort mock changes state while a refresh is in flight.
   aborted: boolean;
-  throwIfAborted: ReturnType<typeof vi.fn>;
+  readonly throwIfAborted: ReturnType<typeof vi.fn>;
 }
 
 interface SourceLinks {
-  resolved: string[];
-  unresolved: string[];
+  readonly resolved: string[];
+  readonly unresolved: string[];
 }
 
 interface TestContext {
-  abortSignal: MutableAbortSignal;
-  app: App;
-  component: BacklinkCacheComponent;
-  settings: PluginSettings;
+  readonly abortSignal: MutableAbortSignal;
+  readonly app: App;
+  readonly component: BacklinkCacheComponent;
+  readonly settings: PluginSettings;
 }
 
 function addToSet(map: Map<string, Set<string>>, key: string, value: string): void {

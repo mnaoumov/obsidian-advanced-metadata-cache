@@ -32,7 +32,7 @@ import { applyPluginSettings } from '../../../scripts/helpers/names-module.ts';
  * The published API member this suite calls, as `api.d.ts` declares it.
  */
 interface AdvancedMetadataCacheApi {
-  getUnlinkedMentions: (pathOrFile: string) => Promise<null | UnlinkedMention[]>;
+  readonly getUnlinkedMentions: (pathOrFile: string) => Promise<null | UnlinkedMention[]>;
 }
 
 interface ObsidianLibStateBag {
