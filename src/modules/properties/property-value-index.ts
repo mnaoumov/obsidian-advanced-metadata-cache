@@ -140,6 +140,7 @@ export class PropertyValueIndex {
 
   private readonly app: App;
   private readonly datedValueIndex = new DatedValueIndex();
+  private generation = 0;
   private readonly getDataFilePath: () => string;
   private isDirtyValue = false;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
@@ -157,6 +158,7 @@ export class PropertyValueIndex {
    * Forgets every value held in memory, keeping the registered names. The file on disk is left alone.
    */
   public clear(): void {
+    this.generation++;
     this.datedValueIndex.clear();
 
     for (const propertyName of this.propertyValuesByName.keys()) {
@@ -310,8 +312,9 @@ export class PropertyValueIndex {
    */
   public async load(): Promise<void> {
     this.clear();
+    const generation = this.generation;
     const json = await this.storage.read();
-    if (json === null) {
+    if (json === null || generation !== this.generation) {
       return;
     }
     const persisted = parsePersistedPropertyValues(json);
@@ -435,7 +438,11 @@ export class PropertyValueIndex {
   Imports registrations from other devices; the component fills new names from core's cache.
   */
   public async synchronize(): Promise<boolean> {
+    const generation = this.generation;
     const json = await this.storage.read();
+    if (generation !== this.generation) {
+      return false;
+    }
     const persisted = json === null ? null : parsePersistedPropertyValues(json);
     let hasNewNames = false;
     for (const name of Object.keys(persisted?.properties ?? {})) {

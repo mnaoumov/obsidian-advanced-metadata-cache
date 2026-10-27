@@ -8,7 +8,9 @@ import type {
 } from 'obsidian-test-mocks/obsidian';
 import type { Mock } from 'vitest';
 
+import { ensureMetadataCacheReady } from '@mnaoumov/obsidian-lib/metadata-cache';
 import { setTimeoutAsync } from '@mnaoumov/typescript-lib/async';
+import { noopAsync } from '@mnaoumov/typescript-lib/function';
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { waitForAllAsyncOperations } from '@mnaoumov/typescript-test-toolkit/async-operation-tracking';
 import { Component } from 'obsidian';
@@ -23,6 +25,8 @@ import {
 } from 'vitest';
 
 import type { UnlinkedMentionMatch } from './unlinked-mentions-component.ts';
+
+import { UnlinkedMentionIndex } from './unlinked-mention-index.ts';
 
 interface MentionsCheckpoint {
   readonly isDirty: boolean;
@@ -448,7 +452,9 @@ describe('UnlinkedMentionsComponent', () => {
   it('should ignore its own journals during builds, changes, renames, restores and direct matching', async () => {
     const alpha = createNote('Alpha.md');
     const journal = createNote('Plugin data/advanced-metadata-cache/history/journal.md', 'alpha');
+    const cachedRead = vi.spyOn(app.vault, 'cachedRead');
     await load();
+    expect(cachedRead).not.toHaveBeenCalledWith(journal);
     app.metadataCache.trigger('changed', journal, 'alpha', app.metadataCache.getFileCache(journal));
     expect(await component.getUnlinkedMentionIn(asOriginal(alpha), asOriginal(journal))).toBeNull();
     expect(await component.getUnlinkedMentions(asOriginal(alpha))).toEqual([]);
@@ -459,6 +465,20 @@ describe('UnlinkedMentionsComponent', () => {
     await unloadComponent();
   });
 
+  it('should ignore a note moved into the transport folder while its text was being read', async () => {
+    const alpha = createNote('Alpha.md');
+    const moving = createNote('Moving.md', 'alpha');
+    vi.spyOn(app.vault, 'cachedRead').mockImplementation(async (file) => {
+      const content = app.vault.readSync__(file);
+      if (file === moving) {
+        await app.fileManager.renameFile(moving, 'Plugin data/advanced-metadata-cache/history/moved.md');
+      }
+      return content;
+    });
+    await load();
+    expect(await component.getUnlinkedMentions(asOriginal(alpha))).toEqual([]);
+    await unloadComponent();
+  });
   it('should retain a failed checkpoint for retry and close the connection on unload', async () => {
     const write = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
     const close = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
@@ -471,6 +491,29 @@ describe('UnlinkedMentionsComponent', () => {
     await unloadComponent();
     expect(write).toHaveBeenCalledTimes(2);
     expect(close).toHaveBeenCalledOnce();
+  });
+  it.each(['metadata', 'persistence'] as const)('should not open or restore persistence after unloading during %s readiness', async (phase) => {
+    const file = createNote('Alpha.md');
+    const saved = JSON.stringify({ cleanKeys: [], keys: [], notes: { [file.path]: { keys: [], mtime: file.stat.mtime, size: file.stat.size } }, version: 1 });
+    const read = vi.fn<() => Promise<null | string>>(() => {
+      component.unload();
+      return Promise.resolve(saved);
+    });
+    const restore = vi.spyOn(UnlinkedMentionIndex.prototype, 'restoreText');
+    component = new UnlinkedMentionsComponent({ app: castTo<AppOriginal>(app), getDataFilePath: (): string => DATA_FILE_PATH, storage: { read, write: noopAsync } });
+    if (phase === 'metadata') {
+      vi.mocked(ensureMetadataCacheReady).mockImplementationOnce(() => {
+        component.unload();
+        return noopAsync();
+      });
+    }
+    try {
+      await load();
+      expect(restore).not.toHaveBeenCalled();
+      expect(read).toHaveBeenCalledTimes(phase === 'metadata' ? 0 : 1);
+    } finally {
+      restore.mockRestore();
+    }
   });
   function createComponent(): UnlinkedMentionsComponent {
     return new UnlinkedMentionsComponent({ app: castTo<AppOriginal>(app), getDataFilePath: () => DATA_FILE_PATH });

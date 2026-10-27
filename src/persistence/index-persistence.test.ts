@@ -29,6 +29,33 @@ function headingIndex(storage: IndexStorage): HeadingTimesIndex {
 }
 
 describe('index persistence integration', () => {
+  it('should not reopen or repopulate heading persistence after unloading during a save', async () => {
+    const read = vi.fn<IndexStorage['read']>().mockResolvedValue(JSON.stringify({ notes: { 'A.md': NOTE }, version: 1 }));
+    const write = vi.fn<IndexStorage['write']>();
+    const index = headingIndex({ read, write });
+    index.trackEmpty('A.md', 1);
+    write.mockImplementation(() => {
+      index.clear();
+      return noopAsync();
+    });
+    await index.synchronize();
+    expect(read).not.toHaveBeenCalled();
+    expect(index.getPaths()).toEqual([]);
+  });
+
+  it('should discard property loads and synchronization completed after unload', async () => {
+    const read = vi.fn<IndexStorage['read']>();
+    const index = new PropertyValueIndex({ app: castTo<ObsidianApp>(App.createConfigured__()), getDataFilePath: (): string => 'legacy.json', pluginSettingsComponent: strictProxy<PluginSettingsComponent>({ settings: new PluginSettings() }), storage: { read, write: noopAsync } });
+    index.register('sticky');
+    read.mockImplementation(() => {
+      index.clear();
+      return Promise.resolve(JSON.stringify({ properties: { remote: { 'A.md': ['value'] } }, version: 1 }));
+    });
+    await index.load();
+    expect(index.getPropertyNames()).toEqual(['sticky']);
+    expect(await index.synchronize()).toBe(false);
+    expect(index.getPropertyNames()).toEqual(['sticky']);
+  });
   it('should merge shared times, adopt new notes, remove retired paths and retain dormant history', async () => {
     const write = vi.fn(noopAsync);
     const storage = { read: (): Promise<null | string> => Promise.resolve(JSON.stringify({ notes: { 'A.md': NOTE, 'B.md': NOTE }, version: 1 })), write };

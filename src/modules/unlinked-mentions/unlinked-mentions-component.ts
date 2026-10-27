@@ -242,6 +242,9 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
   private async build(): Promise<void> {
     // An alias read before the cache can answer would be indexed as absent, with no later event to say otherwise.
     await ensureMetadataCacheReady(this.app);
+    if (this.isUnloaded()) {
+      return;
+    }
 
     for (const file of this.app.vault.getFiles()) {
       if (isPluginDataPath(file.path)) {
@@ -251,6 +254,9 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
     }
 
     const saved = await this.readSaved();
+    if (this.isUnloaded()) {
+      return;
+    }
     if (saved) {
       await this.restore(saved);
     } else {
@@ -422,22 +428,19 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
    */
   private async scanFiles(files: readonly TFile[]): Promise<void> {
     await forEachBatch(files, async (file) => {
-      if (this.isUnloaded()) {
+      if (this.isUnloaded() || isPluginDataPath(file.path)) {
         return;
       }
 
       const content = await this.app.vault.cachedRead(file);
       // A note deleted or renamed during the read is the event handlers' to account for.
-      if (!this.isUnloaded() && this.app.vault.getFileByPath(file.path) === file) {
+      if (!this.isUnloaded() && !isPluginDataPath(file.path) && this.app.vault.getFileByPath(file.path) === file) {
         this.setText(file, content);
       }
     });
   }
 
   private setText(file: TFile, content: string): void {
-    if (isPluginDataPath(file.path)) {
-      return;
-    }
     this.index.setText(file.path, content);
     this.scannedStats.set(file.path, { mtime: file.stat.mtime, size: file.stat.size });
     this.markDirty();

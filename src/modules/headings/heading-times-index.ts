@@ -353,8 +353,12 @@ export class HeadingTimesIndex {
 
    */
   public async synchronize(): Promise<void> {
+    const generation = this.generation;
     if (this.isDirtyValue) {
       await this.save();
+    }
+    if (generation !== this.generation) {
+      return;
     }
     const revision = this.revision;
     const json = await this.storage.read();
