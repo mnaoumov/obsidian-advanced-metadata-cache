@@ -1,7 +1,7 @@
 /**
  * @file
  *
- * Integration suite that exercises every backlinks and names call the README documents on the
+ * Integration suite that exercises every backlinks and names call docs/api.md documents on the
  * published API (contract `1.3.0`), the replacements for the members once grafted onto the patched
  * core methods:
  *
@@ -132,7 +132,7 @@ describe('README plugin API calls for backlinks and names', () => {
     expect(result.pathsByAlias).toEqual([TARGET_PATH]);
     expect(result.pathsByAliasSafe).toEqual([TARGET_PATH]);
 
-    // `getLinkSuggestionsOriginal` is Obsidian's own walk: this is the parity check the README offers it for.
+    // `getLinkSuggestionsOriginal` is Obsidian's own walk: this is the parity check docs/api.md offers it for.
     expect(result.fastCount).toBe(result.originalCount);
     expect(result.safeCount).toBe(result.originalCount);
 

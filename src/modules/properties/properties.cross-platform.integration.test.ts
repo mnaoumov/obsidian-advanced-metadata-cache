@@ -225,7 +225,7 @@ describe('Properties module', () => {
     expect(result.nonDates?.filter((entry) => entry.propertyName === NAMED_DATE_PROPERTY_NAME)).toEqual([note3]);
     expect(result.unquotedYearType).toBe('number');
     expect(result.reduced).toEqual([note4, note5]);
-    // Obsidian's own date widget shows each as the first day of its period, which the README warns about;
+    // Obsidian's own date widget shows each as the first day of its period, which docs/api.md warns about;
     // showing it writes nothing back.
     expect(result.dateWidgetShows).toEqual({ '2019': '2019-01-01', '2019-05': '2019-05-01' });
     expect(result.dateWidgetWrites).toEqual([]);

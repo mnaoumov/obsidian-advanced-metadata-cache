@@ -32,7 +32,7 @@ asked core got Obsidian's answer; the on/off tripwire reported exactly 1.0 for i
 quickly.
 
 The cost is that the presence of the patch says nothing about whether the index is ready — which is what
-the API's `getLinkSuggestionsSafe()` and `getPathsByNameSafe()` are for, and what the README tells
+the API's `getLinkSuggestionsSafe()` and `getPathsByNameSafe()` are for, and what `docs/api.md` tells
 consumers to use when they may be asked early. A test that waits for the patch to appear and then
 measures is measuring Obsidian; the tripwire suite in this module was written that way once and reported
 a speedup of exactly 1.0.
@@ -63,7 +63,7 @@ callers ask repeatedly about the same note.
 
 **A title becomes a NAME unconditionally, and a `LinkSuggestion` entry only on request.**
 `getSuggestions()` replaces `metadataCache.getLinkSuggestions()` and its contract is that it returns
-the array Obsidian would; the README, the demo vault and `get-link-suggestions-on-off-tripwire` all
+the array Obsidian would; `docs/api.md`, the demo vault and `get-link-suggestions-on-off-tripwire` all
 rest on that. The reverse map is this plugin's own answer to a question the built-in flat array cannot
 answer at all, so widening it costs no parity — and it is never gated.
 
@@ -95,7 +95,7 @@ after a move), then same gap between paired neighbors (a rename plus an edit), a
 **Level is never part of identity**, and `modified` is a change in the SUBTREE hash (level, text and
 everything under it), so reordering sibling sections, which is what a sort does, stamps nothing. Its two
 known blind spots (delete-and-retype reads as a move; same-text headings that swap keep each other's
-history) are stated in the file header and the README rather than patched with heuristics.
+history) are stated in the file header and the demo vault's `07 Heading times` rather than patched with heuristics.
 
 **A time the plugin did not see is `null`, never guessed.** A note is tracked from its first open,
 create or `changed` while the module is on; at that first sight every heading is a baseline with no
@@ -156,7 +156,7 @@ empty and match every recurring range). It enters the arrays from ANY property b
 property, and `DatedValueIndex.getDatedValues` asks that per query through its `isDateProperty` callback: a
 bare `1500` in a registered `pages` is not a year, and a check at query time needs no re-index when a type
 or the setting changes. Obsidian's `date` widget shows such a value padded (`2019-01-01`), which the
-integration suite pins and the README warns about.
+integration suite pins and `docs/api.md` warns about.
 
 A **date property** is one whose ASSIGNED type (`metadataTypeManager.getAssignedWidget`, i.e. `types.json`) is
 `date` or `datetime`, OR whose name matches the `datePropertyNames` setting (exact names or `*` patterns,
@@ -238,7 +238,7 @@ alone.
 **Nothing of this plugin's own is ever hung on an Obsidian function or object.** Each patch's
 `postPatchHandler` only records the method it replaced; it returns nothing, so the patched method is
 Obsidian's signature and nothing more. (Before `2.0.0` the backlinks and names extras were grafted onto
-it as well; the README's "Removed in 2.0.0" table maps each to its API member.) The `Original` members
+it as well; the "Removed in 2.0.0" table in `docs/api.md` maps each to its API member.) The `Original` members
 are answered from that recorded field (`getBacklinksForFileOriginal`, `getLinkSuggestionsOriginal`). `PluginApiImpl` finds the module components through `ModulesComponent.getModuleComponent`
 per call, because a module switched off and on again is a fresh component; a module that is off answers
 `null` from every member backed by it, while the `Original` members fall back to core, which is then the
