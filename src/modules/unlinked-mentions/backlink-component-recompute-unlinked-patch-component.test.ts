@@ -23,7 +23,7 @@ import type {
 import { BacklinkComponentRecomputeUnlinkedPatchComponent } from './backlink-component-recompute-unlinked-patch-component.ts';
 
 interface FakeResultDomItem {
-  separateMatches: boolean;
+  readonly separateMatches: boolean;
 }
 
 const originalRecomputeUnlinked = vi.fn();

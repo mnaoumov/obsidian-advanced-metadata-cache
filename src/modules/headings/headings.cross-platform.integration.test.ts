@@ -34,10 +34,11 @@ import { applyPluginSettings } from '../../../scripts/helpers/names-module.ts';
  * calls. Declared here because an `evalInObsidian` closure cannot carry a value across.
  */
 interface AdvancedMetadataCacheApi {
-  getHeadingTimes: (pathOrFile: string) => HeadingTimes[];
+  readonly getHeadingTimes: (pathOrFile: string) => HeadingTimes[];
 }
 
 interface HeadingsModuleSettings {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Tests toggle the module through the settings object.
   isHeadingsModuleEnabled: boolean;
 }
 
@@ -54,7 +55,7 @@ interface HeadingsResult {
 }
 
 interface HeadingsSettingsComponent {
-  editAndSave: (editor: (settings: HeadingsModuleSettings) => void) => Promise<void>;
+  readonly editAndSave: (editor: (settings: HeadingsModuleSettings) => void) => Promise<void>;
 }
 
 interface HeadingTimes {

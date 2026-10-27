@@ -51,10 +51,12 @@ vi.mock('./settings-migration-modal.ts', () => ({
 }));
 
 interface BacklinksSource {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Tests replace core methods to exercise API fallback behavior.
   getBacklinksForFile: (file: TFile) => CustomArrayDict<Reference>;
 }
 
 interface LinkSuggestionsSource {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Tests replace core methods to exercise API fallback behavior.
   getLinkSuggestions: () => LinkSuggestion[];
 }
 

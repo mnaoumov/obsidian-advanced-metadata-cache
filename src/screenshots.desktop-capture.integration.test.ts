@@ -46,8 +46,8 @@ import type { PluginApiRegistryHolder } from '../scripts/helpers/plugin-api-regi
  * than on the `DataAdapter` that `app.vault.adapter` is typed as.
  */
 interface ReconcilingAdapter {
-  reconcileFile: (this: void, normalizedPath: string, normalizedNewPath: string, shouldSkipDeletionTimeout: boolean) => Promise<void>;
-  reconcileFolderCreation: (this: void, normalizedPath: string, normalizedNewPath: string) => Promise<void>;
+  readonly reconcileFile: (this: void, normalizedPath: string, normalizedNewPath: string, shouldSkipDeletionTimeout: boolean) => Promise<void>;
+  readonly reconcileFolderCreation: (this: void, normalizedPath: string, normalizedNewPath: string) => Promise<void>;
 }
 
 const WIDTH_IN_PIXELS = 1200;

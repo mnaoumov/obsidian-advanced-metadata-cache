@@ -21,7 +21,7 @@ export interface ModuleDefinition {
    *
    * @returns The module's component.
    */
-  createComponent: () => Component;
+  readonly createComponent: () => Component;
 
   /**
    * Reads the module's own toggle out of the settings.
@@ -29,7 +29,7 @@ export interface ModuleDefinition {
    * @param settings - The current effective settings.
    * @returns Whether the module should be running.
    */
-  getIsEnabled: (settings: ReadonlyPluginSettings<PluginSettings>) => boolean;
+  readonly getIsEnabled: (settings: ReadonlyPluginSettings<PluginSettings>) => boolean;
 
   /**
    * Identifies the module within this component. Never shown to the user.

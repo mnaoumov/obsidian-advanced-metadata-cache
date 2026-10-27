@@ -46,8 +46,8 @@ interface MigrateSettingsResultLike {
  * suite calls. Declared here because an `evalInObsidian` closure cannot carry a value across.
  */
 interface MigrationApiLike {
-  getTitlePropertyNames: () => string[];
-  migrateSettings: (params: MigrateSettingsParamsLike) => Promise<MigrateSettingsResultLike>;
+  readonly getTitlePropertyNames: () => string[];
+  readonly migrateSettings: (params: MigrateSettingsParamsLike) => Promise<MigrateSettingsResultLike>;
 }
 
 interface ObsidianLibStateBag {

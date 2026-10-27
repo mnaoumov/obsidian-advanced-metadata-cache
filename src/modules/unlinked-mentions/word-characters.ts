@@ -53,6 +53,7 @@ interface CharacterTables {
 }
 
 interface CharacterTablesHolder {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The character tables are initialized lazily on first use.
   value: CharacterTables | null;
 }
 

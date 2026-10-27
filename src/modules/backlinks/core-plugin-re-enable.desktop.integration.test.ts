@@ -29,6 +29,7 @@ const SCENARIO_TIMEOUT_IN_MS = 120_000;
 
 interface BacklinkComponentPrototypeState {
   readonly prototype: Record<string, unknown>;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The test wraps and restores the core recompute method.
   recomputeBacklink?: unknown;
 }
 

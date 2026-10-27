@@ -43,16 +43,16 @@ import {
 } from './canvas.ts';
 
 interface CanvasInternals {
-  initCanvasMetadataCache: (file: TFile) => Promise<void>;
+  readonly initCanvasMetadataCache: (file: TFile) => Promise<void>;
 }
 interface MutableAbortSignal {
-  aborted: boolean;
-  throwIfAborted: ReturnType<typeof vi.fn>;
+  readonly aborted: boolean;
+  readonly throwIfAborted: ReturnType<typeof vi.fn>;
 }
 
 interface RegisteredEventHandler {
-  callback: (...$arguments: unknown[]) => void;
-  event: string;
+  readonly callback: (...$arguments: unknown[]) => void;
+  readonly event: string;
 }
 
 const registeredEventHandlers: RegisteredEventHandler[] = [];
@@ -83,11 +83,13 @@ interface CanvasCorePluginInstanceStub {
 }
 
 interface CanvasCorePluginStub {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Tests change plugin and component lifecycle state.
   enabled: boolean;
   readonly instance: CanvasCorePluginInstanceStub;
 }
 
 interface CanvasIndexStub {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Tests change plugin and component lifecycle state.
   _loaded: boolean;
   readonly load: ReturnType<typeof vi.fn>;
 }

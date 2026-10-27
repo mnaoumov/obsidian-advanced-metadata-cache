@@ -5,6 +5,7 @@ import {
 
 interface TrieNode {
   readonly children: Map<string, TrieNode>;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Trie nodes gain and lose their terminal key as names change.
   key: null | string;
 }
 

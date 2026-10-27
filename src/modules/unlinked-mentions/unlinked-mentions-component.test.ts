@@ -29,6 +29,7 @@ interface SavedNotesShape {
 }
 
 interface UserIgnoredSource {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Tests replace the ignore predicate before scanning.
   isUserIgnored: (path: string) => boolean;
 }
 

@@ -136,7 +136,7 @@ interface ModuleDefinitionsHolder {
 }
 
 interface PluginApisReader {
-  getPluginApis: () => PluginApiDeclaration[];
+  readonly getPluginApis: () => PluginApiDeclaration[];
 }
 
 interface PropertyValueIndexHolder {
@@ -144,7 +144,7 @@ interface PropertyValueIndexHolder {
 }
 
 interface SettingTabsHolder {
-  settingTabs__: unknown[];
+  readonly settingTabs__: unknown[];
 }
 
 interface TitleIndexHolder {

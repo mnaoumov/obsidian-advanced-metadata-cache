@@ -38,13 +38,13 @@ import { applyPluginSettings } from '../../../scripts/helpers/names-module.ts';
  * module's scope but cannot carry a value across.
  */
 interface AdvancedMetadataCacheApi {
-  getDatedValues: (query: DatedValuesQuery) => DatedValue[] | null;
-  getDatedValuesSafe: (query: DatedValuesQuery) => Promise<DatedValue[] | null>;
-  getNonDateValuesSafe: () => Promise<DatedValue[] | null>;
-  getPathsByPropertyValue: (propertyName: string, value: string) => null | string[];
-  getPathsByPropertyValueSafe: (propertyName: string, value: string) => Promise<null | string[]>;
-  getPathsWithPropertySafe: (propertyName: string) => Promise<null | string[]>;
-  registerPropertyName: (propertyName: string) => void;
+  readonly getDatedValues: (query: DatedValuesQuery) => DatedValue[] | null;
+  readonly getDatedValuesSafe: (query: DatedValuesQuery) => Promise<DatedValue[] | null>;
+  readonly getNonDateValuesSafe: () => Promise<DatedValue[] | null>;
+  readonly getPathsByPropertyValue: (propertyName: string, value: string) => null | string[];
+  readonly getPathsByPropertyValueSafe: (propertyName: string, value: string) => Promise<null | string[]>;
+  readonly getPathsWithPropertySafe: (propertyName: string) => Promise<null | string[]>;
+  readonly registerPropertyName: (propertyName: string) => void;
 }
 
 interface DatedValue {

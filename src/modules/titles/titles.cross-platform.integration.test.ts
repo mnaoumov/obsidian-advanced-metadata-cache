@@ -35,11 +35,11 @@ import { applyPluginSettings } from '../../../scripts/helpers/names-module.ts';
  * module's scope but cannot carry a value across.
  */
 interface AdvancedMetadataCacheApi {
-  getLinkSuggestionsOriginal: () => LinkSuggestion[];
-  getLinkSuggestionsSafe: () => Promise<LinkSuggestion[] | null>;
-  getPathsByName: (name: string) => null | string[];
-  getTitlePropertyNames: () => string[];
-  getTitles: (pathOrFile: string) => string[];
+  readonly getLinkSuggestionsOriginal: () => LinkSuggestion[];
+  readonly getLinkSuggestionsSafe: () => Promise<LinkSuggestion[] | null>;
+  readonly getPathsByName: (name: string) => null | string[];
+  readonly getTitlePropertyNames: () => string[];
+  readonly getTitles: (pathOrFile: string) => string[];
 }
 
 interface ObsidianLibStateBag {
