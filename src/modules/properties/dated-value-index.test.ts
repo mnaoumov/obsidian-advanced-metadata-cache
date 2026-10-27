@@ -165,7 +165,7 @@ describe('DatedValueIndex', () => {
     add('A.md', 'birthday', '1990-10-26');
     add('A.md', 'due', '2026-10-26');
 
-    expect(index.getDatedValues({}, (propertyName) => propertyName === 'due', () => true)).toEqual([{ path: 'A.md', propertyName: 'due', value: '2026-10-26' }]);
+    expect(index.getDatedValues({}, { isDateProperty: () => true, isIncluded: (propertyName) => propertyName === 'due' })).toEqual([{ path: 'A.md', propertyName: 'due', value: '2026-10-26' }]);
   });
 
   it('should place a reduced-precision value at the start of its period, and report it as written', () => {
@@ -225,7 +225,7 @@ describe('DatedValueIndex', () => {
     add('A.md', 'pages', '2026-10-26');
     add('A.md', 'closed', '2019');
 
-    expect(index.getDatedValues({}, () => true, (propertyName) => propertyName === 'closed').map((entry) => format(entry))).toEqual([
+    expect(index.getDatedValues({}, { isDateProperty: (propertyName) => propertyName === 'closed', isIncluded: () => true }).map((entry) => format(entry))).toEqual([
       'A.md closed 2019',
       'A.md pages 2026-10-26'
     ]);
@@ -250,7 +250,7 @@ describe('DatedValueIndex', () => {
 
   it('should hand out copies, so a caller writing to an answer changes nothing', () => {
     add('A.md', 'due', '2026-10-26');
-    const [entry] = index.getDatedValues({}, () => true, () => true);
+    const [entry] = index.getDatedValues({}, { isDateProperty: () => true, isIncluded: () => true });
     Object.assign(entry ?? {}, { path: 'Changed.md' });
 
     expect(getValues({})).toEqual(['A.md due 2026-10-26']);
@@ -265,6 +265,6 @@ describe('DatedValueIndex', () => {
   }
 
   function getValues(query: Parameters<DatedValueIndex['getDatedValues']>[0]): string[] {
-    return index.getDatedValues(query, () => true, () => true).map((entry) => format(entry));
+    return index.getDatedValues(query, { isDateProperty: () => true, isIncluded: () => true }).map((entry) => format(entry));
   }
 });

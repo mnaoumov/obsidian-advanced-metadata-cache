@@ -40,6 +40,12 @@ import {
 
 type DatedEntryComparer = (entry1: LocalDatedValue, entry2: LocalDatedValue) => number;
 
+interface DatedValueIndexGetDatedValuesOptions {
+  readonly defaultTimeZone?: string;
+  readonly isDateProperty: (propertyName: string) => boolean;
+  readonly isIncluded: (propertyName: string) => boolean;
+}
+
 interface DatedValueIndexGetUtcValuesParams {
   readonly defaultTimeZone: string;
   readonly isDateProperty: (propertyName: string) => boolean;
@@ -247,13 +253,12 @@ export class DatedValueIndex {
    * Lists the dated values a query matches, in order.
    *
    * @param query - The query.
-   * @param isIncluded - Whether an entry's property is among those asked about.
-   * @param isDateProperty - Whether a property holds dates, so that its reduced-precision values count as
-   *   dates too.
+   * @param options - Property inclusion and date-type predicates, and the default zone for UTC queries.
    * @returns The entries, ordered by value — by month and day first when the query is recurring — then by
    *   property name, then by path.
    */
-  public getDatedValues(query: DatedValuesQuery, isIncluded: (propertyName: string) => boolean, isDateProperty: (propertyName: string) => boolean, defaultTimeZone = ''): DatedValue[] {
+  public getDatedValues(query: DatedValuesQuery, options: DatedValueIndexGetDatedValuesOptions): DatedValue[] {
+    const { defaultTimeZone = '', isDateProperty, isIncluded } = options;
     if (query.timeBasis === 'utc') {
       return this.getUtcValues({ defaultTimeZone, isDateProperty, isIncluded, query });
     }
@@ -337,7 +342,7 @@ export class DatedValueIndex {
       if (hasTimeZone(entry.value) || !isIncluded(entry.propertyName) || (entry.isReduced && !isDateProperty(entry.propertyName))) {
         continue;
       }
-      const period = getInstantPeriod(entry.value, zone);
+      const period = getInstantPeriod({ fallbackZone: zone, value: entry.value });
       if (!(period.end >= from && period.start <= to)) {
         continue;
       }
@@ -422,7 +427,7 @@ function getValueKey(entry: LocalDatedValue): string {
 
 function toInstantEntry(entry: LocalDatedValue): LocalDatedValue | null {
   try {
-    return { ...entry, localValue: getInstantKey(getInstantPeriod(entry.value, 'UTC').start) };
+    return { ...entry, localValue: getInstantKey(getInstantPeriod({ fallbackZone: 'UTC', value: entry.value }).start) };
   } catch (error) {
     // Wall-clock indexing has always accepted date SHAPES. An unknown zone or an impossible calendar
     // date must not break that index or a metadata-change listener; it simply supplies no UTC instant.

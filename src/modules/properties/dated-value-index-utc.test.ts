@@ -46,7 +46,7 @@ describe('UTC date queries', () => {
   }
 
   function paths(index: DatedValueIndex, query: DatedValuesQuery): string[] {
-    return index.getDatedValues({ ...query, timeBasis: 'utc' }, () => true, () => true, 'UTC').map((entry) => entry.path);
+    return index.getDatedValues({ ...query, timeBasis: 'utc' }, { defaultTimeZone: 'UTC', isDateProperty: () => true, isIncluded: () => true }).map((entry) => entry.path);
   }
 
   it('matches equal instants in different zones with inclusive offset-bearing bounds', () => {
@@ -69,12 +69,12 @@ describe('UTC date queries', () => {
     const index = createIndex();
     expect(() => paths(index, { from: '2026-10-27T05:00Z', missingTimeZone: 'fail' })).toThrow(/Missing time zone.*2026/);
     expect(paths(index, { from: '2027-01-01T00:00Z', missingTimeZone: 'fail' })).toEqual([]);
-    expect(index.getDatedValues({ missingTimeZone: 'fail', timeBasis: 'utc' }, () => false, () => true, 'UTC')).toEqual([]);
+    expect(index.getDatedValues({ missingTimeZone: 'fail', timeBasis: 'utc' }, { defaultTimeZone: 'UTC', isDateProperty: () => true, isIncluded: () => false })).toEqual([]);
   });
 
   it('excludes reduced values in non-date properties and removes every view', () => {
     const index = createIndex();
-    expect(index.getDatedValues({ missingTimeZone: 'utc', timeBasis: 'utc' }, () => true, () => false).some((entry) => entry.value === '2026')).toBe(false);
+    expect(index.getDatedValues({ missingTimeZone: 'utc', timeBasis: 'utc' }, { isDateProperty: () => false, isIncluded: () => true }).some((entry) => entry.value === '2026')).toBe(false);
     index.remove({ path: 'Mexico.md', propertyName: 'date', value: '2026-10-26T23:00-06:00' });
     expect(paths(index, { missingTimeZone: 'skip' })).toEqual(['Kyiv.md']);
     index.clear();
@@ -86,7 +86,7 @@ describe('UTC date queries', () => {
     for (const value of ['2026-02-31T12:00Z', '2026-10-27T06:00[Unknown/Zone]']) {
       const entry = { path: 'Invalid.md', propertyName: 'date', value };
       index.add(entry);
-      expect(index.getDatedValues({}, () => true, () => true)).toContainEqual(entry);
+      expect(index.getDatedValues({}, { isDateProperty: () => true, isIncluded: () => true })).toContainEqual(entry);
       expect(paths(index, { missingTimeZone: 'skip' })).toEqual([]);
       index.remove(entry);
     }
@@ -95,7 +95,7 @@ describe('UTC date queries', () => {
   it('uses the device zone when the setting and query zone are omitted', () => {
     const index = new DatedValueIndex();
     index.add({ path: 'Local.md', propertyName: 'date', value: '2026-10-27T06:00' });
-    expect(index.getDatedValues({ timeBasis: 'utc' }, () => true, () => true)).toEqual([{ path: 'Local.md', propertyName: 'date', value: '2026-10-27T06:00' }]);
+    expect(index.getDatedValues({ timeBasis: 'utc' }, { isDateProperty: () => true, isIncluded: () => true })).toEqual([{ path: 'Local.md', propertyName: 'date', value: '2026-10-27T06:00' }]);
   });
 
   it('orders equal instants by original value, property, and path', () => {
@@ -106,7 +106,7 @@ describe('UTC date queries', () => {
         index.add({ path, propertyName, value: '2026-10-27T06:00' });
       }
     }
-    expect(index.getDatedValues({ missingTimeZone: 'utc', timeBasis: 'utc' }, () => true, () => true).map((entry) => `${entry.value} ${entry.propertyName} ${entry.path}`)).toEqual([
+    expect(index.getDatedValues({ missingTimeZone: 'utc', timeBasis: 'utc' }, { isDateProperty: () => true, isIncluded: () => true }).map((entry) => `${entry.value} ${entry.propertyName} ${entry.path}`)).toEqual([
       '2026-10-27T06:00 first A.md',
       '2026-10-27T06:00 first B.md',
       '2026-10-27T06:00 second A.md',
