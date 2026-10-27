@@ -189,7 +189,7 @@ No zone change requires rebuilding or another persisted representation.
 Obsidian 1.14.4's `BacklinkComponent.recomputeUnlinked` reads every markdown note and runs one `RegExp(VA(name),
 'gi')` per name (basename, then each `parseFrontMatterAliases` alias), dropping a match wholly inside a `links` or
 `embeds` entry or the frontmatter. `VA` adds a word boundary only on a side where the name's own character is in a
-fixed letters-and-digits table, which `word-characters.ts` copies verbatim: CJK ideographs, kana and Hangul syllables
+fixed letters-and-digits table, provided by `@mnaoumov/obsidian-lib/obsidian-word-characters`: CJK ideographs, kana and Hangul syllables
 are NOT in it, there is no `u` flag (so case folds per UTF-16 code unit, by ECMAScript's `Canonicalize`) and code is
 NOT excluded. `unlinked-mention-ranges.ts` is that algorithm, and nothing else may decide what a match is.
 
@@ -198,7 +198,7 @@ canonical word tokens, scans a changed note's text once against all of them thro
 keys it holds. Every exact match covers consecutive whole tokens of the text, so the notes holding a key are a SUPERSET
 of the notes Obsidian lists; each candidate is then read and matched with Obsidian's expression. That superset claim is
 what `word-characters.test.ts`'s randomized case pins, and it holds only because a name containing a character whose
-case folding crosses word-ness (`ͅ` folds to the word character `Ι`) is refused by `getNameTokens`, like a name
+case folding crosses word-ness (`ͅ` folds to the word character `Ι`) is refused by `getObsidianNameTokens`, like a name
 with no word character at all: both are answered by reading every note.
 
 **A name that appears after a full scan is DIRTY**, because the notes scanned before it were not looked at for it.
@@ -222,7 +222,7 @@ the keys found; at top level, the CLEAN keys (`getCleanKeys`), because a key dir
 the notes scanned before it. The next build sets every name from the metadata cache (all dirty), restores each note whose
 stat matches, reads the rest, then `markClean`s the saved clean keys: every other name stays dirty and the first query
 about it runs the full scan as before. A note `changed` already scanned during the load is skipped, since it is newer
-than anything saved. Bump the `mentions-cache-v1` store id and the legacy `PERSISTED_VERSION` whenever what a key means changes (`word-characters.ts` above all).
+than anything saved. Bump the `mentions-cache-v1` store id and the legacy `PERSISTED_VERSION` whenever what a key means changes (`obsidian-word-characters` above all).
 
 Measured on a copy of a real vault (35,493 notes, 78 MB): the build read every note in ~6-8 s with the notes already in
 the OS file cache; from the previous JSON saved file (9.2 MB) it took 1.2 s. Those storage measurements predate the IndexedDB migration. `npm run test:integration:real-vault` with
@@ -230,12 +230,26 @@ the OS file cache; from the previous JSON saved file (9.2 MB) it took 1.2 s. Tho
 project is opt-in and in no gate, because the vault it copies is private. Its first read of every note right after the
 copy took 231 s, most likely cold disk reads, so a start after a reboot is where the saved file saves the most.
 
+The word-character class, mention expression and canonical word tokenization come from
+`@mnaoumov/obsidian-lib/obsidian-word-characters`; AMC retains its candidate trie, names and clean scan markers.
+The component still owns its file-change pipeline and checkpoint schema.
+
 The pane falls through until the build ends. `unlinked-mentions-parity.desktop.integration.test.ts` compares the section filled both ways in a real
 Obsidian, and `unlinked-mentions-on-off.desktop-performance.integration.test.ts` times them. Read its numbers with the
-vault in mind: the generated filler notes are EMPTY, the cheapest case for Obsidian's scan, so most of the indexed
-section's time is rendering, which both sides pay (40k notes: 0.58 s against 0.18 s for the section, ~10 ms for the
+vault in mind: these historical measurements used EMPTY filler notes, the cheapest case for Obsidian's scan,
+so most of the indexed section's time was rendering, which both sides pay (40k notes: 0.58 s against 0.18 s for the section, ~10 ms for the
 lookup). A first measurement taken while Obsidian's own startup parse was still running read 11 s against 0.1 s, which
 is why `waitForPerformanceVaultScan` now also waits for `inProgressTaskCount` to reach 0; do not quote such numbers.
+
+The performance setup and readiness poll now use `@mnaoumov/obsidian-dev-toolkit/test-runners/performance-vault*`.
+AMC supplies scenario counts in `scripts/helpers/generate-performance-vault.ts`: `BC_PERF_VAULT_SIZE` still
+counts filler notes; the shared generator receives the total including both targets, 50 linkers, 1,000 mention
+notes and both deletion folders. The corpus now contains 1,200 bytes per total note on average, with synthetic
+English prose in the filler (no Cyrillic). This changes the old empty-filler workload, so those historical timings
+are not a baseline for the shared corpus. Readiness requires the exact current visible on-disk file count and consecutive polls
+with a known metadata entry and no active parse. The wrapper reads the disk manifest before polling because
+the bulk-delete scenario removes fixtures and AMC creates shared journals during the same project run.
+Hidden configuration and trash directories are excluded, matching the vault file universe.
 
 ## Public surface: the core call answers, the API offers everything else
 

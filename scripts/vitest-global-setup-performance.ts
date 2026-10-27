@@ -1,10 +1,8 @@
-import { createSetup } from 'obsidian-integration-testing/vitest-global-setup-plugin';
+import { createPerformanceVaultSetup } from '@mnaoumov/obsidian-dev-toolkit/test-runners/performance-vault-setup';
 
-import { generatePerformanceVault } from './helpers/generate-performance-vault.ts';
+import { PERFORMANCE_VAULT_OPTIONS } from './helpers/generate-performance-vault.ts';
 
 /**
- * Vitest global setup for the `integration-tests:desktop-performance` project: it
- * pre-populates the vault with a large note tree via `TemporaryVault.populate()` before
- * Obsidian opens it, so the startup scan indexes everything in one pass.
- */
-export const { setup, teardown } = createSetup({ populate: generatePerformanceVault });
+Populates the generated corpus before Obsidian opens it.
+*/
+export const { setup, teardown } = await createPerformanceVaultSetup(PERFORMANCE_VAULT_OPTIONS);

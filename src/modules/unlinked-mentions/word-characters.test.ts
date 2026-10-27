@@ -2,17 +2,16 @@
 
 /* eslint-disable unicorn/prefer-code-point -- The code under test reads UTF-16 code units, as Obsidian's regex does. */
 import {
+  createObsidianMentionRegExp as createMentionRegExp,
+  getObsidianNameTokens as getNameTokens,
+  isObsidianWordCharacter as isWordCharacter,
+  tokenizeObsidianWords as tokenize
+} from '@mnaoumov/obsidian-lib/obsidian-word-characters';
+import {
   describe,
   expect,
   it
 } from 'vitest';
-
-import {
-  createMentionRegExp,
-  getNameTokens,
-  isWordCharacter,
-  tokenize
-} from './word-characters.ts';
 
 /*
  * Characters chosen to stress the case folding a non-Unicode `i` regex does: `ß` (upper case is two code units), `ı`
