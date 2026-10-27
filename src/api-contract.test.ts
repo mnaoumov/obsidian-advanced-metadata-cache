@@ -58,8 +58,8 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
     const nullableStrings: PayloadCases = { invalid: [undefined, [1]], valid: [null, ['a']] };
     const strings: PayloadCases = { invalid: [null, ['a', 1]], valid: [[], ['a']] };
     const datedValuesQuery: PayloadCases = {
-      invalid: [[], [null], [{ from: 1 }], [{ isRecurring: 'yes' }], [{ propertyNames: [1] }], [{ to: null }], [{}, 'extra']],
-      valid: [[{}], [{ from: '2026', isRecurring: false, propertyNames: ['birthday'], to: '2026-10-31' }]]
+      invalid: [[], [null], [{ from: 1 }], [{ isRecurring: 'yes' }], [{ propertyNames: [1] }], [{ to: null }], [{ timeBasis: 'local' }], [{ missingTimeZone: 'guess' }], [{ missingTimeZone: { zone: 1 } }], [{}, 'extra']],
+      valid: [[{}], [{ from: '2026', isRecurring: false, propertyNames: ['birthday'], to: '2026-10-31' }], [{ missingTimeZone: { zone: 'Europe/Kyiv' }, timeBasis: 'utc' }], ...['default', 'utc', 'skip', 'fail'].map((missingTimeZone) => [{ missingTimeZone, timeBasis: 'utc' }])]
     };
     const nullableDatedValues: PayloadCases = {
       invalid: [undefined, [null], [{ path: 'Alpha.md', propertyName: 'birthday' }], [{ path: 'Alpha.md', propertyName: 'birthday', value: 1 }]],

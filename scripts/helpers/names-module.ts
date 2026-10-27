@@ -31,6 +31,7 @@ export interface SettingsEditorPlugin extends Plugin {
  * The settings a suite switches.
  */
 export interface SwitchablePluginSettings {
+  defaultTimeZone: string;
   isHeadingsModuleEnabled: boolean;
   isNamesModuleEnabled: boolean;
   isPropertiesModuleEnabled: boolean;

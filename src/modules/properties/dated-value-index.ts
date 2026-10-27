@@ -2,7 +2,7 @@
  * @file
  *
  * The ordered half of the `Properties` module: every date-shaped value of every indexed property, kept
- * sorted twice — by the full value, and by its month and day — so a range of dates, and a range of a
+ * sorted by wall-clock value, recurring month and day, and (for zoned values) UTC instant, so a range of dates, and a range of a
  * recurring date such as a birthday, is a binary search and a slice rather than a walk.
  *
  * A value counts as a date when it is shaped `YYYY-MM-DD`, optionally followed by `THH:mm`, `THH:mm:ss` or
@@ -10,10 +10,10 @@
  * also carry an ISO 8601 offset (`Z`, `-06:00`, `+0200`) and an RFC 9557 time zone annotation
  * (`[Europe/Kyiv]`), in that order, either or both.
  *
- * Both orderings key on the LOCAL part, the date and time as written with the zone dropped, so a value is
+ * The default and recurring orderings key on the LOCAL part, the date and time as written with the zone dropped, so a value is
  * found on the calendar day it names and every key compares correctly as a plain string, which is what lets
- * both orderings be sorted arrays of strings. Ordering by the UTC instant instead would move a note dated
- * `2026-10-26T23:00-06:00` to the 27th, and would have no instant at all for the values without a zone it sits among.
+ * both orderings be sorted arrays of strings. The optional UTC view moves a note dated
+ * `2026-10-26T23:00-06:00` to the 27th. Values without a zone are converted per query from a bounded wall-clock slice.
  *
  * A value of REDUCED precision, `YYYY` or `YYYY-MM` as ISO 8601 writes a year or a month, is kept too, keyed
  * as written: it stands for its whole year or month, never for that period's first day. String order puts
@@ -31,7 +31,27 @@ import type {
   DatedValuesQuery
 } from '../../plugin-api.ts';
 
+import {
+  getInstantPeriod,
+  hasTimeZone,
+  readInstantBound,
+  validateTimeZone
+} from './instant-date.ts';
+
 type DatedEntryComparer = (entry1: LocalDatedValue, entry2: LocalDatedValue) => number;
+
+interface DatedValueIndexGetUtcValuesParams {
+  readonly defaultTimeZone: string;
+  readonly isDateProperty: (propertyName: string) => boolean;
+  readonly isIncluded: (propertyName: string) => boolean;
+  readonly query: DatedValuesQuery;
+}
+
+interface DatedValueIndexGetZonelessValuesParams extends DatedValueIndexGetUtcValuesParams {
+  readonly from: number;
+  readonly to: number;
+  readonly zone: string;
+}
 
 interface EntryLocation {
   readonly index: number;
@@ -47,6 +67,8 @@ interface LocalDatedValue extends DatedValue {
   readonly isReduced: boolean;
   readonly localValue: string;
 }
+
+const UTC_CANDIDATE_PADDING = 172_800_000;
 
 const DATE_PATTERN = String.raw`\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])`;
 const TIME_PATTERN = String.raw`T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?`;
@@ -173,9 +195,10 @@ class SortedDatedEntries {
 }
 
 /**
- * Two sorted views of the same entries.
+ * Wall-clock and recurring views of every date, plus an instant view of zoned values.
  */
 export class DatedValueIndex {
+  private readonly byInstant = new SortedDatedEntries(getValueKey, []);
   private readonly byMonthDay = new SortedDatedEntries(getMonthDayKey, REDUCED_MONTH_DAY_KEY_LENGTHS);
   private readonly byValue = new SortedDatedEntries(getValueKey, REDUCED_VALUE_KEY_LENGTHS);
 
@@ -192,6 +215,12 @@ export class DatedValueIndex {
     }
 
     this.byValue.add(localEntry);
+    if (hasTimeZone(entry.value)) {
+      const instantEntry = toInstantEntry(localEntry);
+      if (instantEntry) {
+        this.byInstant.add(instantEntry);
+      }
+    }
 
     if (getMonthDayKey(localEntry)) {
       this.byMonthDay.add(localEntry);
@@ -204,6 +233,7 @@ export class DatedValueIndex {
   public clear(): void {
     this.byValue.clear();
     this.byMonthDay.clear();
+    this.byInstant.clear();
   }
 
   /**
@@ -216,7 +246,10 @@ export class DatedValueIndex {
    * @returns The entries, ordered by value — by month and day first when the query is recurring — then by
    *   property name, then by path.
    */
-  public getDatedValues(query: DatedValuesQuery, isIncluded: (propertyName: string) => boolean, isDateProperty: (propertyName: string) => boolean): DatedValue[] {
+  public getDatedValues(query: DatedValuesQuery, isIncluded: (propertyName: string) => boolean, isDateProperty: (propertyName: string) => boolean, defaultTimeZone = ''): DatedValue[] {
+    if (query.timeBasis === 'utc') {
+      return this.getUtcValues({ defaultTimeZone, isDateProperty, isIncluded, query });
+    }
     const entries = query.isRecurring ? this.byMonthDay : this.byValue;
     const from = query.from ?? '';
     const to = query.to;
@@ -244,10 +277,70 @@ export class DatedValueIndex {
     }
 
     this.byValue.remove(localEntry);
+    if (hasTimeZone(entry.value)) {
+      const instantEntry = toInstantEntry(localEntry);
+      if (instantEntry) {
+        this.byInstant.remove(instantEntry);
+      }
+    }
 
     if (getMonthDayKey(localEntry)) {
       this.byMonthDay.remove(localEntry);
     }
+  }
+
+  private getUtcValues(params: DatedValueIndexGetUtcValuesParams): DatedValue[] {
+    const { defaultTimeZone, isIncluded, query } = params;
+    if (query.isRecurring) {
+      throw new RangeError('UTC queries cannot be recurring');
+    }
+    const from = query.from === undefined ? -Infinity : readInstantBound(query.from);
+    const to = query.to === undefined ? Infinity : readInstantBound(query.to);
+    const policy = query.missingTimeZone ?? 'default';
+    const zone = typeof policy === 'object' ? policy.zone : (policy === 'utc' || policy === 'skip' ? 'UTC' : defaultTimeZone || new Intl.DateTimeFormat().resolvedOptions().timeZone);
+    if (policy !== 'skip') {
+      validateTimeZone(zone);
+    }
+    if (from > to) {
+      return [];
+    }
+    const entries = this.byInstant.getRange(Number.isFinite(from) ? new Date(from).toISOString() : '', Number.isFinite(to) ? new Date(to).toISOString() : undefined)
+      .filter((entry) => isIncluded(entry.propertyName));
+    if (policy !== 'skip') {
+      entries.push(...this.getZonelessValues({ ...params, from, to, zone }));
+    }
+    return entries.sort((first, second) =>
+      compareStrings(first.localValue, second.localValue)
+      || compareStrings(first.value, second.value) || compareStrings(first.propertyName, second.propertyName)
+      || compareStrings(first.path, second.path)
+    )
+      .map(({ path, propertyName, value }) => ({ path, propertyName, value }));
+  }
+
+  private getZonelessValues(params: DatedValueIndexGetZonelessValuesParams): LocalDatedValue[] {
+    const { from, isDateProperty, isIncluded, query, to, zone } = params;
+    const entries: LocalDatedValue[] = [];
+    // All IANA offsets, including a skipped calendar day, fit within this two-day envelope.
+    // Reduced precision entries preceding the lower bound are included by getRange's period slices.
+    const candidates = this.byValue.getRange(
+      Number.isFinite(from) ? new Date(from - UTC_CANDIDATE_PADDING).toISOString().slice(0, -1) : '',
+      Number.isFinite(to) ? new Date(to + UTC_CANDIDATE_PADDING).toISOString().slice(0, -1) : undefined
+    );
+    for (const entry of candidates) {
+      if (hasTimeZone(entry.value) || !isIncluded(entry.propertyName) || (entry.isReduced && !isDateProperty(entry.propertyName))) {
+        continue;
+      }
+      const period = getInstantPeriod(entry.value, zone);
+      if (!(period.end >= from && period.start <= to)) {
+        continue;
+      }
+
+      if (query.missingTimeZone === 'fail') {
+        throw new RangeError(`Missing time zone: ${entry.value} (${entry.path}, ${entry.propertyName})`);
+      }
+      entries.push({ ...entry, localValue: new Date(period.start).toISOString() });
+    }
+    return entries;
   }
 }
 
@@ -309,6 +402,19 @@ function getMonthDayKey(entry: LocalDatedValue): string {
 
 function getValueKey(entry: LocalDatedValue): string {
   return entry.localValue;
+}
+
+function toInstantEntry(entry: LocalDatedValue): LocalDatedValue | null {
+  try {
+    return { ...entry, localValue: new Date(getInstantPeriod(entry.value, 'UTC').start).toISOString() };
+  } catch (error) {
+    // Wall-clock indexing has always accepted date SHAPES. An unknown zone or an impossible calendar
+    // date must not break that index or a metadata-change listener; it simply supplies no UTC instant.
+    if (error instanceof RangeError) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function toLocalDatedValue(entry: DatedValue): LocalDatedValue | null {

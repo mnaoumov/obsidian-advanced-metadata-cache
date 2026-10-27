@@ -74,10 +74,16 @@ interface DatedValue {
  * A range of dates, as the plugin API takes it. The same shape `DatedValuesQuery` in the root `api.d.ts` ships.
  */
 interface DatedValuesQuery {
+  readonly timeBasis?: 'utc' | 'wallClock';
+  readonly missingTimeZone?: 'default' | 'fail' | 'skip' | 'utc' | SpecificTimeZone;
   readonly from?: string;
   readonly isRecurring?: boolean;
   readonly propertyNames?: readonly string[];
   readonly to?: string;
+}
+
+interface SpecificTimeZone {
+  readonly zone: string;
 }
 
 interface DemoSettingsPatch {
@@ -565,7 +571,7 @@ export async function showDatedValues(app: App, query: DatedValuesQuery): Promis
 
   try {
     const api = await watchPluginApi<AdvancedMetadataCacheApi>({
-      apiVersionRange: '^1.5',
+      apiVersionRange: '^1.8',
       app,
       component,
       pluginId: PLUGIN_ID

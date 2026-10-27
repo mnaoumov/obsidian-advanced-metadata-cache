@@ -61,6 +61,27 @@ await require('/demoSetup.ts').showNonDateValues(app);
 
 A time alone, such as `14:30`, is not a date either.
 
+## Dates by UTC instant
+
+The same dates can be queried by UTC instant. The research note's `2026-10-26T23:00-06:00` then falls on October 27:
+
+```code-button
+---
+caption: What is up for review on October 27 in UTC?
+---
+await require('/demoSetup.ts').showDatedValues(app, { from: '2026-10-27T00:00Z', to: '2026-10-27T23:59:59.999Z', propertyNames: ['reviewDate'], timeBasis: 'utc', missingTimeZone: 'skip' });
+```
+
+| Missing time zone option | Meaning |
+| --- | --- |
+| `default` (or omitted) | Use **Default time zone** in settings; empty follows this device. Pin it for consistent answers across devices. |
+| `utc` | Treat values without a zone as UTC. |
+| `{ zone: 'Europe/Kyiv' }` | Use this IANA zone for this query. |
+| `skip` | Omit values without a zone. |
+| `fail` | Throw if a value without a zone overlaps the range in the default zone. |
+
+A date without a time spans its whole day, and a reduced-precision month or year spans its whole period. A time in a DST gap moves forward; a repeated time chooses its earlier occurrence. UTC queries take complete bounds with an offset and cannot recur. A value's explicit offset takes precedence over its zone annotation. [The API reference](https://github.com/mnaoumov/obsidian-advanced-metadata-cache/blob/HEAD/docs/api.md#utc-queries) explains the query contract.
+
 ## What to know
 
 - **Matched exactly.** Names and values are compared as typed, case included, and so are the **Date properties** patterns. A number or a boolean is matched by its string form, so `7` finds `status: 7`.

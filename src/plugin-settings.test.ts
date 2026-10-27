@@ -7,6 +7,9 @@ import {
 import { PluginSettings } from './plugin-settings.ts';
 
 describe('PluginSettings', () => {
+  it('follows the device zone by default for UTC queries', () => {
+    expect(new PluginSettings().defaultTimeZone).toBe('');
+  });
   it('should have isBacklinksModuleEnabled default to true', () => {
     const settings = new PluginSettings();
     expect(settings.isBacklinksModuleEnabled).toBe(true);

@@ -19,5 +19,6 @@
  * a time zone annotation, ordered by its local part, and a date property's year or month of reduced precision
  * is a date standing for its whole period. `1.7.0` adds `getUnlinkedMentions`, as additively: the `Unlinked mentions`
  * module's answer to which notes mention a note without linking to it.
+ * `1.8.0` adds UTC date queries and per-query missing-zone policies, preserving wall-clock defaults.
  */
-export const PLUGIN_API_VERSION = '1.7.0';
+export const PLUGIN_API_VERSION = '1.8.0';

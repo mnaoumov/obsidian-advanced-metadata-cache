@@ -136,7 +136,7 @@ What a value may carry beyond that, since contract `1.6.0`:
 | A year, or a year and a month, in a date property | `2019`, `2019-05` | A date of **reduced precision**, standing for its whole year or month. See below. |
 | Anything else: a time alone, a space instead of the `T`, a zone name without brackets, free text | `14:30`, `2026-10-26 09:30`, `next week` | Not a date: left out, never guessed. |
 
-**A zoned value sorts by its wall-clock time, not by its instant**, so `2026-10-26T23:00-06:00` is found on the 26th, the day the note says, although it is the 27th in UTC. Mixed with values without a zone, which have no instant at all, that is the only order every value has. Two values with the same wall-clock time are ordered by their text, and the bounds of a query never carry a zone. Each entry still reports the value as written, zone included, so a consumer that wants the instant parses it itself.
+**By default a zoned value sorts by its wall-clock time**, so `2026-10-26T23:00-06:00` is found on the 26th, the day the note says, although it is the 27th in UTC. Two values with the same wall-clock time are ordered by their text, and wall-clock query bounds never carry a zone. Each entry reports the value as written, zone included.
 
 **A partly known date is written with reduced precision, as ISO 8601 has it**: `closedDate: 2019` when only the year is known, `closedDate: 2019-05` when the month is known too. Such a value means *some time in 2019*, not *the 1st of January 2019*, and the index never treats it as one day:
 
@@ -153,6 +153,31 @@ Obsidian's own `Date` property type shows such a value as the first day of its p
 Both bounds are **inclusive and compared as prefixes**, so `to: '2026-06'` includes the whole of June and `to: '2026-06-30'` includes `2026-06-30T23:59`; leave a bound out for no bound. With `isRecurring` on, the bounds are a month and day (`'10-26'`) or a month (`'10'`), and the answer is ordered by month and day, then by year. Otherwise it is ordered by value. Ties are broken by property name, then by path.
 
 A property is registered the first time a note carries it as a date property, when the type is assigned to it, or when a name added to the setting matches it, and like any registration that lasts: changing its type back, or taking the name off the setting, keeps it indexed. The answer is `null` when `propertyNames` names a property that is not indexed, and while the Properties module is off. Ask for the range `^1.5`, or `^1.6` for `getNonDateValues`. [08 Property index](<../demo-vault/08 Property index.md>) runs these queries on a few notes.
+
+### UTC queries
+
+Contract `1.8.0` adds `timeBasis: 'utc'` to the same two methods. Both bounds are inclusive complete ISO date and time values with an offset; omitted bounds are unbounded. Prefix bounds and `isRecurring: true` belong to wall-clock queries and throw in UTC queries.
+
+```ts
+const instants = await api.getDatedValuesSafe({
+  from: '2026-10-27T00:00Z',
+  to: '2026-10-27T23:59:59.999Z',
+  timeBasis: 'utc',
+  missingTimeZone: 'skip'
+});
+```
+
+This finds `2026-10-26T23:00-06:00` on the 27th. Values sort by UTC instant, then by their original value, property and path; the returned value still has its original spelling. A written offset wins over a zone annotation, including when the two disagree. A named zone without an offset uses the host's `Intl` time-zone database. Invalid zoned calendar dates or unknown zones supply no instant and are excluded from UTC results, while wall-clock indexing keeps its existing shape-based behavior.
+
+| `missingTimeZone` | Values without a zone |
+| --- | --- |
+| Omitted or `'default'` | Use **Default time zone** in the plugin settings. Empty by default, which follows this device's zone; pin an IANA zone for consistent answers across devices. |
+| `'utc'` | Interpret as UTC. |
+| `{ zone: 'Europe/Kyiv' }` | Interpret in that IANA zone for this query. |
+| `'skip'` | Leave out. |
+| `'fail'` | Throw a `RangeError` naming the first zoneless value overlapping the range in the default zone, including its note and property. Other properties and out-of-range values do not fail the query. |
+
+Date-only values and reduced-precision months and years cover their whole calendar period in the chosen zone and match by overlap. A datetime is a single instant. DST gaps move forward and overlaps choose the earlier instant, following [Temporal's compatible disambiguation](https://tc39.es/proposal-temporal/docs/timezone.html). A calendar day can therefore span 23 or 25 hours. Invalid query bounds or zones throw a `RangeError`; a reversed range returns an empty array. Settings and per-query zone changes need no rebuild.
 
 ## Unlinked mentions
 

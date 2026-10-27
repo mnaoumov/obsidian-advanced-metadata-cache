@@ -9,6 +9,11 @@ export class PluginSettings {
    */
   public datePropertyNames: string[] = ['date', '*Date'];
 
+  /**
+  The IANA zone used by UTC queries for zoneless values; empty follows the device zone.
+  */
+  public defaultTimeZone = '';
+
   public isBacklinksModuleEnabled = true;
 
   /**

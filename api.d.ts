@@ -507,11 +507,36 @@ export interface DatedValue {
 }
 
 /**
- * A range for {@link AdvancedMetadataCacheApi.getDatedValues}. Both bounds are inclusive and compared as
- * prefixes of each value's local part, the date and time as written without the zone, so a bound may be as
- * coarse as a year.
+ * An explicit time zone for a UTC query's zone-free calendar values.
+ */
+export interface SpecificTimeZone {
+  /** An IANA time zone, for example `Europe/Kyiv`. */
+  readonly zone: string;
+}
+
+/**
+ * A range for {@link AdvancedMetadataCacheApi.getDatedValues}. Wall-clock bounds are inclusive prefixes
+ * of the local date and time. UTC bounds are inclusive complete date and time values with an offset.
  */
 export interface DatedValuesQuery {
+  /**
+   * The ordering and bounds to use. UTC bounds are complete ISO date and time values with an offset, inclusive,
+   * and cannot be combined with `isRecurring`. Wall-clock queries retain prefix bounds.
+   * @defaultValue `'wallClock'`
+   */
+  readonly timeBasis?: 'utc' | 'wallClock';
+
+  /**
+   * How UTC queries interpret values without a zone. `default` uses the Default time zone setting
+   * (the device zone when empty); `utc` uses UTC; `{ zone: 'Europe/Kyiv' }` uses that zone; `skip`
+   * omits them; `fail` throws for a zoneless value overlapping the range in the default zone.
+   * Date-only, month and year values cover their whole period. DST gaps move forward and overlaps
+   * choose the earlier instant, as Temporal's compatible disambiguation does. Explicit offsets
+   * take precedence over zone annotations. Invalid zones and UTC bounds throw a `RangeError`.
+   * @defaultValue `'default'`
+   */
+  readonly missingTimeZone?: 'default' | 'fail' | 'skip' | 'utc' | SpecificTimeZone;
+
   /**
    * The earliest value to include; no lower bound when left out. A date, a datetime or a prefix of one
    * (`2026`, `2026-10`, `2026-10-26T09`); with {@link DatedValuesQuery.isRecurring} on, a month and day
