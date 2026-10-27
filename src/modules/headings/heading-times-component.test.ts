@@ -196,7 +196,7 @@ describe('HeadingTimesComponent', () => {
   });
 
   describe('catching up on load', () => {
-    it('should forget a gone note, skip an unchanged one and re-read a changed one stamped with its mtime', async () => {
+    it('should retain history for a not-yet-synced note, skip an unchanged one and re-read a changed one stamped with its mtime', async () => {
       const unchanged = createNote('Unchanged.md', '# Same\n');
       const changed = createNote('Changed.md', '# Old\nbody\n');
       index.record({ mtime: unchanged.stat.mtime, path: 'Unchanged.md', snapshots: [], time: 1 });
@@ -206,7 +206,7 @@ describe('HeadingTimesComponent', () => {
 
       await load();
 
-      expect(index.getPaths().sort()).toEqual(['Changed.md', 'Unchanged.md']);
+      expect(index.getPaths().sort()).toEqual(['Changed.md', 'Gone.md', 'Unchanged.md']);
       expect(timesOf('Unchanged.md')).toEqual([]);
       expect(timesOf('Changed.md')).toEqual([{ created: changed.stat.mtime, modified: changed.stat.mtime, seen: null, text: 'Old' }]);
     });
@@ -399,6 +399,61 @@ describe('HeadingTimesComponent', () => {
    * @param content - Its content.
    * @returns The note.
    */
+  it('should synchronize transport changes, polling and focus while ignoring acknowledgements and its own notes', async () => {
+    const intervals = vi.spyOn(window, 'setInterval');
+    const synchronize = vi.spyOn(index, 'synchronize').mockResolvedValue(undefined);
+    await load();
+    vi.useFakeTimers();
+    const journal = app.vault.createSync__('Plugin data/advanced-metadata-cache/history/journal.md', '# Internal');
+    const acknowledgement = app.vault.createSync__('Plugin data/advanced-metadata-cache/history/have.md', 'ack');
+
+    triggerChanged(journal, '# Internal');
+    triggerChanged(acknowledgement, 'ack');
+    app.workspace.trigger('file-open', castTo<TFileOriginal>(journal));
+    vi.advanceTimersByTime(1000);
+    vi.useRealTimers();
+    await waitForAllAsyncOperations();
+    expect(synchronize).toHaveBeenCalledOnce();
+    expect(index.get(journal.path)).toBeUndefined();
+    const callback = intervals.mock.calls.find(([, delay]) => delay === 30_000)?.[0];
+    castTo<() => void>(callback)();
+    window.dispatchEvent(new Event('focus'));
+    await waitForAllAsyncOperations();
+    expect(synchronize).toHaveBeenCalledTimes(3);
+    component.unload();
+  });
+
+  it('should resume dormant history when its note arrives after its journal', async () => {
+    index.trackEmpty('Late.md', 1);
+    index.record({ mtime: 1, path: 'Late.md', snapshots: [{ bodyHash: '', level: 1, line: 0, subtreeHash: '', text: 'A' }], time: 1 });
+    await index.save();
+    await load();
+    app.vault.createSync__('Late.md', '# A');
+    expect(index.get('Late.md')?.headings[0]?.created).toBe(1);
+    component.unload();
+  });
+
+  it('should stop after an asynchronous unload during persistence loading', async () => {
+    vi.spyOn(index, 'load').mockImplementation(async () => {
+      await setTimeoutAsync(0);
+      component.unload();
+    });
+    await load();
+    expect(index.getPaths()).toEqual([]);
+  });
+
+  it('should ignore a note moved into its transport folder while its text was being read', async () => {
+    await load();
+    const file = createNote('Moved.md', '# A');
+    vi.spyOn(app.vault, 'cachedRead').mockImplementation(() => {
+      file.path = 'Plugin data/advanced-metadata-cache/history/moved.md';
+      return Promise.resolve('# A');
+    });
+    app.workspace.trigger('file-open', castTo<TFileOriginal>(file));
+    await waitForAllAsyncOperations();
+    expect(index.get(file.path)).toBeUndefined();
+    component.unload();
+  });
   function createNote(path: string, content = ''): TFile {
     const file = app.vault.createSync__(path, content);
     index.delete(path);

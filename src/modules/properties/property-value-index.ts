@@ -6,7 +6,7 @@
  *
  * Only registered properties are indexed, so a vault nobody asks about costs nothing; the module's component
  * registers the date properties itself, by type and by name. Their date-shaped values are also kept in
- * order, by the {@link DatedValueIndex} each {@link PropertyValues} feeds. The registered names are saved with the index, in a JSON file in this plugin's own folder, which is what lets the index answer
+ * order, by the {@link DatedValueIndex} each {@link PropertyValues} feeds. The registered names are shared through vault journals; derived values stay in local IndexedDB, which is what lets the index answer
  * at the next startup straight from disk — before the metadata cache is ready, and before the consumer that
  * registered the property has even loaded.
  *
@@ -20,12 +20,14 @@ import type {
   FrontMatterCache
 } from 'obsidian';
 
+import type { IndexStorage } from '../../persistence/index-storage.ts';
 import type {
   DatedValue,
   DatedValuesQuery
 } from '../../plugin-api.ts';
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 
+import { FileIndexStorage } from '../../persistence/file-index-storage.ts';
 import { isDatePropertyName } from './date-properties.ts';
 import {
   DatedValueIndex,
@@ -45,6 +47,7 @@ interface PropertyValueIndexConstructorParams {
   readonly app: App;
   readonly getDataFilePath: () => string;
   readonly pluginSettingsComponent: PluginSettingsComponent;
+  readonly storage?: IndexStorage;
 }
 
 interface PropertyValueIndexRefreshParams {
@@ -141,10 +144,12 @@ export class PropertyValueIndex {
   private isDirtyValue = false;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
   private readonly propertyValuesByName = new Map<string, PropertyValues>();
+  private readonly storage: IndexStorage;
 
   public constructor(params: PropertyValueIndexConstructorParams) {
     this.app = params.app;
     this.getDataFilePath = params.getDataFilePath;
+    this.storage = params.storage ?? new FileIndexStorage({ adapter: this.app.vault.adapter, getPath: this.getDataFilePath });
     this.pluginSettingsComponent = params.pluginSettingsComponent;
   }
 
@@ -159,6 +164,13 @@ export class PropertyValueIndex {
     }
 
     this.isDirtyValue = false;
+  }
+
+  /**
+  Releases the module's persistence connections.
+  */
+  public async close(): Promise<void> {
+    await this.storage.close?.();
   }
 
   /**
@@ -298,13 +310,11 @@ export class PropertyValueIndex {
    */
   public async load(): Promise<void> {
     this.clear();
-    const dataFilePath = this.getDataFilePath();
-
-    if (!await this.app.vault.adapter.exists(dataFilePath)) {
+    const json = await this.storage.read();
+    if (json === null) {
       return;
     }
-
-    const persisted = parsePersistedPropertyValues(await this.app.vault.adapter.read(dataFilePath));
+    const persisted = parsePersistedPropertyValues(json);
 
     for (const [propertyName, valuesByPath] of Object.entries(persisted?.properties ?? {})) {
       const propertyValues = new PropertyValues(propertyName, this.datedValueIndex);
@@ -413,7 +423,25 @@ export class PropertyValueIndex {
     };
     const json = JSON.stringify(persisted);
     this.isDirtyValue = false;
-    await this.app.vault.adapter.write(this.getDataFilePath(), json);
+    try {
+      await this.storage.write(json);
+    } catch (error) {
+      this.isDirtyValue = true;
+      throw error;
+    }
+  }
+
+  /**
+  Imports registrations from other devices; the component fills new names from core's cache.
+  */
+  public async synchronize(): Promise<boolean> {
+    const json = await this.storage.read();
+    const persisted = json === null ? null : parsePersistedPropertyValues(json);
+    let hasNewNames = false;
+    for (const name of Object.keys(persisted?.properties ?? {})) {
+      hasNewNames = this.register(name) || hasNewNames;
+    }
+    return hasNewNames;
   }
 
   private getPathsUnder(folderPath: string): string[] {

@@ -129,6 +129,14 @@ interface HeadingTimesIndexHolder {
 
 interface HeadingTimesIndexPathReader {
   readonly getDataFilePath: () => string;
+  readonly storage: LegacyPathStorage;
+}
+interface LegacyPathParams {
+  readonly getLegacyPath: () => string;
+}
+
+interface LegacyPathStorage {
+  readonly params: LegacyPathParams;
 }
 
 interface ModuleDefinitionsHolder {
@@ -291,6 +299,7 @@ describe('Plugin', () => {
 
     const params = castTo<HeadingTimesIndexHolder>(hoisted.headingTimesComponentConstructor.mock.calls[0]?.[0]);
     expect(castTo<HeadingTimesIndexPathReader>(params.headingTimesIndex).getDataFilePath()).toBe('plugins-root/custom-folder/heading-times.json');
+    expect(castTo<HeadingTimesIndexPathReader>(params.headingTimesIndex).storage.params.getLegacyPath()).toBe('plugins-root/custom-folder/heading-times.json');
   });
 
   it('should fall back to the folder named by the plugin id when the manifest names none', async () => {
@@ -338,6 +347,7 @@ describe('Plugin', () => {
     );
     const component = getModuleDefinitions()[4]?.createComponent();
 
+    expect(castTo<PropertyValueIndexHolder>(component).propertyValueIndex.storage.params.getLegacyPath()).toBe('plugins-root/custom-folder/property-values.json');
     expect(castTo<PropertyValueIndexHolder>(component).propertyValueIndex.getDataFilePath()).toBe(
       'plugins-root/custom-folder/property-values.json'
     );
@@ -354,6 +364,7 @@ describe('Plugin', () => {
     const component = getModuleDefinitions()[5]?.createComponent();
 
     expect(castTo<HeadingTimesIndexPathReader>(component).getDataFilePath()).toBe('plugins-root/custom-folder/unlinked-mentions.json');
+    expect(castTo<HeadingTimesIndexPathReader>(component).storage.params.getLegacyPath()).toBe('plugins-root/custom-folder/unlinked-mentions.json');
   });
 
   it('should publish its API under the contract it declares, and only once loaded', async () => {

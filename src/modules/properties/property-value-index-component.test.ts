@@ -356,6 +356,39 @@ describe('PropertyValueIndexComponent', () => {
     expect(index.getPropertyNames()).toEqual([]);
   });
 
+  it('should fill arriving registrations and synchronize transport changes, polling and focus', async () => {
+    createNote('A.md', '---\nremote: value\n---\n');
+    const intervals = vi.spyOn(window, 'setInterval');
+    await load();
+    const synchronize = vi.spyOn(index, 'synchronize').mockImplementation(() => Promise.resolve(index.register('remote')));
+    vi.useFakeTimers();
+    const journal = createNote('Plugin data/advanced-metadata-cache/names/journal.md', 'internal');
+    const acknowledgement = createNote('Plugin data/advanced-metadata-cache/names/have.md', 'ack');
+
+    app.metadataCache.trigger('changed', journal, 'internal', {});
+    app.metadataCache.trigger('changed', acknowledgement, 'ack', {});
+    vi.advanceTimersByTime(1000);
+    vi.useRealTimers();
+    await waitForAllAsyncOperations();
+    expect(index.getPropertyNames()).toContain('remote');
+    const callback = intervals.mock.calls.find(([, delay]) => delay === 30_000)?.[0];
+    castTo<() => void>(callback)();
+    window.dispatchEvent(new Event('focus'));
+    await waitForAllAsyncOperations();
+    expect(synchronize).toHaveBeenCalledTimes(3);
+    component.unload();
+  });
+
+  it('should avoid rebuilding if switched off while shared registrations are arriving', async () => {
+    await load();
+    vi.spyOn(index, 'synchronize').mockImplementation(() => {
+      component.unload();
+      return Promise.resolve(true);
+    });
+    window.dispatchEvent(new Event('focus'));
+    await waitForAllAsyncOperations();
+    expect(index.getPropertyNames()).toEqual([]);
+  });
   function createNote(path: string, content: string): TFile {
     return app.vault.createSync__(path, content);
   }

@@ -1,3 +1,4 @@
+import type { TFile } from 'obsidian';
 /**
  * @file
  *
@@ -5,7 +6,7 @@
  *
  * - A registered property answers by value — a scalar and a list member alike — and by presence.
  * - The answer follows an edit of the frontmatter and a rename of the note.
- * - The registration and the values are saved to `property-values.json` in the plugin folder.
+ * - The registration is shared through vault journals and the values stay in local IndexedDB.
  * - Assigning the `date` type to a property registers it with no consumer asking, and its values answer by
  *   range and by recurring month and day — which also pins that `metadataTypeManager` fires `changed`.
  * - A property whose name matches the default `*Date` is indexed with no type, a value with an offset or a
@@ -17,8 +18,6 @@
  * none of this is platform-specific, and the API is the one a consumer calls on either.
  */
 
-import type { TFile } from 'obsidian';
-
 import { evalInObsidian } from 'obsidian-integration-testing';
 import { getTemporaryVault } from 'obsidian-integration-testing/vitest-global-setup-plugin';
 import {
@@ -27,6 +26,8 @@ import {
   expect,
   it
 } from 'vitest';
+
+import type { IndexStorage } from '../../persistence/index-storage.ts';
 
 import { applyPluginSettings } from '../../../scripts/helpers/names-module.ts';
 
@@ -130,13 +131,26 @@ interface PropertiesResult {
   readonly withProperty: null | string[];
 }
 
+interface PropertyApiPersistence {
+  readonly propertyValueIndex: PropertyIndexPersistence;
+}
+
+/**
+ * The saved index, as far as this suite reads it.
+ */
+interface PropertyIndexPersistence {
+  readonly storage: IndexStorage;
+}
+
+interface PropertyPersistencePlugin {
+  readonly pluginApi: PropertyApiPersistence;
+}
 /**
  * One of Obsidian's own property widgets, as far as this suite renders it.
  */
 interface PropertyWidget {
   readonly render?: (containerEl: HTMLElement, value: unknown, context: PropertyWidgetContext) => unknown;
 }
-
 interface PropertyWidgetContext {
   readonly app: unknown;
   readonly blur: () => void;
@@ -145,9 +159,6 @@ interface PropertyWidgetContext {
   readonly sourcePath: string;
 }
 
-/**
- * The saved index, as far as this suite reads it.
- */
 interface SavedPropertyValues {
   readonly properties?: Record<string, Record<string, unknown>>;
 }
@@ -545,25 +556,22 @@ async function runScenario(): Promise<PropertiesResult> {
         await app.fileManager.renameFile(listNote, renamedNotePath);
         const afterRename = api.getPathsByPropertyValue(propertyName, 'gamma');
 
-        const plugin = app.plugins.getPlugin('advanced-metadata-cache');
-        const dataFilePath = `${plugin?.manifest.dir ?? ''}/property-values.json`;
+        const plugin = app.plugins.getPlugin('advanced-metadata-cache') as null | PropertyPersistencePlugin;
+        if (!plugin) {
+          throw new Error('Plugin not loaded');
+        }
         let savedPaths: null | string[] = null;
-
         await waitUntil({
           intervalInMilliseconds: pollMs,
-          message: 'the index to be saved with the renamed note',
+          message: 'the local index to be saved with the renamed note',
           predicate: async () => {
-            if (!await app.vault.adapter.exists(dataFilePath)) {
-              return false;
-            }
-
-            const saved = JSON.parse(await app.vault.adapter.read(dataFilePath)) as SavedPropertyValues;
+            const json = await plugin.pluginApi.propertyValueIndex.storage.read();
+            const saved = JSON.parse(json ?? '{}') as SavedPropertyValues;
             savedPaths = Object.keys(saved.properties?.[propertyName] ?? {});
             return savedPaths.includes(renamedNotePath);
           },
           timeoutInMilliseconds: saveWaitMs
         });
-
         return { ...empty, afterEdit, afterRename, apiVersion: record.apiVersion, byListMember, byScalar, removedValue, savedPaths, withProperty };
       } catch (error) {
         return { ...empty, error: String(error) };

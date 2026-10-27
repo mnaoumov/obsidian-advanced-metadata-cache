@@ -130,11 +130,11 @@ function createMockApp(): App {
     internalPlugins: {
       getEnabledPluginById: vi.fn().mockReturnValue(null),
       getPluginById: vi.fn().mockReturnValue(null),
-      on: vi.fn().mockImplementation((event: string, callback: () => void) => {
-        if (event === 'change') {
+      on: vi.fn().mockImplementation(($event: string, callback: () => void) => {
+        if ($event === 'change') {
           registeredInternalPluginsChangeHandlers.push(callback);
         }
-        return { id: event };
+        return { id: $event };
       })
     },
     metadataCache: {
@@ -149,9 +149,9 @@ function createMockApp(): App {
     },
     vault: {
       getFiles: vi.fn().mockReturnValue([]),
-      on: vi.fn().mockImplementation((event: string, callback: (...$arguments: unknown[]) => void) => {
-        registeredEventHandlers.push({ callback, event });
-        return { id: event };
+      on: vi.fn().mockImplementation(($event: string, callback: (...$arguments: unknown[]) => void) => {
+        registeredEventHandlers.push({ callback, event: $event });
+        return { id: $event };
       }),
       read: vi.fn().mockResolvedValue('{}'),
       readBinary: vi.fn().mockResolvedValue(new ArrayBuffer(0))

@@ -24,6 +24,11 @@ import {
 
 import type { UnlinkedMentionMatch } from './unlinked-mentions-component.ts';
 
+interface MentionsCheckpoint {
+  readonly isDirty: boolean;
+  readonly save: () => Promise<void>;
+}
+
 interface SavedNotesShape {
   readonly notes: Record<string, unknown>;
 }
@@ -440,6 +445,33 @@ describe('UnlinkedMentionsComponent', () => {
     expect(summarize(await component.getUnlinkedMentions(asOriginal(alpha)))).toEqual([['One.md', [[0, 5]]]]);
   });
 
+  it('should ignore its own journals during builds, changes, renames, restores and direct matching', async () => {
+    const alpha = createNote('Alpha.md');
+    const journal = createNote('Plugin data/advanced-metadata-cache/history/journal.md', 'alpha');
+    await load();
+    app.metadataCache.trigger('changed', journal, 'alpha', app.metadataCache.getFileCache(journal));
+    expect(await component.getUnlinkedMentionIn(asOriginal(alpha), asOriginal(journal))).toBeNull();
+    expect(await component.getUnlinkedMentions(asOriginal(alpha))).toEqual([]);
+    const source = createNote('User.md', 'alpha');
+    await app.fileManager.renameFile(source, 'Plugin data/advanced-metadata-cache/history/moved.md');
+    await restart();
+    expect(await component.getUnlinkedMentions(asOriginal(alpha))).toEqual([]);
+    await unloadComponent();
+  });
+
+  it('should retain a failed checkpoint for retry and close the connection on unload', async () => {
+    const write = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const close = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    component = new UnlinkedMentionsComponent({ app: castTo<AppOriginal>(app), getDataFilePath: (): string => DATA_FILE_PATH, storage: { close, read: (): Promise<null> => Promise.resolve(null), write } });
+    createNote('Alpha.md');
+    await load();
+    write.mockRejectedValueOnce(new Error('quota'));
+    await expect(castTo<MentionsCheckpoint>(component).save()).rejects.toThrow('quota');
+    expect(castTo<MentionsCheckpoint>(component).isDirty).toBe(true);
+    await unloadComponent();
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(close).toHaveBeenCalledOnce();
+  });
   function createComponent(): UnlinkedMentionsComponent {
     return new UnlinkedMentionsComponent({ app: castTo<AppOriginal>(app), getDataFilePath: () => DATA_FILE_PATH });
   }

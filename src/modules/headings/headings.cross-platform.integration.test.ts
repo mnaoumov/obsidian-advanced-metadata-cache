@@ -1,3 +1,4 @@
+import { evalInObsidian } from 'obsidian-integration-testing';
 /**
  * @file
  *
@@ -7,7 +8,7 @@
  * - Moving a section does not make it modified; renaming its heading keeps its `created` and makes it
  *   modified; a heading added later is created later.
  * - Renaming the note takes the history with it.
- * - Switching the module off saves the index to `heading-times.json` in the plugin folder and takes the
+ * - Switching the module off saves the history to shared vault journals and takes the
  *   answer away.
  *
  * The `seen` time is not driven here: it needs the window to have focus, which a test transport cannot
@@ -16,8 +17,6 @@
  * Named `*.cross-platform.integration.test.ts` so the desktop AND android projects both collect it: the
  * API is the one a consumer calls on either.
  */
-
-import { evalInObsidian } from 'obsidian-integration-testing';
 import { getTemporaryVault } from 'obsidian-integration-testing/vitest-global-setup-plugin';
 import {
   afterAll,
@@ -27,6 +26,8 @@ import {
   it
 } from 'vitest';
 
+import type { IndexStorage } from '../../persistence/index-storage.ts';
+
 import { applyPluginSettings } from '../../../scripts/helpers/names-module.ts';
 
 /**
@@ -35,6 +36,14 @@ import { applyPluginSettings } from '../../../scripts/helpers/names-module.ts';
  */
 interface AdvancedMetadataCacheApi {
   readonly getHeadingTimes: (pathOrFile: string) => HeadingTimes[];
+}
+
+interface HeadingApiPersistence {
+  readonly headingTimesIndex: HeadingIndexPersistence;
+}
+
+interface HeadingIndexPersistence {
+  readonly storage: IndexStorage;
 }
 
 interface HeadingsModuleSettings {
@@ -88,7 +97,6 @@ interface PluginApiRegistryHolder {
 interface PluginApiRegistryWrapper {
   readonly value?: PluginApiRegistry;
 }
-
 interface PluginManifestWithFolder {
   // eslint-disable-next-line unicorn/name-replacements -- Obsidian's own PluginManifest member.
   readonly dir?: string;
@@ -96,6 +104,7 @@ interface PluginManifestWithFolder {
 
 interface SettingsPlugin {
   readonly manifest: PluginManifestWithFolder;
+  readonly pluginApi: HeadingApiPersistence;
   readonly pluginSettingsComponent: HeadingsSettingsComponent;
 }
 
@@ -258,21 +267,17 @@ async function runScenario(): Promise<HeadingsResult> {
         await plugin.pluginSettingsComponent.editAndSave((settings) => {
           settings.isHeadingsModuleEnabled = false;
         });
-        const dataFilePath = `${plugin.manifest.dir}/heading-times.json`;
+        let savedJson = '';
         await waitUntil({
           intervalInMilliseconds: pollMs,
-          message: 'the index to be saved',
+          message: 'the renamed history to be committed',
           predicate: async () => {
-            if (!await app.vault.adapter.exists(dataFilePath)) {
-              return false;
-            }
-
-            const json = await app.vault.adapter.read(dataFilePath);
-            return json.includes(renamedNotePath);
+            savedJson = await plugin.pluginApi.headingTimesIndex.storage.read() ?? '';
+            return savedJson.includes(renamedNotePath);
           },
           timeoutInMilliseconds: parseWaitMs
         });
-        const savedJson = await app.vault.adapter.read(dataFilePath);
+        await plugin.pluginApi.headingTimesIndex.storage.close?.();
         const isAnswerGone = api.getHeadingTimes(renamedNotePath).length === 0;
 
         await plugin.pluginSettingsComponent.editAndSave((settings) => {

@@ -53,6 +53,8 @@ A copy of the vault ships with every release. You can access it via any of the f
 - **Unlinked mentions without reading every note**, so the Backlinks pane's **Unlinked mentions** section reads only the notes that mention the note, and lists exactly what it listed before. [09 Unlinked mentions](<./demo-vault/09 Unlinked mentions.md>)
 - **Every index is a module of its own**, switched on or off without touching the others; only **Backlinks** and **Properties** are on by default, and a module switched off unloads completely. [04 Settings](<./demo-vault/04 Settings.md>)
 
+Derived caches stay on each device; heading history and registered property names sync through ordinary vault files. See [Storage and sync](./docs/storage.md).
+
 ## See also
 
 [My other Obsidian resources](https://github.com/mnaoumov/obsidian-resources)
