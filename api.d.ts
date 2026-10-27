@@ -85,9 +85,11 @@ export interface AdvancedMetadataCacheApi {
    * A value counts as a date when it is shaped `YYYY-MM-DD`, optionally followed by `THH:mm`, `THH:mm:ss` or
    * `THH:mm:ss.sss`: what Obsidian's own `date` and `datetime` properties write. A value with a time may also
    * carry an ISO 8601 offset (`Z`, `-06:00`, `+0200`) and an RFC 9557 time zone annotation (`[Europe/Kyiv]`).
-   * Values are ordered and matched by their LOCAL part, the date and time as written with the zone dropped,
+   * By default, values are ordered and matched by their LOCAL part, the date and time as written with the zone dropped,
    * so `2026-10-26T23:00-06:00` is on the 26th and the bounds never carry a zone. A list contributes each such
    * member.
+   * Since contract `1.8.0`, `timeBasis: 'utc'` instead matches and orders by instant, with complete
+   * offset-bearing bounds and a per-query {@link DatedValuesQuery.missingTimeZone} policy.
    *
    * In a date property, a value of reduced precision counts too: a year (`2019`, also as an unquoted YAML
    * number) or a year and a month (`2019-05`), as ISO 8601 writes a date known only that far. It stands for
@@ -112,7 +114,7 @@ export interface AdvancedMetadataCacheApi {
    * Added in contract `1.5.0`.
    *
    * @param query - The range, and the properties to read; an empty query lists every dated value.
-   * @returns The values, ordered by value (by month and day first, then by year, when recurring), then by
+   * @returns The values, ordered by the chosen time basis (by month and day first, then by year, when recurring), then by
    *   property name, then by path. `null` when `propertyNames` names a property nobody registered and no
    *   note carries as a date, and while the `Properties` module is off.
    */

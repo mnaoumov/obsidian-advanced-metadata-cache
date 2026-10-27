@@ -136,7 +136,7 @@ counts as CARRYING the property, which is what `getPathsWithProperty` answers.
 **Dates are a second, ordered view of the same values, never a second index to keep in step.**
 `DatedValueIndex` (`dated-value-index.ts`) is fed only by `PropertyValues.set` and `delete`, so a value is in
 it exactly while the property-value index holds it; every rename, delete, `retain`, `clear` and `load` goes
-through those two and needs nothing of its own. It is two sorted arrays (by value, and by month-day for
+through those two and needs nothing of its own. Its wall-clock views are two sorted arrays (by value, and by month-day for
 `isRecurring`), updated by binary search and `splice`. A value enters it when it is shaped
 `YYYY-MM-DD[THH:mm[:ss[.sss]]]`, and a value with a time may add an ISO 8601 offset (`Z`, `±HH:MM`, `±HHMM`)
 and an RFC 9557 zone annotation (`[Europe/Kyiv]`). **The wall-clock arrays key on the LOCAL part** (`getLocalDateValue`:
@@ -173,7 +173,8 @@ it indexed, the same cost the missing unregister already accepts.
 
 **UTC is an additional query view, never a replacement for wall-clock ordering.** Contract `1.8.0` adds
 `timeBasis: 'utc'` with complete offset-bearing bounds and no recurring mode. A third sorted array holds
-only zoned values, keyed by their UTC ISO instant; mutations feed it alongside the other two. A written
+only zoned values, keyed by a fixed-width shifted epoch (so offsets crossing year 0 or 10000 still sort
+chronologically); mutations feed it alongside the other two. A written
 offset wins over a zone annotation. `instant-date.ts` uses the host's `Intl` database for named zones,
 with compatible DST disambiguation (earlier for overlaps, forward for gaps). Zone-free candidates come
 from a two-day-widened slice of the existing wall-clock view, including overlapping reduced periods;
