@@ -54,6 +54,7 @@ import type {
   LinkSuggestion,
   MigrateSettingsParams,
   MigrateSettingsResult,
+  SpecificTimeZone,
   UnlinkedMention,
   UnlinkedMentionRange
 } from './api.d.ts';
@@ -86,7 +87,12 @@ const isDatedValue = objectTypeGuard<DatedValue>({
 const isDatedValuesQuery = objectTypeGuard<DatedValuesQuery>({
   from: optionalTypeGuard(isString),
   isRecurring: optionalTypeGuard(isBoolean),
+  missingTimeZone: optionalTypeGuard((value): value is NonNullable<DatedValuesQuery['missingTimeZone']> =>
+    value === 'default' || value === 'utc' || value === 'skip' || value === 'fail'
+    || objectTypeGuard<SpecificTimeZone>({ zone: isString })(value)
+  ),
   propertyNames: optionalTypeGuard(isStringArray),
+  timeBasis: optionalTypeGuard((value): value is NonNullable<DatedValuesQuery['timeBasis']> => value === 'utc' || value === 'wallClock'),
   to: optionalTypeGuard(isString)
 });
 

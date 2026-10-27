@@ -79,6 +79,16 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         visible: () => this.pluginSettingsComponent.settings.isPropertiesModuleEnabled
       }),
       this.settingEx({
+        desc: 'The IANA time zone used for dates without a zone in UTC queries, for example Europe/Kyiv. Leave empty to follow this device. A caller can override this for each query.',
+        name: 'Default time zone',
+        render: (setting) => {
+          setting.addText((text) => {
+            this.bind({ propertyName: 'defaultTimeZone', valueComponent: text });
+          });
+        },
+        visible: () => this.pluginSettingsComponent.settings.isPropertiesModuleEnabled
+      }),
+      this.settingEx({
         desc: 'Whether to treat a frontmatter property as a name for the note carrying it, alongside its own name and its `aliases`. Nothing is indexed up front: the properties are read per note, on demand, and they join what the `Names` module answers about. Other plugins can read the same list and the same per-note answer, so the property is named here once rather than in each of them.',
         name: 'Titles module',
         render: (setting) => {

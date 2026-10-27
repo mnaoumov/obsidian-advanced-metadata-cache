@@ -139,11 +139,11 @@ it exactly while the property-value index holds it; every rename, delete, `retai
 through those two and needs nothing of its own. It is two sorted arrays (by value, and by month-day for
 `isRecurring`), updated by binary search and `splice`. A value enters it when it is shaped
 `YYYY-MM-DD[THH:mm[:ss[.sss]]]`, and a value with a time may add an ISO 8601 offset (`Z`, `±HH:MM`, `±HHMM`)
-and an RFC 9557 zone annotation (`[Europe/Kyiv]`). **Both arrays key on the LOCAL part** (`getLocalDateValue`:
+and an RFC 9557 zone annotation (`[Europe/Kyiv]`). **The wall-clock arrays key on the LOCAL part** (`getLocalDateValue`:
 the date and time as written, zone dropped), worked out once per entry; that is what keeps plain string order
 the date order, and it is a decision, not a shortcut: a query by calendar day must match the
 day the note names, and a value without a zone has no instant to sort by. Ties on the local part break on the full
-value. Do not key on the instant: `2026-10-26T23:00-06:00` would move to the 27th and every prefix bound would
+value. Do not key those arrays on the instant: `2026-10-26T23:00-06:00` would move to the 27th and every prefix bound would
 stop meaning what it says. A time alone (`14:30`) is not a date, and neither is a space-separated
 datetime or a bare zone name; `getNonDateValues` lists such values of the date properties, computed on
 demand by `PropertyValueIndex`, never kept in step.
@@ -170,6 +170,18 @@ declare but Obsidian fires from `setType`, `unsetType` and a `types.json` reload
 pins that. So "with nothing registered it holds nothing" now reads "nothing registered and no date
 property". Such a registration is as durable as any other: retyping the property away from a date leaves
 it indexed, the same cost the missing unregister already accepts.
+
+**UTC is an additional query view, never a replacement for wall-clock ordering.** Contract `1.8.0` adds
+`timeBasis: 'utc'` with complete offset-bearing bounds and no recurring mode. A third sorted array holds
+only zoned values, keyed by their UTC ISO instant; mutations feed it alongside the other two. A written
+offset wins over a zone annotation. `instant-date.ts` uses the host's `Intl` database for named zones,
+with compatible DST disambiguation (earlier for overlaps, forward for gaps). Zone-free candidates come
+from a two-day-widened slice of the existing wall-clock view, including overlapping reduced periods;
+they are converted exactly in the query's zone and filtered before merging into instant order.
+`missingTimeZone` chooses the setting `defaultTimeZone` (empty follows the device), UTC, a specific zone,
+skip, or fail. Fail uses the default zone to decide range overlap, then throws with the offending value,
+property and path. Date-only values span a whole calendar day; months and years span their whole period.
+No zone change requires rebuilding or another persisted representation.
 
 ## The `unlinked-mentions` module: a candidate index, confirmed by Obsidian's own expression
 

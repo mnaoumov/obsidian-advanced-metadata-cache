@@ -213,7 +213,7 @@ export class PropertyValueIndex {
       }
 
       return isDateProperty;
-    });
+    }, this.pluginSettingsComponent.settings.defaultTimeZone);
   }
 
   /**
