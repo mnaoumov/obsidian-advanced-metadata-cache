@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2.3.0
+
+- refactor(properties): name date-query and zone-conversion options
+- fix(properties): preserve UTC ordering across calendar boundaries
+- feat(properties): query dates by UTC instant with per-query zone policies
+- docs(readme): combine related resources and plugin comparisons
+- docs(readme): cut the README to a landing page, detail moved to docs/api.md and the demo vault
+- feat(unlinked-mentions): persist the index across restarts, and measure the build on a real vault
+- docs(readme): add a See also section comparing similar plugins
+- feat(unlinked-mentions): fill the Backlinks pane's Unlinked mentions section from an index
+- feat(properties): index a year or a month alone as a date standing for its whole period
+- feat(properties): pick date properties by name, and order zoned dates by the time as written
+
 ## 2.2.0
 
 - feat(properties): find notes by date range and by recurring date for other plugins
