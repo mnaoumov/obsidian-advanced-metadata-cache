@@ -19,6 +19,7 @@ import { PropertyValueIndex } from './modules/properties/property-value-index.ts
 import { TitleIndexComponent } from './modules/titles/title-index-component.ts';
 import { TitleIndex } from './modules/titles/title-index.ts';
 import { UnlinkedMentionsComponent } from './modules/unlinked-mentions/unlinked-mentions-component.ts';
+import { PluginIndexStorage } from './persistence/plugin-index-storage.ts';
 import { PluginApiImpl } from './plugin-api-impl.ts';
 import { PLUGIN_API_VERSION } from './plugin-api-version.ts';
 import { PLUGIN_API_CONTRACT } from './plugin-api.ts';
@@ -82,13 +83,15 @@ export class Plugin extends PluginBase {
     const headingTimesIndex = new HeadingTimesIndex({
       app: this.app,
       getDataFilePath: (): string => this.getDataFilePath('heading-times.json'),
-      pluginSettingsComponent
+      pluginSettingsComponent,
+      storage: new PluginIndexStorage({ app: this.app, getLegacyPath: (): string => this.getDataFilePath('heading-times.json'), kind: 'headings', pluginId: this.manifest.id })
     });
     // Owned here too: a registration must outlive the module being switched off and on again.
     const propertyValueIndex = new PropertyValueIndex({
       app: this.app,
       getDataFilePath: (): string => this.getDataFilePath('property-values.json'),
-      pluginSettingsComponent
+      pluginSettingsComponent,
+      storage: new PluginIndexStorage({ app: this.app, getLegacyPath: (): string => this.getDataFilePath('property-values.json'), kind: 'properties', pluginId: this.manifest.id })
     });
     const modulesComponent = new ModulesComponent({
       moduleDefinitions: [
@@ -136,7 +139,8 @@ export class Plugin extends PluginBase {
           createComponent: (): UnlinkedMentionsComponent =>
             new UnlinkedMentionsComponent({
               app: this.app,
-              getDataFilePath: (): string => this.getDataFilePath('unlinked-mentions.json')
+              getDataFilePath: (): string => this.getDataFilePath('unlinked-mentions.json'),
+              storage: new PluginIndexStorage({ app: this.app, getLegacyPath: (): string => this.getDataFilePath('unlinked-mentions.json'), kind: 'mentions', pluginId: this.manifest.id })
             }),
           getIsEnabled: (settings): boolean => settings.isUnlinkedMentionsModuleEnabled,
           moduleId: 'unlinked-mentions'
@@ -182,7 +186,7 @@ export class Plugin extends PluginBase {
   }
 
   /**
-   * Where a module keeps its index: a file of its own in this plugin's folder, so it never mixes into
+   * Where a module reads its legacy migration source: a file in this plugin's folder, so it never mixes into
    * `data.json`, which holds settings and is rewritten whenever one changes.
    *
    * @param fileName - The index file's name.

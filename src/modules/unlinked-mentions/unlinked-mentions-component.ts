@@ -14,12 +14,15 @@ import {
   Vault
 } from 'obsidian';
 
+import type { IndexStorage } from '../../persistence/index-storage.ts';
 import type {
   SavedNoteMentions,
   SavedUnlinkedMentions
 } from './persisted-unlinked-mentions.ts';
 import type { MentionRange } from './unlinked-mention-ranges.ts';
 
+import { FileIndexStorage } from '../../persistence/file-index-storage.ts';
+import { isPluginDataPath } from '../../persistence/storage-paths.ts';
 import {
   parsePersistedUnlinkedMentions,
   stringifyPersistedUnlinkedMentions
@@ -62,10 +65,11 @@ interface ScannedStat {
 interface UnlinkedMentionsComponentConstructorParams {
   readonly app: App;
 
+  readonly getDataFilePath: (this: void) => string;
   /**
    * Where the index is saved: `unlinked-mentions.json` in the plugin's folder.
    */
-  readonly getDataFilePath: (this: void) => string;
+  readonly storage?: IndexStorage;
 }
 
 /*
@@ -88,7 +92,7 @@ export const SAVE_DEBOUNCE_IN_MILLISECONDS = 5000;
  * `BacklinkComponent.recomputeUnlinked`, installed BEFORE the build: until the build ends the patch falls through to
  * Obsidian's own full scan, so no caller is handed an answer from a half-built index.
  *
- * The index is saved to `unlinked-mentions.json`, with the `mtime` and `size` each note had when it was scanned, on a
+ * The index is saved to device-local IndexedDB, with the `mtime` and `size` each note had when it was scanned, on a
  * debounce and once more when the module is switched off. The next build reuses every note whose `mtime` and `size`
  * still match and reads only the rest; a name the saved index had not looked for is dirty, as after any full scan.
  */
@@ -109,16 +113,18 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
   private isBuiltValue = false;
   private isDirty = false;
   private readonly requestSave: Debouncer<[], void>;
-
   /*
    * The `mtime` and `size` each note had when its text was last scanned: what a saved entry is checked against, so a
    * note edited while nothing watched is read again.
    */
   private readonly scannedStats = new Map<string, ScannedStat>();
 
+  private readonly storage: IndexStorage;
+
   public constructor(params: UnlinkedMentionsComponentConstructorParams) {
     super(params.app);
     this.getDataFilePath = params.getDataFilePath;
+    this.storage = params.storage ?? new FileIndexStorage({ adapter: this.app.vault.adapter, getPath: this.getDataFilePath });
     this.requestSave = debounce(() => {
       invokeAsyncSafely(() => this.save());
     }, SAVE_DEBOUNCE_IN_MILLISECONDS);
@@ -180,6 +186,7 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
       // `save` serializes before its first `await`, so clearing straight after it still saves this state.
       invokeAsyncSafely(() => this.save());
     }
+    invokeAsyncSafely(async () => this.storage.close?.());
 
     super.onunload();
     this.index.clear();
@@ -192,12 +199,15 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
 
     // Registered before the build too, so a change made while it reads the vault is not lost.
     this.registerEvent(this.app.metadataCache.on('changed', (file, data, cache) => {
+      if (isPluginDataPath(file.path)) {
+        return;
+      }
       this.index.setNames(file.path, getMentionNames(file, cache));
       this.setText(file, data);
     }));
 
     this.registerEvent(this.app.vault.on('create', (abstractFile) => {
-      if (abstractFile instanceof TFile) {
+      if (abstractFile instanceof TFile && !isPluginDataPath(abstractFile.path)) {
         this.index.setNames(abstractFile.path, getMentionNames(abstractFile, this.app.metadataCache.getFileCache(abstractFile)));
       }
     }));
@@ -232,12 +242,21 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
   private async build(): Promise<void> {
     // An alias read before the cache can answer would be indexed as absent, with no later event to say otherwise.
     await ensureMetadataCacheReady(this.app);
+    if (this.isUnloaded()) {
+      return;
+    }
 
     for (const file of this.app.vault.getFiles()) {
+      if (isPluginDataPath(file.path)) {
+        continue;
+      }
       this.index.setNames(file.path, getMentionNames(file, this.app.metadataCache.getFileCache(file)));
     }
 
     const saved = await this.readSaved();
+    if (this.isUnloaded()) {
+      return;
+    }
     if (saved) {
       await this.restore(saved);
     } else {
@@ -256,7 +275,7 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
   }
 
   private async findUnlinkedMention(names: readonly string[], file: TFile, mentioningFile: TFile): Promise<null | UnlinkedMentionMatch> {
-    if (mentioningFile === file || mentioningFile.extension !== 'md' || this.app.metadataCache.isUserIgnored(mentioningFile.path)) {
+    if (mentioningFile === file || mentioningFile.extension !== 'md' || isPluginDataPath(mentioningFile.path) || this.app.metadataCache.isUserIgnored(mentioningFile.path)) {
       return null;
     }
 
@@ -300,12 +319,18 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
    * @returns It, or `null` when there is none this version can use, and every note must be read.
    */
   private async readSaved(): Promise<null | SavedUnlinkedMentions> {
-    const dataFilePath = this.getDataFilePath();
-    return await this.app.vault.adapter.exists(dataFilePath) ? parsePersistedUnlinkedMentions(await this.app.vault.adapter.read(dataFilePath)) : null;
+    const json = await this.storage.read();
+    return json === null ? null : parsePersistedUnlinkedMentions(json);
   }
 
   private renameFile(file: TFile, oldPath: string): void {
     this.index.removeNames(oldPath);
+    if (isPluginDataPath(file.path)) {
+      this.index.removeText(oldPath);
+      this.scannedStats.delete(oldPath);
+      this.markDirty();
+      return;
+    }
     this.index.setNames(file.path, getMentionNames(file, this.app.metadataCache.getFileCache(file)));
     this.index.renameText(oldPath, file.path);
 
@@ -327,6 +352,9 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
   private async restore(saved: SavedUnlinkedMentions): Promise<void> {
     const changedFiles: TFile[] = [];
     for (const file of this.app.vault.getMarkdownFiles()) {
+      if (isPluginDataPath(file.path)) {
+        continue;
+      }
       const note: SavedNoteMentions | undefined = saved.notes.get(file.path);
       // A note `changed` already scanned during the load is newer than anything saved.
       if (this.scannedStats.has(file.path)) {
@@ -385,7 +413,12 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
 
     const json = stringifyPersistedUnlinkedMentions({ cleanKeys: this.index.getCleanKeys(), notes });
     this.isDirty = false;
-    await this.app.vault.adapter.write(this.getDataFilePath(), json);
+    try {
+      await this.storage.write(json);
+    } catch (error) {
+      this.isDirty = true;
+      throw error;
+    }
   }
 
   /**
@@ -395,13 +428,13 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
    */
   private async scanFiles(files: readonly TFile[]): Promise<void> {
     await forEachBatch(files, async (file) => {
-      if (this.isUnloaded()) {
+      if (this.isUnloaded() || isPluginDataPath(file.path)) {
         return;
       }
 
       const content = await this.app.vault.cachedRead(file);
       // A note deleted or renamed during the read is the event handlers' to account for.
-      if (!this.isUnloaded() && this.app.vault.getFileByPath(file.path) === file) {
+      if (!this.isUnloaded() && !isPluginDataPath(file.path) && this.app.vault.getFileByPath(file.path) === file) {
         this.setText(file, content);
       }
     });

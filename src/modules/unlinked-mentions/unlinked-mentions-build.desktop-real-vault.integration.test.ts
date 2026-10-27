@@ -1,3 +1,5 @@
+import type { LocalDataStore } from '@mnaoumov/obsidian-lib/data-stores/local-data-store';
+
 import {
   evalInObsidian,
   pollInObsidian
@@ -11,6 +13,7 @@ import {
 
 import type { SettingsEditorPlugin } from '../../../scripts/helpers/names-module.ts';
 import type { PluginApiRegistryHolder } from '../../../scripts/helpers/plugin-api-registry.ts';
+import type { IndexStorage } from '../../persistence/index-storage.ts';
 
 /*
  * What the `Unlinked mentions` module costs to build on a vault whose notes hold real text, which the generated
@@ -21,7 +24,7 @@ import type { PluginApiRegistryHolder } from '../../../scripts/helpers/plugin-ap
  *
  * - `readAllMs`: `cachedRead` of every note in the module's own batches, the floor of a build that reads them all.
  * - `coldBuildMs`: the module switched on for the first time.
- * - `warmBuildMs`: switched off, which saves `unlinked-mentions.json`, and on again, which is what the next start of
+ * - `warmBuildMs`: switched off, which saves local IndexedDB records, and on again, which is what the next start of
  *   Obsidian pays.
  *
  * The work runs in the background of the page and is POLLED from Node: one `evalInObsidian` holding a multi-minute
@@ -33,9 +36,25 @@ interface BuildTimings {
   readonly error: null | string;
   readonly fileCount: number;
   readonly readAllMs: number;
-  readonly savedBytes: number;
+  readonly savedBytes: number; // Logical serialized record bytes; IndexedDB physical overhead is excluded.
   readonly totalBytes: number;
   readonly warmBuildMs: number;
+}
+interface CacheApi {
+  readonly getUnlinkedMentionsComponent: () => CacheOwner | null;
+}
+interface CacheConnections {
+  readonly connections: readonly LocalDataStore[];
+}
+interface CacheOwner {
+  readonly storage: CacheStorage;
+}
+interface CachePlugin extends SettingsEditorPlugin {
+  readonly pluginApi: CacheApi;
+}
+
+interface CacheStorage extends IndexStorage {
+  readonly opened: CacheConnections | null;
 }
 
 interface TimingsHolder {
@@ -90,10 +109,10 @@ describe('the unlinked mentions module on a real vault', () => {
         async function run(): Promise<void> {
           const emptyTimings = { coldBuildMs: 0, fileCount: 0, readAllMs: 0, savedBytes: 0, totalBytes: 0, warmBuildMs: 0 };
           try {
-            const plugin = app.plugins.getPlugin(pluginId) as null | SettingsEditorPlugin;
+            const plugin = app.plugins.getPlugin(pluginId) as CachePlugin | null;
             const files = app.vault.getMarkdownFiles();
             const target = files[0];
-            const dataFilePath = `${app.vault.configDir}/plugins/${pluginId}/unlinked-mentions.json`;
+
             if (!plugin || !target) {
               holder.__amcRealVaultTimings = { ...emptyTimings, error: 'Plugin or notes missing' };
               return;
@@ -108,11 +127,14 @@ describe('the unlinked mentions module on a real vault', () => {
             const readAllMs = performance.now() - readStart;
 
             const coldBuildMs = await timeBuild();
+            const storage = plugin.pluginApi.getUnlinkedMentionsComponent()?.storage;
             // Switching off saves the index; the wait lets that write land, as it has by the next start of Obsidian.
             await setEnabled(false);
             await sleep(saveSettleMs);
-            const savedStat = await app.vault.adapter.stat(dataFilePath);
-            const savedBytes = savedStat?.size ?? 0;
+            await storage?.read();
+            const savedRecords = await storage?.opened?.connections[0]?.entries();
+            const savedBytes = new TextEncoder().encode(JSON.stringify(savedRecords)).byteLength;
+            await storage?.close?.();
             const warmBuildMs = await timeBuild();
             await setEnabled(false);
 

@@ -103,8 +103,8 @@ create or `changed` while the module is on; at that first sight every heading is
 is stamped. There is deliberately no vault walk: a vault walk would only produce baselines.
 
 `HeadingTimesIndex` is owned by the plugin (the published API reads it for the plugin's whole life, the
-same reason as `TitleIndex`) and persisted to `heading-times.json` in the plugin folder, NOT in
-`data.json`, which the settings component owns and rewrites. `HeadingTimesComponent` loads it on layout
+same reason as `TitleIndex`) and persisted through per-device shared observation journals under
+`Plugin data/advanced-metadata-cache/`, with device-local IndexedDB replicas. `HeadingTimesComponent` loads it on layout
 ready, then catches up on tracked notes whose `mtime` moved while nothing watched, stamping them with
 that `mtime`; it re-checks the `mtime` after each read so a `changed` that landed meanwhile wins. It
 saves on a non-resetting 5 s debounce and once more on unload, and clears memory at both edges.
@@ -122,11 +122,11 @@ with nothing registered it holds nothing, and off would make every consumer send
 `HeadingTimesIndex` it is owned by the plugin, because a registration must outlive the module being
 switched off, and it gates itself on `isPropertiesModuleEnabled`.
 
-A registration is **durable**: the names are saved with the values in `property-values.json`, so the next
+A registration is **durable and shared**: names use grow-only shared registers, while values stay in per-record local IndexedDB. The next
 startup indexes and answers them before the consumer has loaded. `PropertyValueIndexComponent` loads that
-file on layout ready, then rebuilds from `metadataCache.getFileCache` (never a file read) once
+store on layout ready, then rebuilds from `metadataCache.getFileCache` (never a file read) once
 `ensureMetadataCacheReady` resolves, and only then resolves the promise the `Safe` members wait on. Two
-guards keep the file from being overwritten with a names-only state: a registration before the build
+guards keep the local checkpoint from being overwritten with a names-only state: a registration before the build
 requests no save, and the unload save is skipped until the load has finished.
 
 Matching is exact, name and value. A scalar string, number or boolean is one value in its string form, a
@@ -215,17 +215,17 @@ original does, because the original `onMetadataChanged` compares it to decide on
 ends, both methods fall through to Obsidian's.
 
 **The index is persisted, and a saved entry is trusted only as far as its `mtime` and `size`.** `UnlinkedMentionsComponent`
-saves `unlinked-mentions.json` (format in `persisted-unlinked-mentions.ts`) on a non-resetting 5 s debounce and on unload,
+saves per-note records to device-local IndexedDB on a non-resetting 5 s debounce and on unload,
 and only once built, so a half-built index never overwrites a whole one. Per note it holds the `mtime`/`size` the text had
 WHEN IT WAS SCANNED (`scannedStats`, not the file's current stat, which may already be ahead of a pending `changed`) and
 the keys found; at top level, the CLEAN keys (`getCleanKeys`), because a key dirty at save time was never looked for in
 the notes scanned before it. The next build sets every name from the metadata cache (all dirty), restores each note whose
 stat matches, reads the rest, then `markClean`s the saved clean keys: every other name stays dirty and the first query
 about it runs the full scan as before. A note `changed` already scanned during the load is skipped, since it is newer
-than anything saved. Bump `PERSISTED_VERSION` whenever what a key means changes (`word-characters.ts` above all).
+than anything saved. Bump the `mentions-cache-v1` store id and the legacy `PERSISTED_VERSION` whenever what a key means changes (`word-characters.ts` above all).
 
 Measured on a copy of a real vault (35,493 notes, 78 MB): the build read every note in ~6-8 s with the notes already in
-the OS file cache; from the saved file (9.2 MB) it took 1.2 s. `npm run test:integration:real-vault` with
+the OS file cache; from the previous JSON saved file (9.2 MB) it took 1.2 s. Those storage measurements predate the IndexedDB migration. `npm run test:integration:real-vault` with
 `AMC_REAL_VAULT_PATH` set re-measures it (`unlinked-mentions-build.desktop-real-vault.integration.test.ts`); that
 project is opt-in and in no gate, because the vault it copies is private. Its first read of every note right after the
 copy took 231 s, most likely cold disk reads, so a start after a reboot is where the saved file saves the most.
@@ -331,3 +331,11 @@ file. The patch returns a non-empty answer from below it unchanged, so the resul
 two patches was installed first.
 
 `canvas-cache.desktop.integration.test.ts` asserts the persisted hash stays empty, and it fails on the old code.
+
+## Persistence boundaries
+
+`src/persistence/` separates derived caches from authoritative state. `LocalIndexStorage` stores property/path and unlinked-mention/note records in vault-scoped IndexedDB, committing only changed records and removals. `PluginIndexStorage` serializes lazy opening, migration, writes and closing. Async completions check the owning lifetime, so unloading cannot reopen a store or repopulate a cleared index. Legacy JSON files are removed only after durable replacement and a local migration marker; malformed sources stay intact. File-backed interchange storage remains an injectable test boundary; the plugin always supplies `PluginIndexStorage`.
+
+Heading snapshots use one shared register per writer/path. `mergeHeadingNotes` uses the existing matcher, minimum created and maximum modified/seen; `SharedHeadingStorage` uses explicit create/delete incarnation boundaries. Never infer a deletion from omission in a stale snapshot, or from a missing file at startup: sync can deliver journals before notes. Missing notes retain dormant history, resumed on a later create. Legacy observations occupy separate epoch-zero records, so they cannot overwrite live observations or resurrect a deleted incarnation. Rename explicitly retires the source and carries its history to the destination. Lifecycle ordering inherits wall-clock skew, and edits made while tracking is off retain the matcher's original uncertainty.
+
+Property names use minimum registers as a grow-only set. Shared state synchronizes after relevant metadata transport changes (debounced, ignoring `have.md`), every 30 seconds, and on focus; listeners and connections belong to the module lifetime. Compaction runs after every 120 writes. The plugin's own Markdown transport is excluded from its heading tracking and unlinked-mention answers, preventing feedback writes and matches in generated data. See `docs/storage.md` for the user-facing sync and recovery contract.

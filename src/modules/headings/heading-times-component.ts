@@ -22,6 +22,7 @@ import {
 import type { HeadingTimesIndex } from './heading-times-index.ts';
 import type { VisibleLineRange } from './visible-lines.ts';
 
+import { isPluginDataPath } from '../../persistence/storage-paths.ts';
 import { readHeadingSnapshots } from './heading-snapshot.ts';
 import { getVisibleLineRange } from './visible-lines.ts';
 
@@ -49,6 +50,9 @@ export const SEEN_POLL_INTERVAL_IN_MILLISECONDS = 2000;
  * edited without pause is still saved this often.
  */
 export const SAVE_DEBOUNCE_IN_MILLISECONDS = 5000;
+
+const SYNCHRONIZE_INTERVAL_IN_MILLISECONDS = 30_000;
+const SYNCHRONIZE_DEBOUNCE_IN_MILLISECONDS = 1000;
 
 /**
  * The `Headings` module: keeps the {@link HeadingTimesIndex} current for as long as it is on.
@@ -80,28 +84,43 @@ export class HeadingTimesComponent extends LayoutReadyComponent {
       // `save` serializes before its first `await`, so clearing straight after it still saves this state.
       invokeAsyncSafely(() => this.headingTimesIndex.save());
     }
+    invokeAsyncSafely(() => this.headingTimesIndex.close());
 
     this.headingTimesIndex.clear();
     super.onunload();
   }
 
   protected override async onLayoutReady(): Promise<void> {
-    await this.headingTimesIndex.load();
-
+    const loadPromise = this.headingTimesIndex.load();
     if (this.isUnloaded()) {
+      await loadPromise;
       return;
     }
+    const requestSynchronize = debounce(() => {
+      invokeAsyncSafely(() => this.headingTimesIndex.synchronize());
+    }, SYNCHRONIZE_DEBOUNCE_IN_MILLISECONDS);
+    this.register(() => requestSynchronize.cancel());
 
     /*
      * Registered BEFORE the catch-up, which awaits a read per note: a `changed` arriving during it is the
      * newer answer, and the catch-up checks the `mtime` again after its read so it never overwrites one.
      */
     this.registerEvent(this.app.metadataCache.on('changed', (file, content, cache) => {
+      if (isPluginDataPath(file.path)) {
+        if (!file.path.endsWith('/have.md')) {
+          requestSynchronize();
+        }
+        return;
+      }
       this.recordNow({ cache, content, file, time: Date.now() });
     }));
 
     this.registerEvent(this.app.vault.on('create', (abstractFile) => {
-      if (!(isFile(abstractFile) && isMarkdownFile(abstractFile))) {
+      if (!(isFile(abstractFile) && isMarkdownFile(abstractFile)) || isPluginDataPath(abstractFile.path)) {
+        return;
+      }
+      // A journal can arrive before its note. Only an observed delete starts a new incarnation.
+      if (this.headingTimesIndex.resumeMissing(abstractFile.path)) {
         return;
       }
 
@@ -124,9 +143,20 @@ export class HeadingTimesComponent extends LayoutReadyComponent {
     }));
 
     this.registerInterval(window.setInterval(() => {
+      invokeAsyncSafely(() => this.headingTimesIndex.synchronize());
+    }, SYNCHRONIZE_INTERVAL_IN_MILLISECONDS));
+    this.registerDomEvent(window, 'focus', () => {
+      invokeAsyncSafely(() => this.headingTimesIndex.synchronize());
+    });
+
+    this.registerInterval(window.setInterval(() => {
       this.pollSeen();
     }, SEEN_POLL_INTERVAL_IN_MILLISECONDS));
 
+    await loadPromise;
+    if (this.isUnloaded()) {
+      return;
+    }
     await ensureMetadataCacheReady(this.app);
     await this.catchUp();
 
@@ -138,17 +168,16 @@ export class HeadingTimesComponent extends LayoutReadyComponent {
   }
 
   /**
-   * Re-reads every tracked note that changed while nothing was watching, and forgets every tracked note
-   * that is gone. A note renamed while nothing was watching is among the gone: the move cannot be told from
-   * a deletion, so it starts again from its next open.
+   * Re-reads tracked notes changed while nothing watched. Missing notes retain dormant history because
+   * sync may deliver a journal before its note; only an observed delete retires an incarnation.
    */
   private async catchUp(): Promise<void> {
     for (const path of this.headingTimesIndex.getPaths()) {
       const file = this.app.vault.getFileByPath(path);
 
       if (!file) {
-        this.headingTimesIndex.delete(path);
-        this.requestSave();
+        // Absence at startup is not an observed deletion: sync may deliver the note later.
+        this.headingTimesIndex.markMissing(path);
         continue;
       }
 
@@ -218,6 +247,9 @@ export class HeadingTimesComponent extends LayoutReadyComponent {
   }
 
   private recordNow(params: HeadingTimesComponentRecordNowParams): void {
+    if (isPluginDataPath(params.file.path)) {
+      return;
+    }
     const { cache, content, file, time } = params;
     this.headingTimesIndex.record({
       mtime: file.stat.mtime,

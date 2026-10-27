@@ -4,7 +4,7 @@
  * The state behind the `Headings` module: for each tracked note, its headings as last parsed and when each
  * was created, last modified and last seen.
  *
- * Kept in a JSON file in this plugin's own folder and never in the note. A note is tracked from the first
+ * Kept in shared observation journals with a local IndexedDB replica, never in the note. A note is tracked from the first
  * time it is opened, changed or created while the module is on, so a vault nobody is working in costs
  * nothing and there is no up-front walk of it. A heading that was already there when its note started
  * being tracked has `created` and `modified` of `null`: the plugin did not see it happen, and a guessed
@@ -19,10 +19,12 @@ import type {
   TFile
 } from 'obsidian';
 
+import type { IndexStorage } from '../../persistence/index-storage.ts';
 import type { HeadingTimes } from '../../plugin-api.ts';
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 import type { HeadingSnapshot } from './heading-snapshot.ts';
 
+import { FileIndexStorage } from '../../persistence/file-index-storage.ts';
 import { matchHeadings } from './heading-snapshot.ts';
 
 /**
@@ -63,6 +65,7 @@ interface HeadingTimesIndexConstructorParams {
   readonly app: App;
   readonly getDataFilePath: () => string;
   readonly pluginSettingsComponent: PluginSettingsComponent;
+  readonly storage?: IndexStorage;
 }
 
 interface HeadingTimesIndexMarkSeenParams {
@@ -98,14 +101,20 @@ export class HeadingTimesIndex {
   }
 
   private readonly app: App;
+  private generation = 0;
   private readonly getDataFilePath: () => string;
   private isDirtyValue = false;
+  private readonly missingPaths = new Set<string>();
   private readonly notes = new Map<string, NoteHeadingTimes>();
+  private readonly pathRevisions = new Map<string, number>();
   private readonly pluginSettingsComponent: PluginSettingsComponent;
+  private revision = 0;
+  private readonly storage: IndexStorage;
 
   public constructor(params: HeadingTimesIndexConstructorParams) {
     this.app = params.app;
     this.getDataFilePath = params.getDataFilePath;
+    this.storage = params.storage ?? new FileIndexStorage({ adapter: this.app.vault.adapter, getPath: this.getDataFilePath });
     this.pluginSettingsComponent = params.pluginSettingsComponent;
   }
 
@@ -114,8 +123,21 @@ export class HeadingTimesIndex {
    * again loses no history.
    */
   public clear(): void {
+    this.revision++;
+    this.generation++;
+    this.pathRevisions.clear();
     this.notes.clear();
+    this.missingPaths.clear();
     this.isDirtyValue = false;
+  }
+
+  /**
+
+   * Releases persistence after every save already requested by the component.
+
+   */
+  public async close(): Promise<void> {
+    await this.storage.close?.();
   }
 
   /**
@@ -124,7 +146,13 @@ export class HeadingTimesIndex {
    * @param path - The note's vault-relative path.
    */
   public delete(path: string): void {
+    this.revision++;
+    this.pathRevisions.set(path, this.revision);
+    if (this.notes.has(path)) {
+      this.storage.forget?.(path);
+    }
     this.isDirtyValue = this.notes.delete(path) || this.isDirtyValue;
+    this.missingPaths.delete(path);
   }
 
   /**
@@ -193,22 +221,32 @@ export class HeadingTimesIndex {
   }
 
   /**
-   * Reads the saved state, replacing whatever is held in memory. A missing or unreadable file is an empty
-   * index: the history it held is lost, and tracking starts again from now.
+   * Reads persisted history, preserving paths changed while the load is in flight.
    */
   public async load(): Promise<void> {
     this.clear();
-    const dataFilePath = this.getDataFilePath();
-
-    if (!await this.app.vault.adapter.exists(dataFilePath)) {
+    const revision = this.revision;
+    const generation = this.generation;
+    const json = await this.storage.read();
+    if (json === null || generation !== this.generation) {
       return;
     }
-
-    const persisted = parsePersistedHeadingTimes(await this.app.vault.adapter.read(dataFilePath));
+    const persisted = parsePersistedHeadingTimes(json);
 
     for (const [path, note] of Object.entries(persisted?.notes ?? {})) {
-      this.notes.set(path, note);
+      if ((this.pathRevisions.get(path) ?? 0) <= revision) {
+        this.notes.set(path, note);
+      }
     }
+  }
+
+  /**
+
+   * Keeps dormant history when a journal arrives before its note.
+
+   */
+  public markMissing(path: string): void {
+    this.missingPaths.add(path);
   }
 
   /**
@@ -263,6 +301,9 @@ export class HeadingTimesIndex {
     }
 
     this.notes.delete(oldPath);
+    this.pathRevisions.set(oldPath, this.revision + 1);
+    this.storage.forget?.(oldPath);
+    this.storage.reset?.(newPath);
     this.set(newPath, note);
   }
 
@@ -279,6 +320,15 @@ export class HeadingTimesIndex {
   }
 
   /**
+
+   * Resumes dormant history on sync delivery; an ordinary create starts empty instead.
+
+   */
+  public resumeMissing(path: string): boolean {
+    return this.missingPaths.delete(path);
+  }
+
+  /**
    * Writes the state to disk.
    *
    * The JSON is built synchronously, before the first `await`, so a caller may clear the index straight
@@ -290,8 +340,47 @@ export class HeadingTimesIndex {
       version: PERSISTED_VERSION
     };
     const json = JSON.stringify(persisted);
-    this.isDirtyValue = false;
-    await this.app.vault.adapter.write(this.getDataFilePath(), json);
+    const revision = this.revision;
+    await this.storage.write(json);
+    if (revision === this.revision) {
+      this.isDirtyValue = false;
+    }
+  }
+
+  /**
+
+   * Merges arriving observations without replacing a parse recorded while synchronization awaited I/O.
+
+   */
+  public async synchronize(): Promise<void> {
+    const generation = this.generation;
+    if (this.isDirtyValue) {
+      await this.save();
+    }
+    if (generation !== this.generation) {
+      return;
+    }
+    const revision = this.revision;
+    const json = await this.storage.read();
+    if (json === null || revision !== this.revision) {
+      return;
+    }
+    const persisted = parsePersistedHeadingTimes(json);
+    if (!persisted) {
+      return;
+    }
+    for (const [path, observed] of Object.entries(persisted.notes)) {
+      const current = this.notes.get(path);
+      this.notes.set(path, current ? mergeHeadingNotes(current, observed) : observed);
+      if (!this.app.vault.getFileByPath(path)) {
+        this.markMissing(path);
+      }
+    }
+    for (const path of this.notes.keys()) {
+      if (!Object.hasOwn(persisted.notes, path)) {
+        this.notes.delete(path);
+      }
+    }
   }
 
   /**
@@ -304,6 +393,7 @@ export class HeadingTimesIndex {
    * @param mtime - Its `mtime`.
    */
   public trackEmpty(path: string, mtime: number): void {
+    this.storage.reset?.(path);
     this.set(path, { headings: [], mtime });
   }
 
@@ -313,6 +403,8 @@ export class HeadingTimesIndex {
   }
 
   private set(path: string, note: NoteHeadingTimes): void {
+    this.revision++;
+    this.pathRevisions.set(path, this.revision);
     this.notes.set(path, note);
     this.isDirtyValue = true;
   }
@@ -354,23 +446,7 @@ export function advanceHeadingTimes(params: AdvanceHeadingTimesParams): HeadingT
   });
 }
 
-function isHeadingTimesRecord(value: unknown): value is HeadingTimesRecord {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-
-  const record = value as Partial<Record<keyof HeadingTimesRecord, unknown>>;
-  return typeof record.bodyHash === 'string'
-    && typeof record.level === 'number'
-    && typeof record.line === 'number'
-    && typeof record.subtreeHash === 'string'
-    && typeof record.text === 'string'
-    && isTime(record.created)
-    && isTime(record.modified)
-    && isTime(record.seen);
-}
-
-function isNoteHeadingTimes(value: unknown): value is NoteHeadingTimes {
+export function isNoteHeadingTimes(value: unknown): value is NoteHeadingTimes {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
@@ -379,8 +455,24 @@ function isNoteHeadingTimes(value: unknown): value is NoteHeadingTimes {
   return typeof note.mtime === 'number' && Array.isArray(note.headings) && note.headings.every(isHeadingTimesRecord);
 }
 
-function isTime(value: unknown): value is null | number {
-  return value === null || typeof value === 'number';
+export function mergeHeadingNotes(current: NoteHeadingTimes, observed: NoteHeadingTimes): NoteHeadingTimes {
+  const matches = matchHeadings(observed.headings, current.headings);
+  return {
+    ...current,
+    headings: current.headings.map((heading, index) => {
+      const otherIndex = matches.get(index);
+      const other = otherIndex === undefined ? undefined : observed.headings[otherIndex];
+      if (!other) {
+        return heading;
+      }
+      return {
+        ...heading,
+        created: mergeTime(heading.created, other.created, Math.min),
+        modified: mergeTime(heading.modified, other.modified, Math.max),
+        seen: mergeTime(heading.seen, other.seen, Math.max)
+      };
+    })
+  };
 }
 
 /**
@@ -389,7 +481,7 @@ function isTime(value: unknown): value is null | number {
  * @param json - The file's text.
  * @returns The saved state, or `null` when the file is not this format at all.
  */
-function parsePersistedHeadingTimes(json: string): null | PersistedHeadingTimes {
+export function parsePersistedHeadingTimes(json: string): null | PersistedHeadingTimes {
   let value: unknown;
 
   try {
@@ -408,4 +500,28 @@ function parsePersistedHeadingTimes(json: string): null | PersistedHeadingTimes 
     notes: Object.fromEntries(Object.entries(persisted.notes).flatMap(([path, note]: [string, unknown]): [string, NoteHeadingTimes][] => isNoteHeadingTimes(note) ? [[path, note]] : [])),
     version: PERSISTED_VERSION
   };
+}
+
+function isHeadingTimesRecord(value: unknown): value is HeadingTimesRecord {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const record = value as Partial<Record<keyof HeadingTimesRecord, unknown>>;
+  return typeof record.bodyHash === 'string'
+    && typeof record.level === 'number'
+    && typeof record.line === 'number'
+    && typeof record.subtreeHash === 'string'
+    && typeof record.text === 'string'
+    && isTime(record.created)
+    && isTime(record.modified)
+    && isTime(record.seen);
+}
+
+function isTime(value: unknown): value is null | number {
+  return value === null || typeof value === 'number';
+}
+
+function mergeTime(left: null | number, right: null | number, merge: (...values: number[]) => number): null | number {
+  return left === null ? right : (right === null ? left : merge(left, right));
 }

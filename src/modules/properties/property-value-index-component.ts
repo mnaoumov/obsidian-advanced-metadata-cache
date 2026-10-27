@@ -15,6 +15,7 @@ import { debounce } from 'obsidian';
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 import type { PropertyValueIndex } from './property-value-index.ts';
 
+import { isPluginDataPath } from '../../persistence/storage-paths.ts';
 import { isDatePropertyName } from './date-properties.ts';
 
 interface PropertyValueIndexComponentConstructorParams {
@@ -28,6 +29,9 @@ interface PropertyValueIndexComponentConstructorParams {
  * edited without pause is still saved this often.
  */
 export const SAVE_DEBOUNCE_IN_MILLISECONDS = 5000;
+
+const SYNCHRONIZE_INTERVAL_IN_MILLISECONDS = 30_000;
+const SYNCHRONIZE_DEBOUNCE_IN_MILLISECONDS = 1000;
 
 /**
  * The `Properties` module: keeps the {@link PropertyValueIndex} current for as long as it is on.
@@ -80,6 +84,7 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
       // `save` serializes before its first `await`, so clearing straight after it still saves this state.
       invokeAsyncSafely(() => this.propertyValueIndex.save());
     }
+    invokeAsyncSafely(() => this.propertyValueIndex.close());
 
     this.propertyValueIndex.clear();
     // A caller still waiting is answered by the index, which answers `null` while the module is off.
@@ -117,6 +122,24 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
   }
 
   protected override async onLayoutReady(): Promise<void> {
+    const synchronize = async (): Promise<void> => {
+      if (!(this.isBuiltValue && await this.propertyValueIndex.synchronize()) || this.isUnloaded()) {
+        return;
+      }
+
+      this.refreshAll();
+      this.requestSave();
+    };
+    const requestSynchronize = debounce(() => {
+      invokeAsyncSafely(synchronize);
+    }, SYNCHRONIZE_DEBOUNCE_IN_MILLISECONDS);
+    this.register(() => requestSynchronize.cancel());
+    this.registerInterval(window.setInterval(() => {
+      invokeAsyncSafely(synchronize);
+    }, SYNCHRONIZE_INTERVAL_IN_MILLISECONDS));
+    this.registerDomEvent(window, 'focus', () => {
+      invokeAsyncSafely(synchronize);
+    });
     await this.propertyValueIndex.load();
 
     if (this.isUnloaded()) {
@@ -130,6 +153,12 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
      * already the newer answer, and the rebuild reading the same cache afterwards agrees with it.
      */
     this.registerEvent(this.app.metadataCache.on('changed', (file, _data, cache) => {
+      if (isPluginDataPath(file.path)) {
+        if (!file.path.endsWith('/have.md')) {
+          requestSynchronize();
+        }
+        return;
+      }
       // A date property new to the index has values in other notes too, which only a full refresh reads.
       if (this.registerDateProperties(cache.frontmatter) && this.isBuiltValue) {
         this.refreshAll();
