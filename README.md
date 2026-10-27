@@ -55,16 +55,16 @@ A copy of the vault ships with every release. You can access it via any of the f
 
 ## See also
 
-[See my other Obsidian resources](https://github.com/mnaoumov/obsidian-resources).
+[My other Obsidian resources](https://github.com/mnaoumov/obsidian-resources)
 
 | Plugin | Features | How `Advanced Metadata Cache` differs |
 | --- | --- | --- |
-| [`Backlink Cache`](https://community.obsidian.md/plugins/backlink-cache) (my plugin) | Retired; points to this plugin, which carries its backlink index | The same backlink index; adds the names, titles, headings, properties and unlinked mentions modules |
-| [`Boost Link Suggestions`](https://community.obsidian.md/plugins/boost-link-suggestions) | Alternative `[[` suggester; orders results by link count and manual boosts | Keeps Obsidian's own suggester and order; answers it from an index instead of a walk of every note |
-| [`Datacore`](https://community.obsidian.md/plugins/datacore) | Reactive query engine with its own vault index; JavaScript and JSX views | Answers Obsidian's built-in calls, so the Backlinks pane and other plugins get faster unchanged; no query language |
-| [`Dataview`](https://community.obsidian.md/plugins/dataview) | Indexes page metadata and inline fields; query language and JavaScript API for tables, lists and tasks | Answers Obsidian's built-in calls; a property-value index for other plugins, answered from disk at startup; no query language |
-| [`Front Matter Title`](https://community.obsidian.md/plugins/obsidian-front-matter-title-plugin) | Shows a frontmatter title in place of the file name in the explorer, tabs, graph and more | The reverse lookup: finds a note by its title; can offer titles in the `[[` autocomplete; changes no display |
-| [`Vault Map`](https://community.obsidian.md/plugins/vault-map) | Writes a JSON Lines file of every note's frontmatter, links, embeds and backlinks, for scripts and AI agents | In-memory indexes behind Obsidian's own calls; an API for other plugins; writes no export file |
+| [`Backlink Cache`](https://community.obsidian.md/plugins/backlink-cache) (my plugin) | Retired; points to its successor, which now carries the backlink index | Supersedes `Backlink Cache`: includes its backlink index; adds: names, titles, headings, properties, unlinked mentions |
+| [`Boost Link Suggestions`](https://community.obsidian.md/plugins/boost-link-suggestions) | Alternative wikilink suggester; link-count and manual-boost ordering | Same suggestion goal; keeps core suggester/order; indexed lookup instead of vault walks |
+| [`Datacore`](https://community.obsidian.md/plugins/datacore) | Reactive indexed query engine; JavaScript and JSX views | Different integration: accelerates core calls and their consumers; no query language |
+| [`Dataview`](https://community.obsidian.md/plugins/dataview) | Page/inline-field indexes; query language and JavaScript tables/lists/tasks | Different integration: core calls and startup-loaded property lookups; no query language |
+| [`Front Matter Title`](https://community.obsidian.md/plugins/obsidian-front-matter-title-plugin) | Frontmatter titles in explorer, tabs and graph | Complementary title lookup: finds notes by title; offers titles in autocomplete; no display changes |
+| [`Vault Map`](https://community.obsidian.md/plugins/vault-map) | JSON Lines export of frontmatter, links, embeds and backlinks | Alternative index access: in-memory core calls and plugin API; no export file |
 
 Last searched for similar plugins on 2026-10-26.
 
