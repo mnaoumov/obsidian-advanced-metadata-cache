@@ -224,11 +224,32 @@ stat matches, reads the rest, then `markClean`s the saved clean keys: every othe
 about it runs the full scan as before. A note `changed` already scanned during the load is skipped, since it is newer
 than anything saved. Bump the `mentions-cache-v1` store id and the legacy `PERSISTED_VERSION` whenever what a key means changes (`obsidian-word-characters` above all).
 
-Measured on a copy of a real vault (35,493 notes, 78 MB): the build read every note in ~6-8 s with the notes already in
-the OS file cache; from the previous JSON saved file (9.2 MB) it took 1.2 s. Those storage measurements predate the IndexedDB migration. `npm run test:integration:real-vault` with
-`AMC_REAL_VAULT_PATH` set re-measures it (`unlinked-mentions-build.desktop-real-vault.integration.test.ts`); that
-project is opt-in and in no gate, because the vault it copies is private. Its first read of every note right after the
-copy took 231 s, most likely cold disk reads, so a start after a reboot is where the saved file saves the most.
+`unlinked-mentions-build.real-vault.integration.test.ts` measures it on a notes-only copy of a real vault:
+`npm run test:integration:real-vault` (desktop) and `npm run test:integration:real-vault:android` (the `obsidian_test`
+AVD), both with `AMC_REAL_VAULT_PATH` set. Both projects are opt-in and in no gate, because the vault they copy is
+private. Every timing below follows a read of every note, so the notes are in the OS file cache: it is not cold disk
+I/O. One run each, 2026-10-28, 35,548 notes, 78 MB, local IndexedDB records:
+
+| Step | Desktop (Windows) | Android emulator (2 cores, 8 GB, API 37 x86_64) |
+| --- | --- | --- |
+| Read every note once (`cachedRead`, batches of 20) | 29.8 s (first read after the copy) | 3.8 s |
+| Cold build, no saved records (switch-on to built) | 3.5 s | 6.0 s |
+| IndexedDB commit of the index (9.3 MB payload, 12.1 MB of records) | 1.9 s | 12.5 s |
+| Restore from saved records (switch-on to built) | 1.7 s | 9.8 s |
+| of which reading the saved records | 1.3 s | 9.1 s |
+| First `getUnlinkedMentions` (one note, after cold / restore) | 2.7 s / 2.8 s | 10.4 s / 7.1 s |
+
+**On the emulator, restoring from IndexedDB is SLOWER than rebuilding with the notes in the file cache** (9.8 s against
+6.0 s). Nearly all of it is the record read. The restore pays off only where reading the notes is slow, such as a first
+start after a reboot. On desktop the first read right after the copy took 29.8 s here and 231 s in an earlier run. The
+emulator's cold-disk case was not measured: Obsidian's own startup parse had already read every note there. These are
+emulator numbers, not phone numbers. Before the IndexedDB migration the JSON saved file (9.2 MB) loaded in 1.2 s on
+desktop, which is history, not a baseline for the records.
+
+Getting the vault onto the emulator needed two local patches to `obsidian-integration-testing` 17.7.2 (tracked
+upstream). The device's `tar` rejects a header checksum that does not start with `0`, which a long Cyrillic path produces.
+And unpacking 35k notes into `/sdcard` took 7.8 min, past Appium's 300 s idle timeout. Obsidian's own startup parse of
+the copy then took about 8 min on the emulator.
 
 The word-character class, mention expression and canonical word tokenization come from
 `@mnaoumov/obsidian-lib/obsidian-word-characters`; AMC retains its candidate trie, names and clean scan markers.

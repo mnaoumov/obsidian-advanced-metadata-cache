@@ -48,9 +48,21 @@ const DEMO_VAULT_TIMEOUT_IN_MILLISECONDS = 600_000;
 /**
  * The suites measured against a copy of a real vault's notes (`AMC_REAL_VAULT_PATH`). Their own suffix keeps them out
  * of every standard project: the copy is a private vault, so the run is an explicit
- * `npm run test:integration:real-vault`, never part of a gate.
+ * `npm run test:integration:real-vault` (desktop) or `npm run test:integration:real-vault:android`, never part of a
+ * gate. Both projects run the same suites, so the two platforms' numbers measure the same steps.
  */
-const REAL_VAULT_TEST_FILES = 'src/**/*.desktop-real-vault.integration.test.ts';
+const REAL_VAULT_TEST_FILES = 'src/**/*.real-vault.integration.test.ts';
+
+/**
+ * The emulator's guest CPUs for the Android real-vault run. The harness also caps it by `BULK_CORES`; stating it keeps
+ * the measurement's conditions the same whatever the machine's budget, and the published numbers name it.
+ */
+const REAL_VAULT_ANDROID_CPU_COUNT = 2;
+
+/**
+ * Opening a vault of tens of thousands of notes on the emulator outlasts the 90 s and 180 s startup defaults.
+ */
+const REAL_VAULT_ANDROID_STARTUP_TIMEOUT_IN_MILLISECONDS = 1_800_000;
 
 /**
  * Copying and then parsing tens of thousands of real notes outlasts every standard hook budget.
@@ -114,6 +126,26 @@ export const config = defineObsidianPluginVitestConfig({
           hookTimeout: REAL_VAULT_TIMEOUT_IN_MILLISECONDS,
           include: [REAL_VAULT_TEST_FILES],
           name: 'integration-tests:real-vault',
+          testTimeout: REAL_VAULT_TIMEOUT_IN_MILLISECONDS
+        }
+      },
+      {
+        test: {
+          ...context.android,
+          environmentOptions: {
+            obsidianTransport: {
+              appiumUrl: APPIUM_URL,
+              appStartTimeoutInMilliseconds: REAL_VAULT_ANDROID_STARTUP_TIMEOUT_IN_MILLISECONDS,
+              avdName: 'obsidian_test',
+              emulatorCpuCount: REAL_VAULT_ANDROID_CPU_COUNT,
+              layoutReadyTimeoutInMilliseconds: REAL_VAULT_ANDROID_STARTUP_TIMEOUT_IN_MILLISECONDS,
+              type: 'obsidian-android-appium'
+            }
+          },
+          globalSetup: ['./scripts/real-vault-global-setup.ts'],
+          hookTimeout: REAL_VAULT_TIMEOUT_IN_MILLISECONDS,
+          include: [REAL_VAULT_TEST_FILES],
+          name: 'integration-tests:android-real-vault',
           testTimeout: REAL_VAULT_TIMEOUT_IN_MILLISECONDS
         }
       }
