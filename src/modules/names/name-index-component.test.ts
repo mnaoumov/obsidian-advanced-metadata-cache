@@ -256,6 +256,21 @@ describe('NameIndexComponent', () => {
     expect(component.nameIndex.getPathsByName('the real name')).toEqual(['Alpha.md']);
   });
 
+  it('should rebuild when the configured name patterns change', async () => {
+    settings.isTitlesModuleEnabled = true;
+    createNote('Smith John.md', '---\nlastName: {Smith: [en], Сміт: [uk]}\nfirstName: {John: [en], Джон: [uk]}\n---\n');
+    await load();
+
+    expect(component.nameIndex.getPathsByName('john smith')).toEqual([]);
+
+    settings.titleNamePatterns = [['firstName', 'lastName']];
+    triggerSaveSettings();
+
+    expect(component.nameIndex.getPathsByName('john smith')).toEqual(['Smith John.md']);
+    expect(component.nameIndex.getPathsByName('джон сміт')).toEqual(['Smith John.md']);
+    expect(component.nameIndex.getPathsByName('john сміт')).toEqual([]);
+  });
+
   it('should drop the memoized suggestions when the titles-in-autocomplete setting is flipped, without rebuilding', async () => {
     settings.isTitlesModuleEnabled = true;
     createNote('Alpha.md', '---\ntitle: The Real Name\n---\n');

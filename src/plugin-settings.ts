@@ -71,6 +71,16 @@ export class PluginSettings {
   public shouldShowProgressBarOnLoad = true;
 
   /**
+   * The name patterns whose built names name a note, alongside its title properties: each a list of
+   * properties (`['lastName', 'firstName']`) whose values are joined with spaces, once per language their
+   * values list.
+   *
+   * Empty by default, because a pattern names the user's own properties and no default would be anybody's.
+   * It is read only while {@link PluginSettings.isTitlesModuleEnabled} is on.
+   */
+  public titleNamePatterns: string[][] = [];
+
+  /**
    * The frontmatter properties whose values name a note, alongside its own name and its `aliases`.
    *
    * Plural, and defaulting to `title` rather than to nothing: a plugin that turned `title` on for

@@ -15,6 +15,7 @@ import {
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 import type { TitleIndex } from '../titles/title-index.ts';
 
+import { getTitleSourcesKey } from '../titles/title-index.ts';
 import { NameIndex } from './name-index.ts';
 import { MetadataCacheGetLinkSuggestionsPatchComponent } from './patches/metadata-cache-get-link-suggestions-patch-component.ts';
 
@@ -51,14 +52,14 @@ export class NameIndexComponent extends LayoutReadyComponent {
   private readonly pluginSettingsComponent: PluginSettingsComponent;
   private shouldOfferTitlesInLinkSuggestions: boolean;
   private readonly titleIndex: TitleIndex;
-  private titlePropertyNamesKey: string;
+  private titleSourcesKey: string;
 
   public constructor(params: NameIndexComponentConstructorParams) {
     super(params.app);
 
     this.pluginSettingsComponent = params.pluginSettingsComponent;
     this.titleIndex = params.titleIndex;
-    this.titlePropertyNamesKey = this.titleIndex.getTitlePropertyNames().join('\n');
+    this.titleSourcesKey = getTitleSourcesKey(this.titleIndex.getTitleSources());
     this.shouldOfferTitlesInLinkSuggestions = params.pluginSettingsComponent.settings.shouldOfferTitlesInLinkSuggestions;
     this.nameIndex = new NameIndex({
       app: params.app,
@@ -156,7 +157,7 @@ export class NameIndexComponent extends LayoutReadyComponent {
     }));
 
     /*
-     * A title is a name, so changing WHICH properties are titles — or switching the `Titles` module off
+     * A title is a name, so changing WHICH properties are titles or which name patterns build them — or switching the `Titles` module off
      * — changes what every file in the vault is called, and no vault event says so. The whole index is
      * rebuilt, because that is what "every file's names may have moved" means.
      *
@@ -230,13 +231,13 @@ export class NameIndexComponent extends LayoutReadyComponent {
   private handleSaveSettings(): void {
     this.handleTitlesOfferedChange();
 
-    const titlePropertyNamesKey = this.titleIndex.getTitlePropertyNames().join('\n');
+    const titleSourcesKey = getTitleSourcesKey(this.titleIndex.getTitleSources());
 
-    if (this.titlePropertyNamesKey === titlePropertyNamesKey) {
+    if (this.titleSourcesKey === titleSourcesKey) {
       return;
     }
 
-    this.titlePropertyNamesKey = titlePropertyNamesKey;
+    this.titleSourcesKey = titleSourcesKey;
 
     // No readiness guard is needed: this listener is registered AFTER the eager build has finished, so
     // there is no window in which it can fire against an index that does not exist yet.

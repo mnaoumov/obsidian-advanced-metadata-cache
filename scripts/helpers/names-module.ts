@@ -42,6 +42,7 @@ export interface SwitchablePluginSettings {
   // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Integration tests toggle this module through the settings object.
   isUnlinkedMentionsModuleEnabled: boolean;
   readonly shouldOfferTitlesInLinkSuggestions: boolean;
+  readonly titleNamePatterns: string[][];
   readonly titlePropertyNames: string[];
 }
 

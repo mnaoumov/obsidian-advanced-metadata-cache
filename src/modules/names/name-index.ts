@@ -40,7 +40,10 @@ import { normalizeLinkName } from '@mnaoumov/obsidian-lib/link-name';
 import { parseFrontMatterAliases } from 'obsidian';
 
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
-import type { TitleIndex } from '../titles/title-index.ts';
+import type {
+  TitleIndex,
+  TitleSources
+} from '../titles/title-index.ts';
 
 import { readTitles } from '../titles/title-index.ts';
 
@@ -106,10 +109,10 @@ export class NameIndex {
 
     // Read once for the whole walk rather than per file: it is the same answer for every one of
     // them, and this loop runs across the entire vault.
-    const titlePropertyNames = this.titleIndex.getTitlePropertyNames();
+    const titleSources = this.titleIndex.getTitleSources();
 
     for (const file of this.app.vault.getFiles()) {
-      this.index(file, titlePropertyNames);
+      this.index(file, titleSources);
     }
   }
 
@@ -167,7 +170,7 @@ export class NameIndex {
    */
   public refresh(file: TFile): void {
     this.remove(file.path);
-    this.index(file, this.titleIndex.getTitlePropertyNames());
+    this.index(file, this.titleIndex.getTitleSources());
   }
 
   /**
@@ -227,7 +230,7 @@ export class NameIndex {
   private buildSuggestions(): LinkSuggestion[] {
     const suggestions: LinkSuggestion[] = [];
     const seenPaths = new Set<string>();
-    const titlePropertyNames = this.titleIndex.getTitlePropertyNames();
+    const titleSources = this.titleIndex.getTitleSources();
     const shouldOfferTitles = this.pluginSettingsComponent.settings.shouldOfferTitlesInLinkSuggestions;
     const titleSuggestions: LinkSuggestion[] = [];
 
@@ -237,7 +240,7 @@ export class NameIndex {
      * is indexed here, which makes the walk self-healing as well as ordered.
      */
     for (const file of this.app.vault.getFiles()) {
-      const indexedFile = this.indexedFiles.get(file.path) ?? this.index(file, titlePropertyNames);
+      const indexedFile = this.indexedFiles.get(file.path) ?? this.index(file, titleSources);
 
       for (const entry of indexedFile.entries) {
         suggestions.push(entry);
@@ -283,7 +286,7 @@ export class NameIndex {
     return suggestions;
   }
 
-  private index(file: TFile, titlePropertyNames: readonly string[]): IndexedFile {
+  private index(file: TFile, titleSources: TitleSources): IndexedFile {
     if (!this.app.metadataCache.isSupportedFile(file)) {
       const unsupportedFile: IndexedFile = { entries: [], names: [], titleEntries: [] };
       this.indexedFiles.set(file.path, unsupportedFile);
@@ -325,7 +328,7 @@ export class NameIndex {
      */
     const titleEntries: LinkSuggestion[] = [];
 
-    for (const title of readTitles(frontmatter, titlePropertyNames)) {
+    for (const title of readTitles(frontmatter, titleSources)) {
       const normalizedTitle = normalizeLinkName(title);
 
       if (!names.has(normalizedTitle)) {

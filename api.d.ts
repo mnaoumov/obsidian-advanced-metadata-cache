@@ -355,7 +355,8 @@ export interface AdvancedMetadataCacheApi {
 
   /**
    * Reads one note's titles — the values of the properties {@link
-   * AdvancedMetadataCacheApi.getTitlePropertyNames} names.
+   * AdvancedMetadataCacheApi.getTitlePropertyNames} names, then the names the user's name patterns build
+   * from the note's name parts (such as `lastName` and `firstName`), once per language those parts list.
    *
    * Lazily memoized per file and kept current by the vault's own events, so asking repeatedly costs a
    * map lookup. Synchronous, and safe to call from a suggester's per-keystroke path, which is what it
@@ -363,7 +364,8 @@ export interface AdvancedMetadataCacheApi {
    *
    * @param pathOrFile - The vault-relative path of a note, or the note itself.
    * @returns Its titles, exactly as they were typed, in the order the configured properties were
-   *   typed, with repeats dropped case-insensitively. Empty for a note carrying none, for a path no
+   *   typed, then the built names in the order the patterns were typed, with repeats dropped
+   *   case-insensitively. Empty for a note carrying none, for a path no
    *   file answers to, and while the `Titles` module is off.
    */
   getTitles(pathOrFile: string | TFile): string[];

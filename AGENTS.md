@@ -87,6 +87,16 @@ default, so it has a setting of its own, `shouldOfferTitlesInLinkSuggestions`, a
 A title the file already answers to under its own name or an `alias` contributes no entry: that would
 be the same note offered twice under the same text.
 
+**A title has two sources, and every reader takes both as one `TitleSources`.** Title properties are read
+as they stand; `titleNamePatterns` (default empty) build names nobody wrote down from name parts
+(`[lastName, firstName]`), so a person note stores no derived `aliases`. A part is a plain value, a list
+(which multiplies), or a map keyed by the FORM and valued by its languages
+(`{Наумов: [ru, uk], Naumov: [en]}`). `buildNames` runs a pattern once per language its parts list,
+plain values in every run, and SKIPS a part with nothing in that language rather than borrowing another
+language's form: that no-fallback rule is the owner's, so a mixed-language name is a bug, not an edge.
+The memo and the names component key on `getTitleSourcesKey`, so editing either list rebuilds. The
+patterns are deliberately NOT an API member: consumers get the names through `getTitles`.
+
 ## The `headings` module: identity is worked out, and nothing is written into the note
 
 Obsidian has no identity for a heading, and the task this module exists for (`Advanced Note Composer`'s

@@ -98,6 +98,7 @@ interface DemoSettingsPatch {
   shouldAutomaticallyRefreshBacklinkPanels?: boolean;
   shouldOfferTitlesInLinkSuggestions?: boolean;
   shouldShowProgressBarOnLoad?: boolean;
+  titleNamePatterns?: string[][];
   titlePropertyNames?: string[];
 }
 
