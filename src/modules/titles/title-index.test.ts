@@ -221,16 +221,16 @@ describe('TitleIndex', () => {
 
     it('should give a plain part to every language', () => {
       settings.titleNamePatterns = [['lastName', 'firstName']];
-      const file = createNote('Maizlish Alex.md', '---\nlastName: Maizlish\nfirstName: {Oleksandr: en, Олександр: [uk]}\n---\n');
+      const file = createNote('Bondar Alex.md', '---\nlastName: Bondar\nfirstName: {Oleksandr: en, Олександр: [uk]}\n---\n');
 
-      expect(readTitles(file)).toEqual(['Maizlish Oleksandr', 'Maizlish Олександр']);
+      expect(readTitles(file)).toEqual(['Bondar Oleksandr', 'Bondar Олександр']);
     });
 
     it('should skip a part with nothing in a language rather than borrow another language', () => {
       settings.titleNamePatterns = [['lastName', 'firstName']];
-      const file = createNote('Maizlish Alex.md', '---\nlastName: {Майзліш: [uk]}\nfirstName: {Alex: [en]}\n---\n');
+      const file = createNote('Bondar Alex.md', '---\nlastName: {Бондар: [uk]}\nfirstName: {Alex: [en]}\n---\n');
 
-      expect(readTitles(file)).toEqual(['Майзліш', 'Alex']);
+      expect(readTitles(file)).toEqual(['Бондар', 'Alex']);
     });
 
     it('should leave values that are not forms or languages', () => {

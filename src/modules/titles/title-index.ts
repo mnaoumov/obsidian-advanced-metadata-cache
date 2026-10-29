@@ -192,7 +192,7 @@ export class TitleIndex {
  * The pattern runs once per language that any of its parts lists, in the order the languages first
  * appear; a part contributes its plain forms to every run and its language forms to that language's run
  * only. A part with nothing for a run is SKIPPED in it rather than borrowed from another language, so
- * `{Майзліш: [uk]}` and `{Maizlish: [en]}` never meet in one name. With no language anywhere there is one
+ * `{Бондар: [uk]}` and `{Bondar: [en]}` never meet in one name. With no language anywhere there is one
  * run, of the plain forms. Several forms of a part multiply.
  *
  * @param frontmatter - The note's frontmatter.
