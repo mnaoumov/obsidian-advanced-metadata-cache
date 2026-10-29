@@ -28,6 +28,15 @@ const BACKLINKS_DICT = {
   keys: (): string[] => []
 };
 
+const CODE_BLOCK_LINK = {
+  link: 'Alpha',
+  original: '[[Alpha]]',
+  position: {
+    end: { col: 9, line: 1, offset: 20 },
+    start: { col: 0, line: 1, offset: 11 }
+  }
+};
+
 const HEADING_TIMES = {
   created: null,
   heading: 'One',
@@ -71,6 +80,11 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
       valid: [null, [], [{ count: 2, sourcePaths: ['Charlie.md'], text: 'alpha' }]]
     };
 
+    const nullableCodeBlockReferences: PayloadCases = {
+      invalid: [undefined, [null], [{ isEmbed: false, language: 'ad-note' }], [{ isEmbed: 'no', language: 'ad-note', reference: CODE_BLOCK_LINK }], [{ isEmbed: false, language: 1, reference: CODE_BLOCK_LINK }], [{ isEmbed: false, language: 'ad-note', reference: { link: 'Alpha' } }]],
+      valid: [null, [], [{ isEmbed: false, language: 'ad-note', reference: CODE_BLOCK_LINK }]]
+    };
+
     return {
       getBacklinksForFile: { input: pathOrFile, output: nullableBacklinks },
       getBacklinksForFileOriginal: {
@@ -78,6 +92,8 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
         output: { invalid: [null], valid: [BACKLINKS_DICT] }
       },
       getBacklinksForFileSafe: { input: pathOrFile, output: nullableBacklinks },
+      getCodeBlockReferences: { input: pathOrFile, output: nullableCodeBlockReferences },
+      getCodeBlockReferencesSafe: { input: pathOrFile, output: nullableCodeBlockReferences },
       getDatedValues: { input: datedValuesQuery, output: nullableDatedValues },
       getDatedValuesSafe: { input: datedValuesQuery, output: nullableDatedValues },
       getHeadingTimes: {
@@ -126,6 +142,10 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
       },
       onLinkTextsChanged: {
         input: { invalid: [[], [null], ['callback'], [noop, 'extra']], valid: [[noop]] },
+        output: { invalid: [undefined, null, {}], valid: [noop] }
+      },
+      registerCodeBlockLanguage: {
+        input: { invalid: [[], [null], [1], ['ad-note', 'extra']], valid: [['ad-note'], ['ad-*']] },
         output: { invalid: [undefined, null, {}], valid: [noop] }
       },
       registerPropertyName: { input: name, output: { invalid: [null, false, 'a'], valid: [undefined] } }

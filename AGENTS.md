@@ -19,8 +19,8 @@ plugin would stay in the palette calling into a torn-down index.
 Adding a module means adding its folder, its toggle to `PluginSettings`, its row to
 `getSettingDefinitionItems`, and one entry to the array in `Plugin.onloadImpl`. Nothing else knows how
 many modules there are. The `backlinks` module defaults **on**, because it is the behavior this plugin
-inherited wholesale from `Backlink Cache`; a module added later defaults **off**, except `properties` and `link-texts`,
-which other plugins read, as their sections say.
+inherited wholesale from `Backlink Cache`; a module added later defaults **off**, except `properties`, `link-texts` and `code-block-links`,
+which other plugins read or feed, as their sections say.
 
 ## The `names` module: the patch goes in BEFORE the index is built
 
@@ -327,6 +327,36 @@ distinct texts: about 2 MB serialized and about 8 MB of heap. Attachments were n
 resolve there. That, and being a label source other plugins read, is why
 it defaults **on**, as `properties` does. The plugin's own `Plugin data/` transport is never a
 source.
+
+## The `code-block-links` module: Obsidian's own cache entry, gaining links in memory only
+
+Obsidian's worker skips the inside of every fenced code block. A language listed in `codeBlockLinkLanguages` (exact or
+`*` pattern, the same `isMatchingNamePatterns` as `datePropertyNames`) or registered through the API's
+`registerCodeBlockLanguage` is markdown instead: `code-block-references.ts` cuts each such block's inner text out, strips
+the fence's indentation, parses it with **Obsidian's own worker** (`metadataCache.computeMetadataAsync`), recurses into
+listed blocks inside it, and maps every position back into the note. The inner text goes over behind one extra line
+break, so a block opening on `---` is never read as frontmatter. Only `code` SECTIONS are looked at, which means
+top-level fences: Obsidian lists a fence inside a list item or quote as part of that block. That is a stated limit, not a bug.
+
+**The references are added to the `CachedMetadata` object Obsidian holds, and to nothing else.** That is the one
+place every consumer already reads — `resolveLinks`, `iterateAllRefs` (core `getBacklinksForFile`, the rename
+updater), `getFileCache` — so a `getCache` patch would not do: `iterateAllRefs` reads `metadataCache[hash]` directly.
+It is safe only because `saveMetaCache` deep-copies the entry for IndexedDB BEFORE Obsidian fires `changed`, which is
+where this module starts; never call `saveMetaCache` here, or the links outlive the module. Nothing of the plugin's own
+is put on the entry (no marker field): `getCodeBlockReferences` on the API says which references came from a block.
+`CodeBlockLinksComponent` remembers what it added per entry (`WeakMap`, keyed by the object, because notes with the
+same content share one) and takes exactly that out again on unload and whenever the language list changes.
+
+The worker parse lands after Obsidian has announced the note, so after an entry gains or loses references the
+component queues the note for link resolution AGAIN and re-fires `changed` with the same entry: that is what reaches
+`resolvedLinks`, the graph, and every index that reads the cache on `changed`, this plugin's own `backlinks` included.
+Its own handler recognizes an entry it has handled and ignores the re-fire. At startup it reads only the notes whose
+cache lists a `code` section, after `ensureMetadataCacheReady`, and skips a note whose file stat is ahead of its entry,
+since that note's own `changed` is coming.
+
+`code-block-links.cross-platform.integration.test.ts` pins the whole contract in a real Obsidian, including a rename
+rewriting the link INSIDE the block through Obsidian's own updater. The module defaults **on** because with an empty
+list it reads nothing, and a plugin registering a language should not have to send its user here first.
 
 ## Public surface: the core call answers, the API offers everything else
 

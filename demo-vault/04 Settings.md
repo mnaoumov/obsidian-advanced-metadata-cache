@@ -4,6 +4,10 @@ Open **Settings -> Community plugins -> `Advanced Metadata Cache`** to configure
 
 - `isBacklinksModuleEnabled`
   - when on, the **Backlinks** module maintains the backlink index and answers `app.metadataCache.getBacklinksForFile()` from it. When off, the module is unloaded outright - its index, its listeners and its **Refresh backlink panels** command all go with it, and Obsidian's own implementation answers again. Every index this plugin maintains is a module of its own, so switching one off leaves the others running.
+- `isCodeBlockLinksModuleEnabled`
+  - when on, the **Code block links** module counts the links and embeds written inside code blocks of the languages listed below, so they reach backlinks, outgoing links, the graph and rename updates like any other link. It does nothing until a language is listed here or registered by another plugin, which is why it is **on** by default. [11 Code block links](<./11 Code block links.md>) demonstrates it.
+- `codeBlockLinkLanguages`
+  - the code block languages whose content is a note, one per line: an exact language, or a pattern in which `*` stands for anything, such as `ad-*`. Case-sensitive, and empty by default. Read by the **Code block links** module only.
 - `isHeadingsModuleEnabled`
   - when on, the **Headings** module records when each heading of a note was created, last modified and last seen on screen, and publishes it through the plugin API for other plugins to sort by. It is kept in `heading-times.json` in the plugin folder, never in the note, and only for notes opened, created or changed while it is on. Off by default, like every module added after the one this plugin was created for. [07 Heading times](<./07 Heading times.md>) demonstrates it.
 - `isLinkTextsModuleEnabled`

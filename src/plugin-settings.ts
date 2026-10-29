@@ -1,5 +1,15 @@
 export class PluginSettings {
   /**
+   * The code block languages whose content is markdown, so the links and embeds written inside count like any
+   * other: exact names, or patterns in which `*` stands for any run of characters (`ad-*`), matched
+   * case-sensitively over the whole language. Other plugins add theirs through the API.
+   *
+   * Empty by default, so nothing changes until the user or a plugin names a language. Read by the
+   * `Code block links` module only.
+   */
+  public codeBlockLinkLanguages: string[] = [];
+
+  /**
    * The frontmatter properties whose values are dates whatever type `types.json` assigns them: exact names,
    * or patterns in which `*` stands for any run of characters, matched case-sensitively over the whole name.
    *
@@ -15,6 +25,13 @@ export class PluginSettings {
   public defaultTimeZone = '';
 
   public isBacklinksModuleEnabled = true;
+
+  /**
+   * ON by default, unlike most modules added after the one this plugin was created for, because it does nothing
+   * until a language is listed in {@link PluginSettings.codeBlockLinkLanguages} or registered by another plugin:
+   * off, every such plugin would first have to ask its user to come here and switch it on.
+   */
+  public isCodeBlockLinksModuleEnabled = true;
 
   /**
    * Off by default, like every module added after the one this plugin was created for.

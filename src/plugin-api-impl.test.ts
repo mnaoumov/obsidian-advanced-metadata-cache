@@ -25,6 +25,7 @@ import {
 } from 'vitest';
 
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
+import type { CodeBlockLinksComponent } from './modules/code-block-links/code-block-links-component.ts';
 import type { LinkTextIndexComponent } from './modules/link-texts/link-text-index-component.ts';
 import type { NameIndexComponent } from './modules/names/name-index-component.ts';
 import type { NameIndex } from './modules/names/name-index.ts';
@@ -39,6 +40,7 @@ import type {
   ShowSettingsMigrationModalParams
 } from './settings-migration-modal.ts';
 
+import { CodeBlockLanguages } from './modules/code-block-links/code-block-languages.ts';
 import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
 import { PropertyValueIndex } from './modules/properties/property-value-index.ts';
@@ -71,6 +73,8 @@ const CORE_SUGGESTIONS: LinkSuggestion[] = [{ file: null, path: 'core' }];
 describe('PluginApiImpl', () => {
   let app: App;
   let backlinkCacheComponent: BacklinkCacheComponent | null;
+  let codeBlockLanguages: CodeBlockLanguages;
+  let codeBlockLinksComponent: CodeBlockLinksComponent | null;
   let editAndSaveCallCount: number;
   let linkTextIndex: LinkTextIndex;
   let linkTextIndexComponent: LinkTextIndexComponent | null;
@@ -88,6 +92,8 @@ describe('PluginApiImpl', () => {
     settings.isTitlesModuleEnabled = true;
     editAndSaveCallCount = 0;
     backlinkCacheComponent = null;
+    codeBlockLanguages = new CodeBlockLanguages();
+    codeBlockLinksComponent = null;
     linkTextIndex = new LinkTextIndex();
     linkTextIndexComponent = null;
     nameIndexComponent = null;
@@ -121,7 +127,9 @@ describe('PluginApiImpl', () => {
 
     pluginApi = new PluginApiImpl({
       app: castTo<AppOriginal>(app),
+      codeBlockLanguages,
       getBacklinkCacheComponent: (): BacklinkCacheComponent | null => backlinkCacheComponent,
+      getCodeBlockLinksComponent: (): CodeBlockLinksComponent | null => codeBlockLinksComponent,
       getLinkTextIndexComponent: (): LinkTextIndexComponent | null => linkTextIndexComponent,
       getNameIndexComponent: (): NameIndexComponent | null => nameIndexComponent,
       getPropertyValueIndexComponent: (): null | PropertyValueIndexComponent => propertyValueIndexComponent,
@@ -148,6 +156,31 @@ describe('PluginApiImpl', () => {
     for (const methodName of Object.keys(PLUGIN_API_CONTRACT)) {
       expect(pluginApi).toHaveProperty(methodName, expect.any(Function));
     }
+  });
+
+  describe('code block links', () => {
+    it('should answer null while the module is off', async () => {
+      expect(pluginApi.getCodeBlockReferences('Alpha.md')).toBeNull();
+      expect(await pluginApi.getCodeBlockReferencesSafe('Alpha.md')).toBeNull();
+    });
+
+    it('should answer from the module by path, waiting for its build in the Safe variant', async () => {
+      const getCodeBlockReferences = vi.fn().mockReturnValue([]);
+      const waitForBuild = vi.fn().mockResolvedValue(undefined);
+      codeBlockLinksComponent = strictProxy<CodeBlockLinksComponent>({ getCodeBlockReferences, waitForBuild });
+
+      expect(await pluginApi.getCodeBlockReferencesSafe('Alpha.md')).toEqual([]);
+      expect(waitForBuild).toHaveBeenCalledOnce();
+      expect(getCodeBlockReferences).toHaveBeenCalledWith('Alpha.md');
+    });
+
+    it('should register a language even while the module is off, until unregistered', () => {
+      const unregister = pluginApi.registerCodeBlockLanguage('ad-*');
+
+      expect(codeBlockLanguages.isIncluded([], 'ad-note')).toBe(true);
+      unregister();
+      expect(codeBlockLanguages.isIncluded([], 'ad-note')).toBe(false);
+    });
   });
 
   describe('backlinks', () => {
