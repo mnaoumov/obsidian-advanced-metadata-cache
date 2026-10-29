@@ -298,6 +298,17 @@ with a known metadata entry and no active parse. The wrapper reads the disk mani
 the bulk-delete scenario removes fixtures and AMC creates shared journals during the same project run.
 Hidden configuration and trash directories are excluded, matching the vault file universe.
 
+**Measure startup with the Obsidian window visible.** Obsidian's link resolver yields every ten notes through
+`requestIdleCallback` with a 100 ms `setTimeout` fallback, and Chromium throttles both in a hidden window. On a fresh
+copy of a 35,598-note vault (2026-10-29, Obsidian 1.15.0, no persisted cache) the parse ran to the end in every case,
+but with the window hidden `resolvedLinks` stopped growing at about 15,600 while the resolver queue held about 20,000
+notes. With no plugins, and with this plugin alone, it then moved in bursts minutes apart. With five plugins, this one
+among them, it did not move for 20 min. `isCacheClean()` stays false the whole time, so `onCleanCache`, and with it every module build here
+that waits on `ensureMetadataCacheReady`, waits too, with the renderer idle. With the window visible the same vault
+was clean in 171 to 428 s, with no plugins, with this plugin alone and with all five, the spread following machine
+load. A minimize under the integration harness does not reproduce it, because `document.visibilityState` stays
+`visible`. Hiding the window with `webContents.setBackgroundThrottling(true)` does.
+
 ## The `link-texts` module: written display texts, by target, never persisted
 
 `LinkTextIndex` holds, per TARGET path, the display texts that resolved links write instead of the file's name, each
