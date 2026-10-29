@@ -51,7 +51,8 @@ A copy of the vault ships with every release. You can access it via any of the f
 - **When each heading was created, modified and seen**, recorded per heading without touching the note, so other plugins can sort a note's headings by time. [07 Heading times](<./demo-vault/07 Heading times.md>)
 - **Notes by frontmatter property value**, dates kept in order, for other plugins to ask without scanning the vault, answered from disk at startup. [08 Property index](<./demo-vault/08 Property index.md>)
 - **Unlinked mentions without reading every note**, so the Backlinks pane's **Unlinked mentions** section reads only the notes that mention the note, and lists exactly what it listed before. [09 Unlinked mentions](<./demo-vault/09 Unlinked mentions.md>)
-- **Every index is a module of its own**, switched on or off without touching the others; only **Backlinks** and **Properties** are on by default, and a module switched off unloads completely. [04 Settings](<./demo-vault/04 Settings.md>)
+- **A file answers to the texts links show for it**, so `[alpha](bravo.md)` lets other plugins find `bravo.md` as `alpha`, and `![[scan-0042.pdf|March invoice]]` lets them find an attachment as `March invoice`. [10 Link texts](<./demo-vault/10 Link texts.md>)
+- **Every index is a module of its own**, switched on or off without touching the others; only **Backlinks**, **Properties** and **Link texts** are on by default, and a module switched off unloads completely. [04 Settings](<./demo-vault/04 Settings.md>)
 
 Derived caches stay on each device; heading history and registered property names sync through ordinary vault files. See [Storage and sync](./docs/storage.md).
 

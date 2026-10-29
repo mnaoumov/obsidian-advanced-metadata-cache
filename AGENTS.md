@@ -19,7 +19,8 @@ plugin would stay in the palette calling into a torn-down index.
 Adding a module means adding its folder, its toggle to `PluginSettings`, its row to
 `getSettingDefinitionItems`, and one entry to the array in `Plugin.onloadImpl`. Nothing else knows how
 many modules there are. The `backlinks` module defaults **on**, because it is the behavior this plugin
-inherited wholesale from `Backlink Cache`; a module added later defaults **off**.
+inherited wholesale from `Backlink Cache`; a module added later defaults **off**, except `properties` and `link-texts`,
+which other plugins read, as their sections say.
 
 ## The `names` module: the patch goes in BEFORE the index is built
 
@@ -286,6 +287,30 @@ are not a baseline for the shared corpus. Readiness requires the exact current v
 with a known metadata entry and no active parse. The wrapper reads the disk manifest before polling because
 the bulk-delete scenario removes fixtures and AMC creates shared journals during the same project run.
 Hidden configuration and trash directories are excluded, matching the vault file universe.
+
+## The `link-texts` module: written display texts, by target, never persisted
+
+`LinkTextIndex` holds, per TARGET path, the display texts that resolved links write instead of the file's name, each
+with a count per source note; it also keeps each SOURCE's own contributions, so a re-read of one note replaces them
+wholesale and reports exactly the targets whose texts changed. It is owned by the plugin, like `TitleIndex`, because
+`onLinkTextsChanged` subscriptions must outlive the module being switched off and on; the module's
+`LinkTextIndexComponent` builds it and clears it at both edges, and each clear and the end of each build notify `null`.
+
+**A text counts only when it was WRITTEN.** The metadata cache gives `[[bravo]]` a `displayText` too, so the reader
+re-parses each reference's `original` with `@mnaoumov/obsidian-lib`'s `parseLink` and takes its alias, which exists only
+for `[[t|x]]`, `[x](t)` and their embed and frontmatter forms. An embed's `|300` / `|300x200` size is stripped, and a
+text that is the target's own path or file name again, with or without the extension, is dropped, compared the way a
+name is (case-insensitive, whitespace collapsed). Aliases are deliberately NOT subtracted: that would make a target's
+answer depend on its own frontmatter, which no `resolve` of a source announces.
+
+It is built from `getFileCache` of every Markdown note once `ensureMetadataCacheReady` resolves, reading no note, and
+then follows `metadataCache` `resolve`, which Obsidian fires for a note whenever it resolves its links again, including
+after a target is created, renamed or deleted (with the `backlinks` module on, its `updateRelatedLinks` replacement
+queues exactly those notes). `delete` and `rename` are also handled at once: the moved source's entries are dropped
+and re-read at the new path, and every source that linked to the old path is re-read. Nothing is persisted, because
+the build costs a pass over memory Obsidian already holds. That, and being a label source other plugins read, is why
+it defaults **on**, as `properties` does. The plugin's own `Plugin data/` transport is never a
+source.
 
 ## Public surface: the core call answers, the API offers everything else
 

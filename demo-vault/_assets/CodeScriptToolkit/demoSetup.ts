@@ -47,6 +47,7 @@ interface AdvancedMetadataCacheApi {
   getLinkSuggestions(): LinkSuggestion[] | null;
   getLinkSuggestionsOriginal(): LinkSuggestion[];
   getLinkSuggestionsSafe(): Promise<LinkSuggestion[] | null>;
+  getLinkTextsSafe(pathOrFile: string): Promise<LinkText[] | null>;
   getNonDateValuesSafe(): Promise<DatedValue[] | null>;
   getPathsByNameSafe(name: string): Promise<null | string[]>;
   getPathsByPropertyValueSafe(propertyName: string, value: string): Promise<null | string[]>;
@@ -89,6 +90,7 @@ interface SpecificTimeZone {
 interface DemoSettingsPatch {
   isBacklinksModuleEnabled?: boolean;
   isHeadingsModuleEnabled?: boolean;
+  isLinkTextsModuleEnabled?: boolean;
   isNamesModuleEnabled?: boolean;
   isPropertiesModuleEnabled?: boolean;
   isTitlesModuleEnabled?: boolean;
@@ -110,6 +112,15 @@ interface HeadingTimes {
   readonly line: number;
   readonly modified: null | number;
   readonly seen: null | number;
+}
+
+/**
+ * One display text of a file, as the plugin API reports it. The same shape `LinkText` in the root `api.d.ts` ships.
+ */
+interface LinkText {
+  readonly count: number;
+  readonly sourcePaths: readonly string[];
+  readonly text: string;
 }
 
 /**
@@ -719,6 +730,38 @@ async function openTrackedNote(app: App, path: string): Promise<AdvancedMetadata
 
     await app.workspace.getLeaf(false).openFile(file);
     return api;
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+ * Reports the display texts that links pointing at a file use instead of its name, with how many links use each and
+ * from which notes, as the `Link texts` module answers through the API.
+ *
+ * Manual equivalent: search the vault for every link to the file and read what each one shows.
+ *
+ * @param app - The Obsidian app.
+ * @param path - The vault-relative path of the note or attachment.
+ */
+export async function showLinkTextsOf(app: App, path: string): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isLinkTextsModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.9',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    const linkTexts = await api.getLinkTextsSafe(path) ?? [];
+    const lines = linkTexts.map((linkText) => `${linkText.text}: ${String(linkText.count)} link(s) from ${linkText.sourcePaths.join(', ')}`);
+
+    new Notice([`Link texts of ${path}:`, ...lines.length === 0 ? ['none'] : lines].join('\n'));
   } finally {
     component.unload();
   }
