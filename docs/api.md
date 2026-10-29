@@ -190,3 +190,23 @@ for (const { path, ranges } of await api.getUnlinkedMentions('Notes/Some note.md
 ```
 
 `getUnlinkedMentions(pathOrFile)` answers the notes the Backlinks pane's **Unlinked mentions** section lists for a note, ordered by path, each with the spans of its text that mention the note, as UTF-16 offsets from the start of the file, ordered by position. It is always asynchronous, because each candidate note is read to confirm its matches, and it waits for the index to be built first. It answers **`null` while the Unlinked mentions module is off** — read the vault yourself then. Ask for the range `^1.7`. [09 Unlinked mentions](<../demo-vault/09 Unlinked mentions.md>) says what counts as a mention.
+
+## Link texts
+
+Added in contract `1.9.0`:
+
+```ts
+for (const { count, sourcePaths, text } of await api.getLinkTextsSafe('Attachments/scan-0042.pdf') ?? []) {
+  console.log(text, count, sourcePaths);
+}
+
+const unsubscribe = api.onLinkTextsChanged((targetPaths) => {
+  // `null` means any file may have changed: re-read everything you hold.
+});
+```
+
+`getLinkTexts(pathOrFile)` answers the display texts that links pointing at a file use instead of its name: `alpha` for `[alpha](bravo.md)` or `[[bravo|alpha]]`, `boarding pass` for `![[IMG_2231.jpg|boarding pass]]`. It is one more label source beside a note's `aliases` and titles, and for an attachment, which has no `aliases`, the only one besides its file name. Each distinct text comes with how many links use it and from which notes, the most used first.
+
+A link counts only when its display text was **written**, in the body, in a frontmatter value or in an embed, and it resolves to the file. `[[bravo]]` writes none, and a text that only repeats the file's own name or path (`[bravo](bravo.md)`) is left out, compared case-insensitively. An embed's size (`|300`, `|300x200`) is not part of its text. An alias the note already declares is **not** left out, so drop your own repeats when you merge the two.
+
+The index is built at startup from the links Obsidian has already parsed, reading no note, and follows Obsidian's link resolution after that. `getLinkTexts` answers from it as it stands, which is empty until it is built; `getLinkTextsSafe` waits for the build. Both answer **`null` while the Link texts module is off**, which is on by default. `onLinkTextsChanged` calls back synchronously after each change with the paths of the files whose texts changed, or with `null` when the index was just built or cleared; the subscription outlives the module being switched off and on, so subscribe once on load and call the returned function on unload. Ask for the range `^1.9`. [10 Link texts](<../demo-vault/10 Link texts.md>) shows it.

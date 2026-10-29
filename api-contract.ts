@@ -52,6 +52,8 @@ import type {
   DatedValuesQuery,
   HeadingTimes,
   LinkSuggestion,
+  LinkText,
+  LinkTextsChangedCallback,
   MigrateSettingsParams,
   MigrateSettingsResult,
   SpecificTimeZone,
@@ -111,6 +113,12 @@ const isLinkSuggestion = objectTypeGuard<LinkSuggestion>({
   path: isString
 });
 
+const isLinkText = objectTypeGuard<LinkText>({
+  count: isNumber,
+  sourcePaths: isStringArray,
+  text: isString
+});
+
 const isMigratableSettings = objectTypeGuard<AdvancedMetadataCacheMigratableSettings>({
   titlePropertyNames: optionalTypeGuard(isStringArray)
 });
@@ -138,6 +146,7 @@ const BACKLINKS_DICT_GUARD = createExpectedTypeGuard('a backlinks dictionary', i
 const DATED_VALUE_ARRAY_GUARD = createExpectedTypeGuard('an array of dated values', arrayTypeGuard(isDatedValue));
 const DATED_VALUES_QUERY_GUARD = createExpectedTypeGuard('a dated values query', isDatedValuesQuery);
 const LINK_SUGGESTION_ARRAY_GUARD = createExpectedTypeGuard('an array of link suggestions', arrayTypeGuard(isLinkSuggestion));
+const LINK_TEXT_ARRAY_GUARD = createExpectedTypeGuard('an array of link texts', arrayTypeGuard(isLinkText));
 const NAME_GUARD = createExpectedTypeGuard('a name', isString);
 const PATH_OR_FILE_GUARD = createExpectedTypeGuard('a path or a file', isPathOrFile);
 const PATHS_GUARD = createExpectedTypeGuard('an array of paths', isStringArray);
@@ -186,6 +195,14 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
     input: createArgumentsSchema([]),
     output: createTypeGuardSchema(nullableGuard(LINK_SUGGESTION_ARRAY_GUARD))
   },
+  getLinkTexts: {
+    input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(LINK_TEXT_ARRAY_GUARD))
+  },
+  getLinkTextsSafe: {
+    input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(LINK_TEXT_ARRAY_GUARD))
+  },
   getNonDateValues: {
     input: createArgumentsSchema([]),
     output: createTypeGuardSchema(nullableGuard(DATED_VALUE_ARRAY_GUARD))
@@ -233,6 +250,10 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
   migrateSettings: {
     input: createArgumentsSchema([createExpectedTypeGuard('migrate settings params', isMigrateSettingsParams)]),
     output: createTypeGuardSchema(createExpectedTypeGuard('a migrate settings result', isMigrateSettingsResult))
+  },
+  onLinkTextsChanged: {
+    input: createArgumentsSchema([createExpectedTypeGuard('a callback', functionTypeGuard<LinkTextsChangedCallback>())]),
+    output: createTypeGuardSchema(createExpectedTypeGuard('an unsubscribe function', functionTypeGuard<() => void>()))
   },
   registerPropertyName: {
     input: createArgumentsSchema([PROPERTY_NAME_GUARD]),

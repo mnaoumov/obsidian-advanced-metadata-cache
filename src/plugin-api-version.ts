@@ -20,5 +20,7 @@
  * is a date standing for its whole period. `1.7.0` adds `getUnlinkedMentions`, as additively: the `Unlinked mentions`
  * module's answer to which notes mention a note without linking to it.
  * `1.8.0` adds UTC date queries and per-query missing-zone policies, preserving wall-clock defaults.
+ * `1.9.0` adds `getLinkTexts`, its `Safe` variant and `onLinkTextsChanged`, as additively: the `Link texts` module's
+ * answer to which display texts the links pointing at a file use instead of its name.
  */
-export const PLUGIN_API_VERSION = '1.8.0';
+export const PLUGIN_API_VERSION = '1.9.0';

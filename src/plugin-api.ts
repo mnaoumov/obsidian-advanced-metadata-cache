@@ -19,6 +19,8 @@ export type {
   DatedValue,
   DatedValuesQuery,
   HeadingTimes,
+  LinkText,
+  LinkTextsChangedCallback,
   MigrateSettingsParams,
   MigrateSettingsResult,
   UnlinkedMention,

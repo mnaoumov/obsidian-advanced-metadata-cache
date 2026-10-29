@@ -34,6 +34,8 @@ export interface SwitchablePluginSettings {
   readonly defaultTimeZone: string;
   readonly isHeadingsModuleEnabled: boolean;
   // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Integration tests toggle this module through the settings object.
+  isLinkTextsModuleEnabled: boolean;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Integration tests toggle this module through the settings object.
   isNamesModuleEnabled: boolean;
   readonly isPropertiesModuleEnabled: boolean;
   readonly isTitlesModuleEnabled: boolean;

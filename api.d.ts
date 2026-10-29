@@ -12,7 +12,7 @@
  *   plugin's own belongs on an Obsidian function, and each has a replacement on the published API below.
  * - **A published API.** {@link AdvancedMetadataCacheApi} is published through the plugin registry
  *   under the plugin id `advanced-metadata-cache` and carries a contract version of its own. It
- *   answers what the `Titles`, `Headings`, `Properties` and `Unlinked mentions` modules know, which core has no
+ *   answers what the `Titles`, `Headings`, `Properties`, `Unlinked mentions` and `Link texts` modules know, which core has no
  *   method for, and
  *   since contract `1.3.0` every extra the `Backlinks` and `Names` modules offer beyond the core call.
  *
@@ -180,6 +180,41 @@ export interface AdvancedMetadataCacheApi {
    *   no headings, and while the `Headings` module is off.
    */
   getHeadingTimes(pathOrFile: string | TFile): HeadingTimes[];
+
+  /**
+   * Reads the display texts that links pointing at a file use instead of its name: `alpha` for
+   * `[alpha](bravo.md)` or `[[bravo|alpha]]`, `boarding pass` for `![[IMG_2231.jpg|boarding pass]]`. A label source
+   * beside a note's `aliases` and titles, and for an attachment the only name it has besides its file name.
+   *
+   * A link counts when its display text was WRITTEN, in the body or in a frontmatter value, embeds included, and
+   * resolves to the file. `[[bravo]]` writes none, and a written text that is only the file's own name again
+   * (`[bravo](bravo.md)`, `[[Notes/bravo|Notes/bravo]]`) is left out, compared case-insensitively with runs of
+   * whitespace collapsed. An embed's size (`|300`, `|300x200`) is not part of its text. Texts are distinct as
+   * written, after trimming; an alias the file already declares is NOT left out, so a caller merging this with
+   * `aliases` drops its own repeats.
+   *
+   * Answered from the `Link texts` module's index, built from the links Obsidian has already parsed and kept
+   * current by its link resolution; it is empty until built at startup, so use
+   * {@link AdvancedMetadataCacheApi.getLinkTextsSafe} when you may be asked early, and
+   * {@link AdvancedMetadataCacheApi.onLinkTextsChanged} to learn when an answer changed.
+   *
+   * Added in contract `1.9.0`.
+   *
+   * @param pathOrFile - The vault-relative path of any file, or the file itself.
+   * @returns The distinct texts, the most used first, then in code-unit order; empty for a file no link names
+   *   differently. `null` while the `Link texts` module is off.
+   */
+  getLinkTexts(pathOrFile: string | TFile): LinkText[] | null;
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getLinkTexts}, waiting for the index to be built first.
+   *
+   * Added in contract `1.9.0`.
+   *
+   * @param pathOrFile - The vault-relative path of any file, or the file itself.
+   * @returns The distinct texts; `null` while the `Link texts` module is off.
+   */
+  getLinkTextsSafe(pathOrFile: string | TFile): Promise<LinkText[] | null>;
 
   /**
    * Every link target the `[[` autocomplete can offer, answered from the `Names` module's index — the
@@ -373,6 +408,21 @@ export interface AdvancedMetadataCacheApi {
    * @returns Whether the user applied it. On `false` nothing was written, and the offer should come back.
    */
   migrateSettings(params: MigrateSettingsParams): Promise<MigrateSettingsResult>;
+
+  /**
+   * Subscribes to changes of {@link AdvancedMetadataCacheApi.getLinkTexts}'s answers.
+   *
+   * The callback is called synchronously after each change, with the paths of the files whose link texts changed,
+   * or with `null` when any of them may have: when the index has just been built, and when it is cleared because the
+   * `Link texts` module was switched off or on. The subscription lasts until the returned function is called,
+   * whatever happens to the module meanwhile, so a caller subscribes once on load and unsubscribes on unload.
+   *
+   * Added in contract `1.9.0`.
+   *
+   * @param callback - Called with the changed paths, or `null` for any of them.
+   * @returns A function that ends the subscription.
+   */
+  onLinkTextsChanged(callback: LinkTextsChangedCallback): () => void;
 
   /**
    * Asks the `Properties` module to index a frontmatter property, so
@@ -605,6 +655,33 @@ export interface HeadingTimes {
    */
   readonly seen: null | number;
 }
+
+/**
+ * One distinct display text of a file, as {@link AdvancedMetadataCacheApi.getLinkTexts} reports it.
+ */
+export interface LinkText {
+  /**
+   * How many links use it, across every note.
+   */
+  readonly count: number;
+
+  /**
+   * The vault-relative paths of the notes whose links use it, in code-unit order.
+   */
+  readonly sourcePaths: readonly string[];
+
+  /**
+   * The display text, as written and trimmed.
+   */
+  readonly text: string;
+}
+
+/**
+ * The callback of {@link AdvancedMetadataCacheApi.onLinkTextsChanged}.
+ *
+ * @param targetPaths - The paths of the files whose link texts changed, or `null` when any of them may have.
+ */
+export type LinkTextsChangedCallback = (targetPaths: null | readonly string[]) => void;
 
 /**
  * Parameters for {@link AdvancedMetadataCacheApi.migrateSettings}.

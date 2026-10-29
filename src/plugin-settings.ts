@@ -22,6 +22,13 @@ export class PluginSettings {
   public isHeadingsModuleEnabled = false;
 
   /**
+   * ON by default, unlike most modules added after the one this plugin was created for, because it is a label
+   * source other plugins read: off, every such plugin would first have to ask its user to come here and switch it
+   * on. It costs one read of the metadata cache Obsidian already holds per note at startup, and reads no note.
+   */
+  public isLinkTextsModuleEnabled = true;
+
+  /**
    * Off by default, like every module added after the one this plugin was created for.
    */
   public isNamesModuleEnabled = false;
