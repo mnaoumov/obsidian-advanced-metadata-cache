@@ -261,6 +261,69 @@ describe('PropertyValueIndex', () => {
       ]);
     });
 
+    describe('a date property holding a list', () => {
+      const PROPERTY_NAME = 'dailyProblemUtcDate';
+
+      beforeEach(() => {
+        // The mocks have no `metadataTypeManager`; the property is a date property by its name alone.
+        castTo<Record<'metadataTypeManager', unknown>>(app).metadataTypeManager = {
+          getAssignedWidget: (): null => null
+        };
+        index.register(PROPERTY_NAME);
+        index.refresh({ frontmatter: { [PROPERTY_NAME]: '2026-10-09' }, path: 'Scalar.md' });
+        index.refresh({ frontmatter: { [PROPERTY_NAME]: ['2026-10-09', '2026-10-27'] }, path: 'List.md' });
+        index.refresh({ frontmatter: { [PROPERTY_NAME]: [] }, path: 'Empty.md' });
+        index.refresh({ frontmatter: { [PROPERTY_NAME]: ['2026-10-27', 'yesterday', null] }, path: 'Invalid.md' });
+        // Unquoted YAML `2019` reaches the index as a number.
+        index.refresh({ frontmatter: { [PROPERTY_NAME]: [2019, '2026-05'] }, path: 'Reduced.md' });
+      });
+
+      it('should give one entry per date the list holds, a scalar and a list alike', () => {
+        expect(index.getDatedValues({ propertyNames: [PROPERTY_NAME] })).toEqual([
+          { path: 'Reduced.md', propertyName: PROPERTY_NAME, value: '2019' },
+          { path: 'Reduced.md', propertyName: PROPERTY_NAME, value: '2026-05' },
+          { path: 'List.md', propertyName: PROPERTY_NAME, value: '2026-10-09' },
+          { path: 'Scalar.md', propertyName: PROPERTY_NAME, value: '2026-10-09' },
+          { path: 'Invalid.md', propertyName: PROPERTY_NAME, value: '2026-10-27' },
+          { path: 'List.md', propertyName: PROPERTY_NAME, value: '2026-10-27' }
+        ]);
+      });
+
+      it('should match a note when any member of its list falls in the range', () => {
+        expect(index.getDatedValues({ from: '2026-10-27', propertyNames: [PROPERTY_NAME], to: '2026-10-27' })).toEqual([
+          { path: 'Invalid.md', propertyName: PROPERTY_NAME, value: '2026-10-27' },
+          { path: 'List.md', propertyName: PROPERTY_NAME, value: '2026-10-27' }
+        ]);
+        expect(index.getPathsByPropertyValue(PROPERTY_NAME, '2026-10-09')).toEqual(['Scalar.md', 'List.md']);
+      });
+
+      it('should treat a member of reduced precision as it treats one alone', () => {
+        expect(index.getDatedValues({ from: '2019-05-10', propertyNames: [PROPERTY_NAME], to: '2019-05-20' })).toEqual([
+          { path: 'Reduced.md', propertyName: PROPERTY_NAME, value: '2019' }
+        ]);
+        expect(index.getDatedValues({ from: '05', isRecurring: true, propertyNames: [PROPERTY_NAME], to: '05' })).toEqual([
+          { path: 'Reduced.md', propertyName: PROPERTY_NAME, value: '2026-05' }
+        ]);
+      });
+
+      it('should count an empty list as carrying the property with no date, and list an invalid member apart', () => {
+        expect(index.getPathsWithProperty(PROPERTY_NAME)).toContain('Empty.md');
+        expect(index.getNonDateValues()).toEqual([
+          { path: 'Invalid.md', propertyName: PROPERTY_NAME, value: 'yesterday' }
+        ]);
+      });
+
+      it('should read the zone-free members as UTC only when the query says so, whatever the name says', () => {
+        const query = { from: '2026-10-27T00:00Z', propertyNames: [PROPERTY_NAME], timeBasis: 'utc', to: '2026-10-27T23:59:59.999Z' } as const;
+
+        expect(index.getDatedValues({ ...query, missingTimeZone: 'utc' })).toEqual([
+          { path: 'Invalid.md', propertyName: PROPERTY_NAME, value: '2026-10-27' },
+          { path: 'List.md', propertyName: PROPERTY_NAME, value: '2026-10-27' }
+        ]);
+        expect(index.getDatedValues({ ...query, missingTimeZone: 'skip' })).toEqual([]);
+      });
+    });
+
     it('should answer null for a property nobody registered, and while the module is off', () => {
       index.register('birthday');
 
