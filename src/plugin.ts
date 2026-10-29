@@ -12,6 +12,8 @@ import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-
 import { BacklinksModuleComponent } from './modules/backlinks/backlinks-module-component.ts';
 import { HeadingTimesComponent } from './modules/headings/heading-times-component.ts';
 import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
+import { LinkTextIndexComponent } from './modules/link-texts/link-text-index-component.ts';
+import { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
 import { ModulesComponent } from './modules/modules-component.ts';
 import { NameIndexComponent } from './modules/names/name-index-component.ts';
 import { PropertyValueIndexComponent } from './modules/properties/property-value-index-component.ts';
@@ -93,6 +95,8 @@ export class Plugin extends PluginBase {
       pluginSettingsComponent,
       storage: new PluginIndexStorage({ app: this.app, getLegacyPath: (): string => this.getDataFilePath('property-values.json'), kind: 'properties', pluginId: this.manifest.id })
     });
+    // Owned here too: a consumer subscribes to its changes once, for the plugin's whole life.
+    const linkTextIndex = new LinkTextIndex();
     const modulesComponent = new ModulesComponent({
       moduleDefinitions: [
         {
@@ -144,6 +148,11 @@ export class Plugin extends PluginBase {
             }),
           getIsEnabled: (settings): boolean => settings.isUnlinkedMentionsModuleEnabled,
           moduleId: 'unlinked-mentions'
+        },
+        {
+          createComponent: (): LinkTextIndexComponent => new LinkTextIndexComponent({ app: this.app, linkTextIndex }),
+          getIsEnabled: (settings): boolean => settings.isLinkTextsModuleEnabled,
+          moduleId: 'link-texts'
         }
       ],
       pluginSettingsComponent
@@ -154,6 +163,10 @@ export class Plugin extends PluginBase {
       getBacklinkCacheComponent: (): BacklinkCacheComponent | null => {
         const moduleComponent = modulesComponent.getModuleComponent('backlinks');
         return moduleComponent instanceof BacklinksModuleComponent ? moduleComponent.backlinkCacheComponent : null;
+      },
+      getLinkTextIndexComponent: (): LinkTextIndexComponent | null => {
+        const moduleComponent = modulesComponent.getModuleComponent('link-texts');
+        return moduleComponent instanceof LinkTextIndexComponent ? moduleComponent : null;
       },
       getNameIndexComponent: (): NameIndexComponent | null => {
         const moduleComponent = modulesComponent.getModuleComponent('names');
@@ -168,6 +181,7 @@ export class Plugin extends PluginBase {
         return moduleComponent instanceof UnlinkedMentionsComponent ? moduleComponent : null;
       },
       headingTimesIndex,
+      linkTextIndex,
       pluginSettingsComponent,
       propertyValueIndex,
       titleIndex

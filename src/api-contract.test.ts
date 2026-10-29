@@ -8,6 +8,7 @@ import {
   validateSync,
   verifyApiContract
 } from '@mnaoumov/typescript-lib/api-contract-verifier';
+import { noop } from '@mnaoumov/typescript-lib/function';
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { App } from 'obsidian-test-mocks/obsidian';
 import {
@@ -65,6 +66,10 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
       invalid: [undefined, [null], [{ path: 'Alpha.md', propertyName: 'birthday' }], [{ path: 'Alpha.md', propertyName: 'birthday', value: 1 }]],
       valid: [null, [], [{ path: 'Alpha.md', propertyName: 'birthday', value: '2026-10-26' }]]
     };
+    const nullableLinkTexts: PayloadCases = {
+      invalid: [undefined, [null], [{ count: 1, text: 'alpha' }], [{ count: '1', sourcePaths: [], text: 'alpha' }], [{ count: 1, sourcePaths: [1], text: 'alpha' }]],
+      valid: [null, [], [{ count: 2, sourcePaths: ['Charlie.md'], text: 'alpha' }]]
+    };
 
     return {
       getBacklinksForFile: { input: pathOrFile, output: nullableBacklinks },
@@ -85,6 +90,8 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
       getLinkSuggestions: { input: noArguments, output: nullableSuggestions },
       getLinkSuggestionsOriginal: { input: noArguments, output: { invalid: [null], valid: [[{ file: null, path: 'a' }]] } },
       getLinkSuggestionsSafe: { input: noArguments, output: nullableSuggestions },
+      getLinkTexts: { input: pathOrFile, output: nullableLinkTexts },
+      getLinkTextsSafe: { input: pathOrFile, output: nullableLinkTexts },
       getNonDateValues: { input: noArguments, output: nullableDatedValues },
       getNonDateValuesSafe: { input: noArguments, output: nullableDatedValues },
       getPathsByName: { input: name, output: nullableStrings },
@@ -116,6 +123,10 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
           }]]
         },
         output: { invalid: [null, {}, { isApplied: 'yes' }], valid: [{ isApplied: true }, { isApplied: false, unknownKey: true }] }
+      },
+      onLinkTextsChanged: {
+        input: { invalid: [[], [null], ['callback'], [noop, 'extra']], valid: [[noop]] },
+        output: { invalid: [undefined, null, {}], valid: [noop] }
       },
       registerPropertyName: { input: name, output: { invalid: [null, false, 'a'], valid: [undefined] } }
     };

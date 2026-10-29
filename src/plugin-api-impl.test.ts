@@ -25,6 +25,7 @@ import {
 } from 'vitest';
 
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
+import type { LinkTextIndexComponent } from './modules/link-texts/link-text-index-component.ts';
 import type { NameIndexComponent } from './modules/names/name-index-component.ts';
 import type { NameIndex } from './modules/names/name-index.ts';
 import type { PropertyValueIndexComponent } from './modules/properties/property-value-index-component.ts';
@@ -39,6 +40,7 @@ import type {
 } from './settings-migration-modal.ts';
 
 import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
+import { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
 import { PropertyValueIndex } from './modules/properties/property-value-index.ts';
 import { TitleIndex } from './modules/titles/title-index.ts';
 import { PluginApiImpl } from './plugin-api-impl.ts';
@@ -70,6 +72,8 @@ describe('PluginApiImpl', () => {
   let app: App;
   let backlinkCacheComponent: BacklinkCacheComponent | null;
   let editAndSaveCallCount: number;
+  let linkTextIndex: LinkTextIndex;
+  let linkTextIndexComponent: LinkTextIndexComponent | null;
   let nameIndexComponent: NameIndexComponent | null;
   let pluginApi: PluginApiImpl;
   let propertyValueIndex: PropertyValueIndex;
@@ -84,6 +88,8 @@ describe('PluginApiImpl', () => {
     settings.isTitlesModuleEnabled = true;
     editAndSaveCallCount = 0;
     backlinkCacheComponent = null;
+    linkTextIndex = new LinkTextIndex();
+    linkTextIndexComponent = null;
     nameIndexComponent = null;
     propertyValueIndexComponent = null;
     unlinkedMentionsComponent = null;
@@ -116,10 +122,12 @@ describe('PluginApiImpl', () => {
     pluginApi = new PluginApiImpl({
       app: castTo<AppOriginal>(app),
       getBacklinkCacheComponent: (): BacklinkCacheComponent | null => backlinkCacheComponent,
+      getLinkTextIndexComponent: (): LinkTextIndexComponent | null => linkTextIndexComponent,
       getNameIndexComponent: (): NameIndexComponent | null => nameIndexComponent,
       getPropertyValueIndexComponent: (): null | PropertyValueIndexComponent => propertyValueIndexComponent,
       getUnlinkedMentionsComponent: (): null | UnlinkedMentionsComponent => unlinkedMentionsComponent,
       headingTimesIndex,
+      linkTextIndex,
       pluginSettingsComponent,
       propertyValueIndex,
       titleIndex
@@ -336,6 +344,35 @@ describe('PluginApiImpl', () => {
 
       settings.isPropertiesModuleEnabled = false;
       expect(pluginApi.getNonDateValues()).toBeNull();
+    });
+  });
+
+  describe('link texts', () => {
+    it('should answer from the index, by path or by file, once the module is on', async () => {
+      const waitForBuild = vi.fn(noopAsync);
+      linkTextIndexComponent = strictProxy<LinkTextIndexComponent>({ waitForBuild });
+      linkTextIndex.setSource('Charlie.md', [{ targetPath: 'Bravo.md', text: 'alpha' }]);
+
+      expect(pluginApi.getLinkTexts('Bravo.md')).toEqual([{ count: 1, sourcePaths: ['Charlie.md'], text: 'alpha' }]);
+      await expect(pluginApi.getLinkTextsSafe(castTo<TFile>(app.vault.createSync__('Bravo.md', '')))).resolves.toEqual([{ count: 1, sourcePaths: ['Charlie.md'], text: 'alpha' }]);
+      expect(waitForBuild).toHaveBeenCalledOnce();
+      expect(pluginApi.getLinkTexts('Unknown.md')).toEqual([]);
+    });
+
+    it('should answer null while the module is off', async () => {
+      expect(pluginApi.getLinkTexts('Bravo.md')).toBeNull();
+      await expect(pluginApi.getLinkTextsSafe('Bravo.md')).resolves.toBeNull();
+    });
+
+    it('should tell a subscriber which targets changed until it unsubscribes', () => {
+      const callback = vi.fn();
+      const unsubscribe = pluginApi.onLinkTextsChanged(callback);
+
+      linkTextIndex.notify(['Bravo.md']);
+      unsubscribe();
+      linkTextIndex.notify(null);
+
+      expect(callback.mock.calls).toEqual([[['Bravo.md']]]);
     });
   });
 

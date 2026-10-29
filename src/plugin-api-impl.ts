@@ -9,7 +9,10 @@ import type {
   TFile
 } from 'obsidian';
 
-import { getFileOrNull } from '@mnaoumov/obsidian-lib/file-system';
+import {
+  getFileOrNull,
+  getPath
+} from '@mnaoumov/obsidian-lib/file-system';
 import {
   noop,
   noopAsync
@@ -17,6 +20,8 @@ import {
 
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
 import type { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
+import type { LinkTextIndexComponent } from './modules/link-texts/link-text-index-component.ts';
+import type { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
 import type { NameIndexComponent } from './modules/names/name-index-component.ts';
 import type { PropertyValueIndexComponent } from './modules/properties/property-value-index-component.ts';
 import type { PropertyValueIndex } from './modules/properties/property-value-index.ts';
@@ -29,6 +34,8 @@ import type {
   DatedValue,
   DatedValuesQuery,
   HeadingTimes,
+  LinkText,
+  LinkTextsChangedCallback,
   MigrateSettingsParams,
   MigrateSettingsResult,
   UnlinkedMention,
@@ -50,6 +57,11 @@ interface PluginApiImplConstructorParams {
    */
   readonly getBacklinkCacheComponent: () => BacklinkCacheComponent | null;
   /**
+   * Finds the `Link texts` module's component, or `null` while the module is off. Asked per call, for the same
+   * reason.
+   */
+  readonly getLinkTextIndexComponent: () => LinkTextIndexComponent | null;
+  /**
    * Finds the `Names` module's component, or `null` while the module is off. Asked per call, for the
    * same reason.
    */
@@ -65,6 +77,7 @@ interface PluginApiImplConstructorParams {
    */
   readonly getUnlinkedMentionsComponent: () => null | UnlinkedMentionsComponent;
   readonly headingTimesIndex: HeadingTimesIndex;
+  readonly linkTextIndex: LinkTextIndex;
   readonly pluginSettingsComponent: PluginSettingsComponent;
   readonly propertyValueIndex: PropertyValueIndex;
   readonly titleIndex: TitleIndex;
@@ -87,10 +100,12 @@ interface PluginApiImplConstructorParams {
 export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigrationApi<AdvancedMetadataCacheMigratableSettings> {
   private readonly app: App;
   private readonly getBacklinkCacheComponent: () => BacklinkCacheComponent | null;
+  private readonly getLinkTextIndexComponent: () => LinkTextIndexComponent | null;
   private readonly getNameIndexComponent: () => NameIndexComponent | null;
   private readonly getPropertyValueIndexComponent: () => null | PropertyValueIndexComponent;
   private readonly getUnlinkedMentionsComponent: () => null | UnlinkedMentionsComponent;
   private readonly headingTimesIndex: HeadingTimesIndex;
+  private readonly linkTextIndex: LinkTextIndex;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
   private readonly propertyValueIndex: PropertyValueIndex;
 
@@ -105,10 +120,12 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   public constructor(params: PluginApiImplConstructorParams) {
     this.app = params.app;
     this.getBacklinkCacheComponent = params.getBacklinkCacheComponent;
+    this.getLinkTextIndexComponent = params.getLinkTextIndexComponent;
     this.getNameIndexComponent = params.getNameIndexComponent;
     this.getPropertyValueIndexComponent = params.getPropertyValueIndexComponent;
     this.getUnlinkedMentionsComponent = params.getUnlinkedMentionsComponent;
     this.headingTimesIndex = params.headingTimesIndex;
+    this.linkTextIndex = params.linkTextIndex;
     this.pluginSettingsComponent = params.pluginSettingsComponent;
     this.propertyValueIndex = params.propertyValueIndex;
     this.titleIndex = params.titleIndex;
@@ -203,6 +220,27 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
    */
   public async getLinkSuggestionsSafe(): Promise<LinkSuggestion[] | null> {
     return await this.getNameIndexComponent()?.getSuggestionsSafe() ?? null;
+  }
+
+  /**
+   * Reads the display texts that links pointing at a file use instead of its name.
+   *
+   * @param pathOrFile - The vault-relative path of any file, or the file itself.
+   * @returns The distinct texts, or `null` while the `Link texts` module is off.
+   */
+  public getLinkTexts(pathOrFile: string | TFile): LinkText[] | null {
+    return this.getLinkTextIndexComponent() ? this.linkTextIndex.getLinkTexts(getPath(this.app, pathOrFile)) : null;
+  }
+
+  /**
+   * Reads the display texts that links pointing at a file use instead of its name, once the index is built.
+   *
+   * @param pathOrFile - The vault-relative path of any file, or the file itself.
+   * @returns The distinct texts, or `null` while the `Link texts` module is off.
+   */
+  public async getLinkTextsSafe(pathOrFile: string | TFile): Promise<LinkText[] | null> {
+    await this.getLinkTextIndexComponent()?.waitForBuild();
+    return this.getLinkTexts(pathOrFile);
   }
 
   /**
@@ -361,6 +399,16 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
     } finally {
       releaseQueue();
     }
+  }
+
+  /**
+   * Subscribes to changes of the link texts.
+   *
+   * @param callback - Called with the changed paths, or `null` for any of them.
+   * @returns A function that ends the subscription.
+   */
+  public onLinkTextsChanged(callback: LinkTextsChangedCallback): () => void {
+    return this.linkTextIndex.onChange(callback);
   }
 
   /**
