@@ -138,8 +138,7 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
           setting.addMultipleText((multipleText) => {
             this.bind({
               componentToPluginSettingsValueConverter: (lines: readonly string[]) => parseNamePatterns(lines),
-              pluginSettingsToComponentValueConverter: (namePatterns: readonly (readonly string[])[]): readonly string[] =>
-                namePatterns.map((namePattern) => namePattern.join(', ')),
+              pluginSettingsToComponentValueConverter: (namePatterns: readonly (readonly string[])[]): readonly string[] => namePatterns.map((namePattern) => namePattern.join(', ')),
               propertyName: 'titleNamePatterns',
               valueComponent: multipleText
             });
