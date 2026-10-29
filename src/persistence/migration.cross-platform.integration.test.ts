@@ -1,9 +1,3 @@
-/**
- * Android's harness can lose its WebView before layout readiness on OIT 17.7.0; that startup failure
- * precedes this scenario. Manual fallback: enable both modules, create/edit/rename a heading note,
- * restart the modules and sync the vault to a second device; creation times and registrations must
- * survive, derived values must rebuild locally, and legacy files must disappear without note edits.
- */
 import type {
   App,
   Vault
