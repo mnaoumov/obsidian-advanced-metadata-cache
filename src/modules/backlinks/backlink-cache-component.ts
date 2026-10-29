@@ -16,13 +16,13 @@ import {
   isCanvasFile
 } from '@mnaoumov/obsidian-lib/file-system';
 import {
-  extractLinkFile,
+  extractReferenceFile,
   splitSubpath
 } from '@mnaoumov/obsidian-lib/link';
 import { loop } from '@mnaoumov/obsidian-lib/loop';
 import {
   ensureMetadataCacheReady,
-  getLinks
+  getReferences
 } from '@mnaoumov/obsidian-lib/metadata-cache';
 import { sortReferences } from '@mnaoumov/obsidian-lib/reference';
 import { getMarkdownFilesSorted } from '@mnaoumov/obsidian-lib/vault';
@@ -383,14 +383,14 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
       return;
     }
 
-    for (const link of getLinks({ cache })) {
+    for (const link of getReferences({ cache })) {
       if (this.abortSignalComponent.abortSignal.aborted) {
         return;
       }
 
-      const resolvedLinkFile = extractLinkFile({
+      const resolvedLinkFile = extractReferenceFile({
         app: this.app,
-        link,
+        reference: link,
         sourcePathOrFile: notePath
       });
       if (resolvedLinkFile) {
@@ -409,9 +409,9 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
         continue;
       }
 
-      const nonExistingLinkFile = extractLinkFile({
+      const nonExistingLinkFile = extractReferenceFile({
         app: this.app,
-        link,
+        reference: link,
         shouldAllowNonExistingFile: true,
         sourcePathOrFile: notePath
       });
