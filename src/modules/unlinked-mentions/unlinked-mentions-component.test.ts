@@ -515,6 +515,52 @@ describe('UnlinkedMentionsComponent', () => {
       restore.mockRestore();
     }
   });
+  it('should save the names a query-started full scan cleaned when unloaded before the debounce', async () => {
+    createNote('One.md', 'gamma');
+    await load();
+    const gamma = createNote('Gamma.md');
+    app.vault.trigger('create', gamma);
+
+    expect(summarize(await component.getUnlinkedMentions(asOriginal(gamma)))).toEqual([['One.md', [[0, 5]]]]);
+    await unloadComponent();
+
+    expect(JSON.parse(await app.vault.adapter.read(DATA_FILE_PATH))).toMatchObject({ cleanKeys: [0, 1], keys: ['ONE', 'GAMMA'] });
+  });
+
+  it('should leave a dirty name dirty when unloaded during the full scan a query started', async () => {
+    createNote('One.md', 'gamma');
+    await load();
+    const gamma = createNote('Gamma.md');
+    app.vault.trigger('create', gamma);
+    vi.spyOn(app.vault, 'cachedRead').mockImplementation((file) => {
+      component.unload();
+      return Promise.resolve(app.vault.readSync__(file));
+    });
+
+    await component.getUnlinkedMentions(asOriginal(gamma));
+    await waitForAllAsyncOperations();
+
+    expect(JSON.parse(await app.vault.adapter.read(DATA_FILE_PATH))).toMatchObject({ cleanKeys: [0], keys: ['ONE'] });
+  });
+
+  it('should save on unload a change only the names saw, which the file index has no record of', async () => {
+    const write = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    component = new UnlinkedMentionsComponent({ app: castTo<AppOriginal>(app), getDataFilePath: (): string => DATA_FILE_PATH, storage: { read: (): Promise<null> => Promise.resolve(null), write } });
+    const pdf = createNote('Doc.pdf');
+    createNote('One.md', 'doc');
+    vi.useFakeTimers();
+    await component.loadWithPromises();
+    app.workspace.setLayoutReady__();
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_IN_MILLISECONDS);
+    write.mockClear();
+
+    app.vault.trigger('rename', pdf, 'Old.pdf');
+    component.unload();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(write).toHaveBeenCalledOnce();
+  });
+
   function createComponent(): UnlinkedMentionsComponent {
     return new UnlinkedMentionsComponent({ app: castTo<AppOriginal>(app), getDataFilePath: () => DATA_FILE_PATH });
   }

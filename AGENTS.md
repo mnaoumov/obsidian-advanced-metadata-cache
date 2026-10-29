@@ -217,12 +217,24 @@ ends, both methods fall through to Obsidian's.
 **The index is persisted, and a saved entry is trusted only as far as its `mtime` and `size`.** `UnlinkedMentionsComponent`
 saves per-note records to device-local IndexedDB on a non-resetting 5 s debounce and on unload,
 and only once built, so a half-built index never overwrites a whole one. Per note it holds the `mtime`/`size` the text had
-WHEN IT WAS SCANNED (`scannedStats`, not the file's current stat, which may already be ahead of a pending `changed`) and
+WHEN IT WAS SCANNED (the record of `files`, not the file's current stat, which may already be ahead of a pending `changed`) and
 the keys found; at top level, the CLEAN keys (`getCleanKeys`), because a key dirty at save time was never looked for in
 the notes scanned before it. The next build sets every name from the metadata cache (all dirty), restores each note whose
 stat matches, reads the rest, then `markClean`s the saved clean keys: every other name stays dirty and the first query
 about it runs the full scan as before. A note `changed` already scanned during the load is skipped, since it is newer
-than anything saved. Bump the `mentions-cache-v1` store id and the legacy `PERSISTED_VERSION` whenever what a key means changes (`obsidian-word-characters` above all).
+than anything saved.
+
+**Reading and stat-checking the notes is `@mnaoumov/obsidian-lib`'s `IncrementalFileIndexComponent`**, the `files` child,
+built with `shouldAwaitMetadataChange` for Markdown (a `create` or `modify` drops the note's record and the following
+`changed` supplies its text, so it is not read twice) and `shouldMoveRecordsOnRename` (the keys depend on text alone).
+Its `load`/`save` are this component's checkpoint, so the schema and store id stay here. Two consequences are load-bearing:
+
+- **A Markdown note with no record holds no keys yet, so every query adds it to the candidates** and reads it. That is
+  what keeps the superset claim true while a `changed` is pending or the startup reads have not reached the note.
+- **The child is unloaded before `onunload` runs**, so its flush usually saves first. The component's own unload save is
+  still needed for a change only the names saw, such as an attachment's rename, which leaves the child clean.
+  `build` returns when unloaded straight after `addChild(this.files)`, because the child starts loading inside
+  `addChild` and a second `loadWithPromises()` after an unload restarts it. Bump the `mentions-cache-v1` store id and the legacy `PERSISTED_VERSION` whenever what a key means changes (`obsidian-word-characters` above all).
 
 `unlinked-mentions-build.real-vault.integration.test.ts` measures it on a notes-only copy of a real vault:
 `npm run test:integration:real-vault` (desktop) and `npm run test:integration:real-vault:android` (the `obsidian_test`
@@ -244,7 +256,9 @@ I/O. One run each, 2026-10-28, 35,548 notes, 78 MB, local IndexedDB records:
 start after a reboot. On desktop the first read right after the copy took 29.8 s here and 231 s in an earlier run. The
 emulator's cold-disk case was not measured: Obsidian's own startup parse had already read every note there. These are
 emulator numbers, not phone numbers. Before the IndexedDB migration the JSON saved file (9.2 MB) loaded in 1.2 s on
-desktop, which is history, not a baseline for the records.
+desktop, which is history, not a baseline for the records. The table also predates the shared file index, which reads
+the notes of a cold build one at a time instead of 20 at once, so its cold-build rows are not a baseline either until
+the real-vault suite is run again.
 
 Getting the vault onto the emulator needed two local patches to `obsidian-integration-testing` 17.7.2 (tracked
 upstream). The device's `tar` rejects a header checksum that does not start with `0`, which a long Cyrillic path produces.
@@ -253,7 +267,8 @@ the copy then took about 8 min on the emulator.
 
 The word-character class, mention expression and canonical word tokenization come from
 `@mnaoumov/obsidian-lib/obsidian-word-characters`; AMC retains its candidate trie, names and clean scan markers.
-The component still owns its file-change pipeline and checkpoint schema.
+The file reads, stat checks and record moves come from its `IncrementalFileIndexComponent`; the component owns the
+name events and the checkpoint schema.
 
 The pane falls through until the build ends. `unlinked-mentions-parity.desktop.integration.test.ts` compares the section filled both ways in a real
 Obsidian, and `unlinked-mentions-on-off.desktop-performance.integration.test.ts` times them. Read its numbers with the
