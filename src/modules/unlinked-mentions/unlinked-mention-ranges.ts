@@ -1,9 +1,12 @@
+import type { PositionContainer } from '@mnaoumov/obsidian-lib/position';
 import type {
   CachedMetadata,
+  Pos,
   TFile
 } from 'obsidian';
 
 import { createObsidianMentionRegExp } from '@mnaoumov/obsidian-lib/obsidian-word-characters';
+import { isPositionInsideSome } from '@mnaoumov/obsidian-lib/position';
 import { parseFrontMatterAliases } from 'obsidian';
 
 /**
@@ -77,13 +80,19 @@ function isHidden(range: MentionRange, cache: CachedMetadata | null): boolean {
     return false;
   }
 
-  const [start, end] = range;
-  for (const reference of [...cache.links ?? [], ...cache.embeds ?? []]) {
-    if (reference.position.start.offset <= start && reference.position.end.offset >= end) {
-      return true;
-    }
+  const containers: PositionContainer[] = [...cache.links ?? [], ...cache.embeds ?? []];
+  if (cache.frontmatterPosition) {
+    containers.push(cache.frontmatterPosition);
   }
 
-  const frontmatterPosition = cache.frontmatterPosition;
-  return !!frontmatterPosition && frontmatterPosition.start.offset <= start && frontmatterPosition.end.offset >= end;
+  return isPositionInsideSome(toPos(range), containers);
+}
+
+function toPos(range: MentionRange): Pos {
+  // Only the offsets take part in containment, so the line and column are left at zero.
+  const [start, end] = range;
+  return {
+    end: { col: 0, line: 0, offset: end },
+    start: { col: 0, line: 0, offset: start }
+  };
 }
