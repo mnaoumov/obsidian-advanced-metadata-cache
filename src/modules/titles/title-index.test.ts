@@ -195,14 +195,17 @@ describe('TitleIndex', () => {
 
     it('should build once per language, never mixing two', () => {
       settings.titleNamePatterns = [['lastName', 'firstName', 'middleName'], ['firstName', 'lastName']];
-      const file = createNote('Naumov Michael.md', [
-        '---',
-        'lastName: {Наумов: [ru, uk], Naumov: [en]}',
-        'firstName: {Михайло: [uk], Михаил: [ru], Mykhailo: [en], Michael: [en]}',
-        'middleName: {Євгенович: [uk], Евгеньевич: [ru]}',
-        '---',
-        ''
-      ].join('\n'));
+      const file = createNote(
+        'Naumov Michael.md',
+        [
+          '---',
+          'lastName: {Наумов: [ru, uk], Naumov: [en]}',
+          'firstName: {Михайло: [uk], Михаил: [ru], Mykhailo: [en], Michael: [en]}',
+          'middleName: {Євгенович: [uk], Евгеньевич: [ru]}',
+          '---',
+          ''
+        ].join('\n')
+      );
 
       expect(readTitles(file)).toEqual([
         'Наумов Михаил Евгеньевич',
