@@ -17,7 +17,10 @@ import {
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 
 import { PluginSettings } from '../../plugin-settings.ts';
-import { TitleIndex } from './title-index.ts';
+import {
+  parseNamePatterns,
+  TitleIndex
+} from './title-index.ts';
 
 describe('TitleIndex', () => {
   let app: App;
@@ -140,6 +143,115 @@ describe('TitleIndex', () => {
       settings.titlePropertyNames = ['title', 'heading'];
 
       expect(readTitles(file)).toEqual(['After']);
+    });
+  });
+
+  describe('name patterns', () => {
+    beforeEach(() => {
+      settings.titlePropertyNames = [];
+    });
+
+    it('should drop the blanks and the repeats a free-text list collects', () => {
+      settings.titleNamePatterns = [[' lastName ', '', 'firstName'], [], ['  '], ['lastName', 'firstName']];
+
+      expect(titleIndex.getTitleNamePatterns()).toEqual([['lastName', 'firstName']]);
+    });
+
+    it('should answer with no patterns while the module is off', () => {
+      settings.titleNamePatterns = [['lastName', 'firstName']];
+      settings.isTitlesModuleEnabled = false;
+
+      expect(titleIndex.getTitleNamePatterns()).toEqual([]);
+    });
+
+    it('should parse a settings line into a pattern', () => {
+      expect(parseNamePatterns(['lastName, firstName , middleName', '', ' , ', 'firstName'])).toEqual([
+        ['lastName', 'firstName', 'middleName'],
+        ['firstName']
+      ]);
+    });
+
+    it('should join plain parts with a space, skipping a missing one', () => {
+      settings.titleNamePatterns = [['lastName', 'firstName', 'middleName'], ['firstName', 'lastName']];
+      const file = createNote('Smith John.md', '---\nlastName: Smith\nfirstName: John\n---\n');
+
+      expect(readTitles(file)).toEqual(['Smith John', 'John Smith']);
+    });
+
+    it('should follow the title properties, and drop a built name equal to a title', () => {
+      settings.titlePropertyNames = ['title'];
+      settings.titleNamePatterns = [['lastName', 'firstName'], ['firstName', 'lastName']];
+      const file = createNote('Smith John.md', '---\ntitle: smith john\nlastName: Smith\nfirstName: John\n---\n');
+
+      expect(readTitles(file)).toEqual(['smith john', 'John Smith']);
+    });
+
+    it('should multiply the forms of a list-valued part', () => {
+      settings.titleNamePatterns = [['firstName', 'lastName']];
+      const file = createNote('Smith Alex.md', '---\nlastName: Smith\nfirstName: [Alexander, Alex]\n---\n');
+
+      expect(readTitles(file)).toEqual(['Alexander Smith', 'Alex Smith']);
+    });
+
+    it('should build once per language, never mixing two', () => {
+      settings.titleNamePatterns = [['lastName', 'firstName', 'middleName'], ['firstName', 'lastName']];
+      const file = createNote('Naumov Michael.md', [
+        '---',
+        'lastName: {Наумов: [ru, uk], Naumov: [en]}',
+        'firstName: {Михайло: [uk], Михаил: [ru], Mykhailo: [en], Michael: [en]}',
+        'middleName: {Євгенович: [uk], Евгеньевич: [ru]}',
+        '---',
+        ''
+      ].join('\n'));
+
+      expect(readTitles(file)).toEqual([
+        'Наумов Михаил Евгеньевич',
+        'Наумов Михайло Євгенович',
+        'Naumov Mykhailo',
+        'Naumov Michael',
+        'Михайло Наумов',
+        'Михаил Наумов',
+        'Mykhailo Naumov',
+        'Michael Naumov'
+      ]);
+    });
+
+    it('should give a plain part to every language', () => {
+      settings.titleNamePatterns = [['lastName', 'firstName']];
+      const file = createNote('Maizlish Alex.md', '---\nlastName: Maizlish\nfirstName: {Oleksandr: en, Олександр: [uk]}\n---\n');
+
+      expect(readTitles(file)).toEqual(['Maizlish Oleksandr', 'Maizlish Олександр']);
+    });
+
+    it('should skip a part with nothing in a language rather than borrow another language', () => {
+      settings.titleNamePatterns = [['lastName', 'firstName']];
+      const file = createNote('Maizlish Alex.md', '---\nlastName: {Майзліш: [uk]}\nfirstName: {Alex: [en]}\n---\n');
+
+      expect(readTitles(file)).toEqual(['Майзліш', 'Alex']);
+    });
+
+    it('should leave values that are not forms or languages', () => {
+      settings.titleNamePatterns = [['lastName', 'firstName']];
+      const file = createNote('Odd.md', '---\nlastName: {"  ": [en], Smith: [1, "  ", en]}\nfirstName: true\n---\n');
+
+      expect(readTitles(file)).toEqual(['Smith']);
+    });
+
+    it('should build nothing for a note carrying none of the parts', () => {
+      settings.titleNamePatterns = [['lastName', 'firstName']];
+      const file = createNote('Alpha.md', '---\ntitle: Alpha\n---\n');
+
+      expect(readTitles(file)).toEqual([]);
+    });
+
+    it('should drop the memo when the patterns change', () => {
+      const file = createNote('Smith John.md', '---\nlastName: Smith\nfirstName: John\n---\n');
+      settings.titleNamePatterns = [['lastName', 'firstName']];
+      expect(readTitles(file)).toEqual(['Smith John']);
+
+      settings.titleNamePatterns = [['firstName', 'lastName']];
+
+      expect(readTitles(file)).toEqual(['John Smith']);
     });
   });
 

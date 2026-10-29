@@ -16,6 +16,13 @@
  * Nothing here normalizes a title. The values come back exactly as they were typed, because a consumer
  * that renders them needs the user's own casing and spacing; the name index normalizes on its own way
  * in, the same way it does for a basename and an alias.
+ *
+ * A title comes from one of two SOURCES. A title property's value is a title as it stands. A name
+ * pattern is a list of properties (`[lastName, firstName]`) whose values are joined into a name that
+ * nobody wrote down: a person note keeps only its name parts, and every other order and form is built
+ * here. A part may hold several forms keyed by language (`{Наумов: [ru, uk], Naumov: [en]}`), and a
+ * pattern then runs once per language with no fallback between them, so no name mixing two languages
+ * is ever built.
  */
 
 import type { ReadonlyPluginSettings } from '@mnaoumov/obsidian-lib/components/plugin-settings-component';
@@ -28,6 +35,26 @@ import type {
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 import type { PluginSettings } from '../../plugin-settings.ts';
 
+/**
+ * Where a note's titles are read from.
+ */
+export interface TitleSources {
+  /**
+   * The name patterns, each a list of the properties whose values are joined into one name.
+   */
+  readonly namePatterns: readonly (readonly string[])[];
+
+  /**
+   * The properties whose values are titles as they stand.
+   */
+  readonly propertyNames: readonly string[];
+}
+
+interface NamePart {
+  readonly languageForms: ReadonlyMap<string, readonly string[]>;
+  readonly plainForms: readonly string[];
+}
+
 interface TitleIndexConstructorParams {
   readonly app: App;
   readonly pluginSettingsComponent: PluginSettingsComponent;
@@ -38,7 +65,7 @@ interface TitleIndexConstructorParams {
  */
 export class TitleIndex {
   private readonly app: App;
-  private memoizedPropertyNamesKey: null | string = null;
+  private memoizedSourcesKey: null | string = null;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
   private readonly titles = new Map<string, readonly string[]>();
 
@@ -55,7 +82,20 @@ export class TitleIndex {
    */
   public clear(): void {
     this.titles.clear();
-    this.memoizedPropertyNamesKey = null;
+    this.memoizedSourcesKey = null;
+  }
+
+  /**
+   * The name patterns whose built names currently count as titles.
+   *
+   * Empty while the module is off, for the same reason as {@link TitleIndex.getTitlePropertyNames}.
+   *
+   * @returns The configured patterns, in the order they were typed.
+   */
+  public getTitleNamePatterns(): string[][] {
+    const settings = this.pluginSettingsComponent.settings;
+
+    return settings.isTitlesModuleEnabled ? normalizeNamePatterns(settings.titleNamePatterns) : [];
   }
 
   /**
@@ -77,24 +117,25 @@ export class TitleIndex {
    * Reads one note's titles.
    *
    * @param file - The file to read.
-   * @returns Its titles, in the order the configured properties were typed, with repeats of a title
-   *   already in the list dropped case-insensitively. Empty while the module is off.
+   * @returns Its titles: the title properties' values in the order the properties were typed, then the
+   *   names the patterns build, with repeats of a title already in the list dropped case-insensitively.
+   *   Empty while the module is off.
    */
   public getTitles(file: TFile): readonly string[] {
-    const propertyNames = this.getTitlePropertyNames();
+    const sources = this.getTitleSources();
 
-    if (propertyNames.length === 0) {
+    if (sources.propertyNames.length === 0 && sources.namePatterns.length === 0) {
       return [];
     }
 
-    const propertyNamesKey = propertyNames.join('\n');
+    const sourcesKey = getTitleSourcesKey(sources);
 
-    // The memo is keyed by the whole property list, so editing the list can never be read through a
-    // memo taken under the old one. The component clears at its own edges too; this is what makes the
-    // two independent rather than ordered.
-    if (this.memoizedPropertyNamesKey !== propertyNamesKey) {
+    // The memo is keyed by both whole lists, so editing either can never be read through a memo taken
+    // under the old one. The component clears at its own edges too; this is what makes the two
+    // independent rather than ordered.
+    if (this.memoizedSourcesKey !== sourcesKey) {
       this.titles.clear();
-      this.memoizedPropertyNamesKey = propertyNamesKey;
+      this.memoizedSourcesKey = sourcesKey;
     }
 
     const memoized = this.titles.get(file.path);
@@ -103,9 +144,21 @@ export class TitleIndex {
       return memoized;
     }
 
-    const titles = readTitles(this.app.metadataCache.getFileCache(file)?.frontmatter, propertyNames);
+    const titles = readTitles(this.app.metadataCache.getFileCache(file)?.frontmatter, sources);
     this.titles.set(file.path, titles);
     return titles;
+  }
+
+  /**
+   * Both sources at once, which is what every reader of titles is handed.
+   *
+   * @returns The configured title properties and name patterns; both empty while the module is off.
+   */
+  public getTitleSources(): TitleSources {
+    return {
+      namePatterns: this.getTitleNamePatterns(),
+      propertyNames: this.getTitlePropertyNames()
+    };
   }
 
   /**
@@ -134,6 +187,74 @@ export class TitleIndex {
 }
 
 /**
+ * Builds the names one pattern gives one note.
+ *
+ * The pattern runs once per language that any of its parts lists, in the order the languages first
+ * appear; a part contributes its plain forms to every run and its language forms to that language's run
+ * only. A part with nothing for a run is SKIPPED in it rather than borrowed from another language, so
+ * `{Майзліш: [uk]}` and `{Maizlish: [en]}` never meet in one name. With no language anywhere there is one
+ * run, of the plain forms. Several forms of a part multiply.
+ *
+ * @param frontmatter - The note's frontmatter.
+ * @param namePattern - The properties to join, in order.
+ * @returns The built names, joined with single spaces, possibly with repeats; {@link readTitles} drops them.
+ */
+export function buildNames(frontmatter: FrontMatterCache, namePattern: readonly string[]): string[] {
+  const parts = namePattern.map((propertyName) => readNamePart(frontmatter[propertyName]));
+  const languages = new Set<string>();
+
+  for (const part of parts) {
+    for (const language of part.languageForms.keys()) {
+      languages.add(language);
+    }
+  }
+
+  const runs: (null | string)[] = languages.size === 0 ? [null] : [...languages];
+  const names: string[] = [];
+
+  for (const language of runs) {
+    const formsPerPart = parts
+      .map((part) => [...part.plainForms, ...(language === null ? [] : part.languageForms.get(language) ?? [])])
+      .filter((forms) => forms.length > 0);
+
+    if (formsPerPart.length === 0) {
+      continue;
+    }
+
+    let combinations = [''];
+
+    for (const forms of formsPerPart) {
+      combinations = combinations.flatMap((prefix) => forms.map((form) => prefix ? `${prefix} ${form}` : form));
+    }
+
+    names.push(...combinations);
+  }
+
+  return names;
+}
+
+/**
+ * The key a memo of titles is valid under: two sources with the same key read every note the same way.
+ *
+ * @param sources - The sources.
+ * @returns The key.
+ */
+export function getTitleSourcesKey(sources: TitleSources): string {
+  return JSON.stringify(sources);
+}
+
+/**
+ * Reads the name patterns the way the settings tab states them: one pattern per line, its properties
+ * separated by commas.
+ *
+ * @param lines - The raw lines.
+ * @returns The patterns, each property trimmed, blank properties and empty patterns dropped.
+ */
+export function parseNamePatterns(lines: readonly string[]): string[][] {
+  return normalizeNamePatterns(lines.map((line) => line.split(',')));
+}
+
+/**
  * Reads the titles out of one note's frontmatter.
  *
  * Exported, and taking the frontmatter rather than the file, because the name index calls it with the
@@ -143,34 +264,67 @@ export class TitleIndex {
  * right if there is nothing to invalidate.
  *
  * @param frontmatter - The note's frontmatter, or nothing when it has none.
- * @param propertyNames - The properties whose values count as titles.
- * @returns The titles, trimmed, in the order the properties were given, with repeats dropped
- *   case-insensitively.
+ * @param sources - The properties whose values count as titles, and the name patterns.
+ * @returns The titles, trimmed: the title properties' values in the order the properties were given, then
+ *   each pattern's names in the order the patterns were given, with repeats dropped case-insensitively.
  */
-export function readTitles(frontmatter: FrontMatterCache | undefined, propertyNames: readonly string[]): string[] {
-  if (!frontmatter || propertyNames.length === 0) {
+export function readTitles(frontmatter: FrontMatterCache | undefined, sources: TitleSources): string[] {
+  if (!frontmatter) {
     return [];
   }
 
   const titles: string[] = [];
   const seen = new Set<string>();
 
-  for (const propertyName of propertyNames) {
+  function add(title: string): void {
+    if (!title || seen.has(title.toLowerCase())) {
+      return;
+    }
+
+    seen.add(title.toLowerCase());
+    titles.push(title);
+  }
+
+  for (const propertyName of sources.propertyNames) {
     const rawValue: unknown = frontmatter[propertyName];
 
     for (const rawTitle of Array.isArray(rawValue) ? rawValue : [rawValue]) {
-      const title = toTitle(rawTitle);
+      add(toTitle(rawTitle));
+    }
+  }
 
-      if (!title || seen.has(title.toLowerCase())) {
-        continue;
-      }
-
-      seen.add(title.toLowerCase());
-      titles.push(title);
+  for (const namePattern of sources.namePatterns) {
+    for (const name of buildNames(frontmatter, namePattern)) {
+      add(name);
     }
   }
 
   return titles;
+}
+
+/**
+ * Drops the blanks and repeats a free-text list of patterns inevitably collects.
+ *
+ * @param rawNamePatterns - The patterns as stored.
+ * @returns The patterns worth running, in their order.
+ */
+function normalizeNamePatterns(rawNamePatterns: readonly (readonly string[])[]): string[][] {
+  const namePatterns: string[][] = [];
+  const seen = new Set<string>();
+
+  for (const rawNamePattern of rawNamePatterns) {
+    const namePattern = rawNamePattern.map((propertyName) => propertyName.trim()).filter((propertyName) => propertyName !== '');
+    const key = JSON.stringify(namePattern);
+
+    if (namePattern.length === 0 || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    namePatterns.push(namePattern);
+  }
+
+  return namePatterns;
 }
 
 /**
@@ -195,6 +349,60 @@ function normalizePropertyNames(settings: ReadonlyPluginSettings<PluginSettings>
   }
 
   return propertyNames;
+}
+
+/**
+ * Reads one name part's value.
+ *
+ * A string or a number is one plain form, and a list is several; either belongs to every language. A
+ * mapping is keyed by the FORM and valued by its languages, a list of them or a single one, so a form
+ * shared by several languages is written once: `{Наумов: [ru, uk], Naumov: [en]}`. Anything else
+ * contributes nothing.
+ *
+ * @param rawValue - The raw frontmatter value.
+ * @returns The part's plain forms and its forms per language.
+ */
+function readNamePart(rawValue: unknown): NamePart {
+  const plainForms: string[] = [];
+  const languageForms = new Map<string, string[]>();
+
+  if (Array.isArray(rawValue) || typeof rawValue !== 'object' || rawValue === null) {
+    for (const rawForm of Array.isArray(rawValue) ? rawValue : [rawValue]) {
+      const form = toTitle(rawForm);
+
+      if (form) {
+        plainForms.push(form);
+      }
+    }
+
+    return { languageForms, plainForms };
+  }
+
+  for (const [rawForm, rawLanguages] of Object.entries(rawValue)) {
+    const form = rawForm.trim();
+
+    if (!form) {
+      continue;
+    }
+
+    for (const rawLanguage of Array.isArray(rawLanguages) ? rawLanguages : [rawLanguages]) {
+      if (typeof rawLanguage !== 'string' || !rawLanguage.trim()) {
+        continue;
+      }
+
+      const language = rawLanguage.trim();
+      let forms = languageForms.get(language);
+
+      if (!forms) {
+        forms = [];
+        languageForms.set(language, forms);
+      }
+
+      forms.push(form);
+    }
+  }
+
+  return { languageForms, plainForms };
 }
 
 /**

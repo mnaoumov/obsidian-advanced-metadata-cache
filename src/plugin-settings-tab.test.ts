@@ -21,6 +21,7 @@ import type { PluginSettings } from './plugin-settings.ts';
 import { PluginSettingsTab } from './plugin-settings-tab.ts';
 
 interface Harness {
+  readonly bindParams: Map<string, unknown>;
   readonly definitions: SettingDefinitionItem[];
   readonly propertyNames: string[];
   readonly tab: PluginSettingsTab;
@@ -28,6 +29,11 @@ interface Harness {
 }
 
 type ModuleToggleChangeHandler = (isEnabledNow: boolean, wasEnabled: boolean) => Promisable<void>;
+
+interface ValueConverters {
+  readonly componentToPluginSettingsValueConverter: (uiValue: readonly string[]) => unknown;
+  readonly pluginSettingsToComponentValueConverter: (pluginSettingsValue: readonly (readonly string[])[]) => unknown;
+}
 
 interface VisibleHolder {
   readonly visible?: (() => boolean) | boolean;
@@ -55,6 +61,7 @@ function createHarness(
     shouldAutomaticallyRefreshBacklinkPanels: false,
     shouldOfferTitlesInLinkSuggestions: false,
     shouldShowProgressBarOnLoad: true,
+    titleNamePatterns: [],
     titlePropertyNames: ['title']
   };
 
@@ -75,6 +82,7 @@ function createHarness(
         shouldAutomaticallyRefreshBacklinkPanels: '',
         shouldOfferTitlesInLinkSuggestions: '',
         shouldShowProgressBarOnLoad: '',
+        titleNamePatterns: '',
         titlePropertyNames: ''
       }
     }
@@ -95,10 +103,12 @@ function createHarness(
 
   tab.containerEl = activeWindow.createDiv();
 
+  const bindParams = new Map<string>();
   const propertyNames: string[] = [];
   const moduleToggleChangeHandlers = new Map<string, ModuleToggleChangeHandler | undefined>();
 
   vi.spyOn(tab, 'bind').mockImplementation((params) => {
+    bindParams.set(params.propertyName, params);
     propertyNames.push(params.propertyName);
     if (params.onChanged) {
       moduleToggleChangeHandlers.set(params.propertyName, castTo<ModuleToggleChangeHandler | undefined>(params.onChanged));
@@ -114,6 +124,7 @@ function createHarness(
   }
 
   return {
+    bindParams,
     definitions,
     propertyNames,
     tab,
@@ -137,6 +148,7 @@ describe('PluginSettingsTab', () => {
       'Default time zone',
       'Titles module',
       'Title properties',
+      'Name patterns',
       'Offer titles in the [[ autocomplete',
       'Unlinked mentions module',
       'Should automatically refresh backlink panels',
@@ -152,6 +164,7 @@ describe('PluginSettingsTab', () => {
       'defaultTimeZone',
       'isTitlesModuleEnabled',
       'titlePropertyNames',
+      'titleNamePatterns',
       'shouldOfferTitlesInLinkSuggestions',
       'isUnlinkedMentionsModuleEnabled',
       'shouldAutomaticallyRefreshBacklinkPanels',
@@ -162,13 +175,13 @@ describe('PluginSettingsTab', () => {
   it('should show the options belonging to a module that is on', () => {
     const harness = createHarness(true, true, true);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true, true, true, true, true, true, true, true]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true, true, true, true, true, true, true, true, true]);
   });
 
   it('should hide the options belonging to a module that is off, leaving every module toggle visible', () => {
     const harness = createHarness(false);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, false, false, true, false, false, true, false, false]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, false, false, true, false, false, false, true, false, false]);
   });
 
   it('should hide the titles-in-autocomplete toggle until BOTH modules it needs are on', () => {
@@ -177,9 +190,9 @@ describe('PluginSettingsTab', () => {
 
     // It reads a title through the `Titles` module and puts it in the `Names` module's array, so
     // either one being off leaves it inert - and an inert toggle is worse than an absent one.
-    expect(checkIsVisible(titlesOnly.definitions[9])).toBe(false);
-    expect(checkIsVisible(namesOnly.definitions[9])).toBe(false);
-    expect(checkIsVisible(createHarness(true, true, true).definitions[9])).toBe(true);
+    expect(checkIsVisible(titlesOnly.definitions[10])).toBe(false);
+    expect(checkIsVisible(namesOnly.definitions[10])).toBe(false);
+    expect(checkIsVisible(createHarness(true, true, true).definitions[10])).toBe(true);
   });
 
   it('should re-render the tab when the backlinks module toggle changes, so the hidden rows follow it', async () => {
@@ -216,5 +229,13 @@ describe('PluginSettingsTab', () => {
     await harness.triggerModuleToggleChange('isTitlesModuleEnabled');
 
     expect(refreshSpy).toHaveBeenCalledOnce();
+  });
+
+  it('should edit the name patterns as one comma-separated line per pattern', () => {
+    const harness = createHarness(true, true);
+    const converters = castTo<ValueConverters>(harness.bindParams.get('titleNamePatterns'));
+
+    expect(converters.pluginSettingsToComponentValueConverter([['lastName', 'firstName'], ['firstName']])).toEqual(['lastName, firstName', 'firstName']);
+    expect(converters.componentToPluginSettingsValueConverter([' lastName ,firstName', '', 'firstName'])).toEqual([['lastName', 'firstName'], ['firstName']]);
   });
 });

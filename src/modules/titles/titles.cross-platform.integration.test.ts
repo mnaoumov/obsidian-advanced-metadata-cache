@@ -8,6 +8,8 @@
  * - A title is NOT offered by `getLinkSuggestions()` by default, which stays entry-for-entry
  *   Obsidian's — and IS offered, appended after everything Obsidian would have built, once
  *   `shouldOfferTitlesInLinkSuggestions` is switched on.
+ * - A name pattern builds names from language-keyed name parts as Obsidian itself parses the YAML,
+ *   one language at a time, and those names join the name index.
  * - Switching the module off takes every one of those answers with it, whatever that setting says.
  *
  * Named `*.cross-platform.integration.test.ts` so the desktop AND android projects both collect it:
@@ -44,6 +46,16 @@ interface AdvancedMetadataCacheApi {
 
 interface ObsidianLibStateBag {
   readonly pluginApiRegistry?: PluginApiRegistryWrapper;
+}
+
+/**
+ * What the person scenario answered.
+ */
+interface PersonResult {
+  readonly error: null | string;
+  readonly pathsByBuiltName: string[];
+  readonly pathsByMixedName: string[];
+  readonly titles: string[];
 }
 
 /**
@@ -101,6 +113,20 @@ const NOTE_PATH = `${NOTE_BASENAME}.md`;
 const NOTE_TITLE = 'Titles Integration Real Name';
 const NOTE_HEADING = 'Titles Integration Second Name';
 const NOTE_CONTENT = `---\ntitle: ${NOTE_TITLE}\nheading: ${NOTE_HEADING}\n---\n# Target\n`;
+const PERSON_PATH = 'titles-person.md';
+const PERSON_CONTENT = [
+  '---',
+  'lastName:',
+  '  Коваленко: [uk, ru]',
+  '  Kovalenko: [en]',
+  'firstName:',
+  '  Олена: [uk]',
+  '  Елена: [ru]',
+  '  Olena: [en]',
+  '  Helen: [en]',
+  '---',
+  ''
+].join('\n');
 
 /*
  * Every wait is for work already in flight - the plugin loaded before this suite ran, and the note
@@ -134,6 +160,7 @@ describe('Titles module', () => {
       isNamesModuleEnabled: false,
       isTitlesModuleEnabled: false,
       shouldOfferTitlesInLinkSuggestions: false,
+      titleNamePatterns: [],
       titlePropertyNames: ['title']
     });
   }, SCENARIO_TIMEOUT_IN_MS);
@@ -176,6 +203,18 @@ describe('Titles module', () => {
     expect(result.pathsByTitle).toEqual([NOTE_PATH]);
   }, SCENARIO_TIMEOUT_IN_MS);
 
+  it('builds names from language-keyed name parts as Obsidian parses them, one language at a time', async () => {
+    const patterns = await applyPluginSettings({ titleNamePatterns: [['firstName', 'lastName']] });
+    expect(patterns.error).toBeNull();
+
+    const result = await runPersonScenario();
+
+    expect(result.error).toBeNull();
+    expect(result.titles).toEqual(['Олена Коваленко', 'Елена Коваленко', 'Olena Kovalenko', 'Helen Kovalenko']);
+    expect(result.pathsByBuiltName).toEqual([PERSON_PATH]);
+    expect(result.pathsByMixedName).toEqual([]);
+  }, SCENARIO_TIMEOUT_IN_MS);
+
   it('takes every answer away when the module is switched off, whatever the autocomplete setting says', async () => {
     // Left ON deliberately by the case above, so this proves the `Titles` toggle is what gates the
     // whole thing rather than the two settings being independent switches over the same array.
@@ -195,6 +234,74 @@ describe('Titles module', () => {
     expect(result.pathsByOwnName).toEqual([NOTE_PATH]);
   }, SCENARIO_TIMEOUT_IN_MS);
 });
+
+/**
+ * Creates a person note whose name parts are keyed by language, and asks what it is called.
+ *
+ * @returns What the plugin answered.
+ */
+async function runPersonScenario(): Promise<PersonResult> {
+  return evalInObsidian({
+    async callback({
+      app,
+      FRONTMATTER_WAIT_IN_MS: frontmatterWaitMs,
+      INDEX_WAIT_IN_MS: indexWaitMs,
+      lib: { waitUntil },
+      PERSON_CONTENT: personContent,
+      PERSON_PATH: personPath,
+      POLL_IN_MS: pollMs
+    }) {
+      const empty: PersonResult = { error: null, pathsByBuiltName: [], pathsByMixedName: [], titles: [] };
+      const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
+      const api = (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked)?.api;
+
+      if (!api) {
+        return { ...empty, error: 'No live API record' };
+      }
+
+      try {
+        const existing = app.vault.getAbstractFileByPath(personPath);
+
+        if (existing) {
+          await app.fileManager.trashFile(existing);
+        }
+
+        await app.vault.create(personPath, personContent);
+
+        await waitUntil({
+          intervalInMilliseconds: pollMs,
+          message: 'Obsidian to parse the person note`s frontmatter',
+          predicate: () => app.metadataCache.getCache(personPath)?.frontmatter?.['firstName'] !== undefined,
+          timeoutInMilliseconds: frontmatterWaitMs
+        });
+
+        await waitUntil({
+          intervalInMilliseconds: pollMs,
+          message: 'the name index to pick up the built names',
+          predicate: () => (api.getPathsByName('Helen Kovalenko') ?? []).includes(personPath),
+          timeoutInMilliseconds: indexWaitMs
+        });
+
+        return {
+          error: null,
+          pathsByBuiltName: api.getPathsByName('олена коваленко') ?? [],
+          pathsByMixedName: api.getPathsByName('Helen Коваленко') ?? [],
+          titles: api.getTitles(personPath)
+        };
+      } catch (error) {
+        return { ...empty, error: String(error) };
+      }
+    },
+    input: {
+      FRONTMATTER_WAIT_IN_MS,
+      INDEX_WAIT_IN_MS,
+      PERSON_CONTENT,
+      PERSON_PATH,
+      POLL_IN_MS
+    },
+    vaultPath: getTemporaryVault().path
+  });
+}
 
 /**
  * Creates the fixture note and asks every documented question about it.

@@ -64,6 +64,8 @@ console.log(api.getTitles('Notes/Some note.md')); // ['The Real Name']
 
 Both answer **empty while the Titles module is off**, which is the same answer as "no property is configured" and is meant to be.
 
+`getTitles` also returns the names the user's **name patterns** build from a note's name parts, after the title properties' values. With the pattern `lastName, firstName` and the frontmatter `lastName: {Kovalenko: [en], Коваленко: [uk, ru]}`, `firstName: {Helen: [en], Олена: [uk]}`, it answers `['Kovalenko Helen', 'Коваленко Олена']`, plus `Коваленко` alone for `ru`, which has no first name. The patterns themselves are not part of the API: a consumer reads the names, not how they were built.
+
 `getTitles` is synchronous and lazily memoized per note, so it is safe on a per-keystroke path. Read `getTitlePropertyNames()` and show that list rather than offering a property setting of your own — one place to type `title` is the point of the setting living here. [06 Titles](<../demo-vault/06 Titles.md>) shows what the module does for a user.
 
 ## Handing over a title property of your own

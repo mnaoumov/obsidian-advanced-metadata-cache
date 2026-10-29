@@ -94,6 +94,53 @@ await require('/demoSetup.ts').changeSettings(app, { titlePropertyNames: ['title
 
 Manual equivalent: edit **Title properties** in **Settings -> Community plugins -> `Advanced Metadata Cache`**, one property per line.
 
+## Names built from name parts
+
+A person has more names than anybody wants to type out: surname first for a directory, first name first for a letter, and each again in every language the person is known in. [Kovalenko Olena](<./People/Kovalenko Olena.md>) stores none of them. It stores only its `lastName` and `firstName`, and each part holds its forms keyed by the form, valued by the languages that use it:
+
+```yaml
+---
+lastName: {Коваленко: [uk, ru], Kovalenko: [en]}
+firstName: {Олена: [uk], Елена: [ru], Olena: [en], Helen: [en]}
+---
+```
+
+A **name pattern** lists the properties to join, in order. The pattern is built once per language, the parts present are joined with a space, and a part missing in a language is skipped rather than taken from another language, so no half-Ukrainian, half-English name is ever built. Two forms in one language (`Olena`, `Helen`) give two names. A plain value, such as `lastName: Kovalenko`, belongs to every language.
+
+```code-button
+---
+caption: Build names with "lastName, firstName" and "firstName, lastName"
+---
+await require('/demoSetup.ts').changeSettings(app, { isTitlesModuleEnabled: true, titleNamePatterns: [['lastName', 'firstName'], ['firstName', 'lastName']] });
+```
+
+```code-button
+---
+caption: Read the titles of "Kovalenko Olena"
+---
+await require('/demoSetup.ts').showTitlesFor(app, 'People/Kovalenko Olena.md');
+```
+
+```code-button
+---
+caption: What does "Helen Kovalenko" name?
+---
+await require('/demoSetup.ts').showNamesFor(app, 'Helen Kovalenko', { isTitlesModuleEnabled: true });
+```
+
+The built names are titles like any other: they name the note, they reach the `[[` autocomplete when **Offer titles in the `[[` autocomplete** is on, and other plugins read them through the same API.
+
+```code-button
+---
+caption: Back to no name patterns (the default)
+---
+await require('/demoSetup.ts').changeSettings(app, { titleNamePatterns: [] });
+```
+
+Manual equivalent: edit **Name patterns** in **Settings -> Community plugins -> `Advanced Metadata Cache`**, one pattern per line, its properties separated by commas: `lastName, firstName`.
+
+Obsidian's **Properties** view cannot edit a nested value like these; edit them in Source mode, or with a plugin that edits nested properties.
+
 ## If you also use Front Matter Title
 
 [Front Matter Title](https://github.com/snezhig/obsidian-front-matter-title) does the opposite thing: it takes a note and *shows* you its title, in the file explorer, the tabs and the graph. This module takes a title and *finds* you the note.

@@ -4,6 +4,8 @@ import { PluginSettingsTabBase } from '@mnaoumov/obsidian-lib/plugin/plugin-sett
 
 import type { PluginSettings } from './plugin-settings.ts';
 
+import { parseNamePatterns } from './modules/titles/title-index.ts';
+
 export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
   protected override getSettingDefinitionItems(): SettingDefinitionItem[] {
     return [
@@ -123,6 +125,22 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
           setting.addMultipleText((multipleText) => {
             this.bind({
               propertyName: 'titlePropertyNames',
+              valueComponent: multipleText
+            });
+          });
+        },
+        visible: () => this.pluginSettingsComponent.settings.isTitlesModuleEnabled
+      }),
+      this.settingEx({
+        desc: 'Names built from name parts, one pattern per line, its properties separated by commas: `lastName, firstName` names a note with `lastName: Smith` and `firstName: John` as `Smith John`. A missing part is skipped. A part may hold several forms, as a list, or keyed by the form with its languages as the value - `{Наумов: [ru, uk], Naumov: [en]}` - and then each pattern is built once per language, never mixing two.',
+        name: 'Name patterns',
+        render: (setting) => {
+          setting.addMultipleText((multipleText) => {
+            this.bind({
+              componentToPluginSettingsValueConverter: (lines: readonly string[]) => parseNamePatterns(lines),
+              pluginSettingsToComponentValueConverter: (namePatterns: readonly (readonly string[])[]): readonly string[] =>
+                namePatterns.map((namePattern) => namePattern.join(', ')),
+              propertyName: 'titleNamePatterns',
               valueComponent: multipleText
             });
           });
