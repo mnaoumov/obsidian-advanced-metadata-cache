@@ -297,8 +297,9 @@ wholesale and reports exactly the targets whose texts changed. It is owned by th
 `LinkTextIndexComponent` builds it and clears it at both edges, and each clear and the end of each build notify `null`.
 
 **A text counts only when it was WRITTEN.** The metadata cache gives `[[bravo]]` a `displayText` too, so the reader
-re-parses each reference's `original` with `@mnaoumov/obsidian-lib`'s `parseLink` and takes its alias, which exists only
-for `[[t|x]]`, `[x](t)` and their embed and frontmatter forms. An embed's `|300` / `|300x200` size is stripped, and a
+reads each reference's `original` itself: a wikilink's text is what follows its first `|`, a markdown link's is what lies
+between its `[` and the last `](`, unescaped. It does NOT call `parseLink`: at ~100 µs a call that made the build of the
+35,000-note vault take 15.7 s, and the cache has already decided the reference is a link. An embed's `|300` / `|300x200` size is stripped, and a
 text that is the target's own path or file name again, with or without the extension, is dropped, compared the way a
 name is (case-insensitive, whitespace collapsed). Aliases are deliberately NOT subtracted: that would make a target's
 answer depend on its own frontmatter, which no `resolve` of a source announces.
@@ -307,8 +308,13 @@ It is built from `getFileCache` of every Markdown note once `ensureMetadataCache
 then follows `metadataCache` `resolve`, which Obsidian fires for a note whenever it resolves its links again, including
 after a target is created, renamed or deleted (with the `backlinks` module on, its `updateRelatedLinks` replacement
 queues exactly those notes). `delete` and `rename` are also handled at once: the moved source's entries are dropped
-and re-read at the new path, and every source that linked to the old path is re-read. Nothing is persisted, because
-the build costs a pass over memory Obsidian already holds. That, and being a label source other plugins read, is why
+and re-read at the new path, and every source that linked to the old path is re-read. The build reads `BUILD_BATCH_SIZE` (500) notes
+between yields, so it never holds the main thread for the whole pass. Nothing is persisted, because the build costs a
+pass over memory Obsidian already holds: on the notes-only copy of the 35,000-note vault
+(`link-texts-build.real-vault.integration.test.ts`, 2026-10-28, desktop, best of three rebuilds) it took 3.5 s, and
+8-9 s on the two runs taken while other bulk work loaded the machine, for 7,110 linking notes, 4,288 targets and 7,993
+distinct texts: about 2 MB serialized and about 8 MB of heap. Attachments were not copied, so links to them did not
+resolve there. That, and being a label source other plugins read, is why
 it defaults **on**, as `properties` does. The plugin's own `Plugin data/` transport is never a
 source.
 

@@ -17,7 +17,7 @@ import type {
 } from 'obsidian';
 
 import { getReferences } from '@mnaoumov/obsidian-lib/metadata-cache';
-import { parseLink } from '@mnaoumov/obsidian-lib/parse-link';
+import { unescapeAlias } from '@mnaoumov/obsidian-lib/parse-link';
 
 import type { LinkTextContribution } from './link-text-index.ts';
 
@@ -41,31 +41,52 @@ export interface ReadLinkTextsParams {
  */
 const EMBED_SIZE_SUFFIX_REGEXP = /(?:^|\|)\s*\d+(?:\s*x\s*\d+)?\s*$/u;
 
+const MARKDOWN_DESTINATION_START = '](';
+const WIKILINK_END = ']]';
+const WIKILINK_START = '[[';
+
+/**
+ * A link destination with a URL scheme, which no vault file answers to.
+ */
+const URL_SCHEME_REGEXP = /^<?[a-z][\d+.a-z-]*:/iu;
+
 const WHITESPACE_RUN_REGEXP = /\s+/gu;
 
 /**
  * Reads the written display text of a reference, if it has one.
  *
+ * Read straight out of the reference's `original` rather than through `parseLink`, which costs ~100 µs a call and made
+ * the build of a 35,000-note vault take 15 s. The metadata cache has already decided that `original` IS a link, so
+ * all that is left to find is where its text starts and ends.
+ *
  * @param reference - The reference, as the metadata cache holds it.
  * @returns The text, trimmed, with an embed's size dropped; `null` for a reference with none.
  */
 export function getWrittenLinkText(reference: Reference): null | string {
-  const parseLinkResult = parseLink(reference.original);
+  const original = reference.original;
+  const isEmbed = original.startsWith('!');
+  const link = isEmbed ? original.slice(1) : original;
+  let text: null | string;
 
-  if (!parseLinkResult || parseLinkResult.isExternal) {
+  if (link.startsWith(WIKILINK_START)) {
+    text = getWikilinkText(link);
+  } else if (link.startsWith('[')) {
+    text = getMarkdownLinkText(link);
+  } else {
     return null;
   }
 
-  let text = parseLinkResult.unescapedAlias ?? parseLinkResult.alias ?? '';
+  if (text === null) {
+    return null;
+  }
 
-  if (parseLinkResult.isEmbed) {
+  if (isEmbed) {
     text = text.replace(EMBED_SIZE_SUFFIX_REGEXP, '');
   }
 
   text = text.trim();
   return text || null;
 }
-
 /**
  * Reads what a note's links contribute.
  *
@@ -92,6 +113,35 @@ export function readLinkTexts(params: ReadLinkTextsParams): LinkTextContribution
   }
 
   return contributions;
+}
+
+/**
+ * Reads a markdown link's text: what lies between its opening `[` and the `](` that starts its destination.
+ *
+ * @param link - The link, without an embed's `!`.
+ * @returns The text, unescaped, or `null` for a link to a URL.
+ */
+function getMarkdownLinkText(link: string): null | string {
+  const destinationIndex = link.lastIndexOf(MARKDOWN_DESTINATION_START);
+
+  if (destinationIndex === -1 || URL_SCHEME_REGEXP.test(link.slice(destinationIndex + MARKDOWN_DESTINATION_START.length))) {
+    return null;
+  }
+
+  const text = link.slice(1, destinationIndex);
+  return text.includes('\\') ? unescapeAlias(text) : text;
+}
+
+/**
+ * Reads a wikilink's text: what follows its first `|`.
+ *
+ * @param link - The link, without an embed's `!`.
+ * @returns The text, or `null` for a wikilink with no `|`.
+ */
+function getWikilinkText(link: string): null | string {
+  const inner = link.slice(WIKILINK_START.length, link.endsWith(WIKILINK_END) ? -WIKILINK_END.length : undefined);
+  const pipeIndex = inner.indexOf('|');
+  return pipeIndex === -1 ? null : inner.slice(pipeIndex + 1);
 }
 
 /**

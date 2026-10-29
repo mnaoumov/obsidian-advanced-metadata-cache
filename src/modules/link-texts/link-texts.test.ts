@@ -24,7 +24,9 @@ describe('getWrittenLinkText', () => {
     ['![[IMG_2231.jpg|boarding pass]]', 'boarding pass'],
     ['![[IMG_2231.jpg|boarding pass|300]]', 'boarding pass'],
     ['![boarding pass|300x200](IMG_2231.jpg)', 'boarding pass'],
-    ['[[bravo|2026]]', '2026']
+    ['[[bravo|2026]]', '2026'],
+    [String.raw`[[bravo\|alpha]]`, 'alpha'],
+    ['[[bravo|alpha', 'alpha']
   ])('should read %s as %s', (original, expected) => {
     expect(getWrittenLinkText(toReference(original))).toBe(expected);
   });
@@ -35,6 +37,8 @@ describe('getWrittenLinkText', () => {
     '![[IMG_2231.jpg|300]]',
     '![[IMG_2231.jpg|300x200]]',
     '[alpha](https://example.com)',
+    '[alpha](<mailto:someone@example.com>)',
+    '[no destination]',
     'not a link'
   ])('should find no written text in %s', (original) => {
     expect(getWrittenLinkText(toReference(original))).toBeNull();

@@ -28,7 +28,10 @@ vi.mock('@mnaoumov/obsidian-lib/metadata-cache', async (importOriginal) => ({
 }));
 
 /* eslint-disable import-x/first, import-x/imports-first -- vi.mock must precede imports. */
-import { LinkTextIndexComponent } from './link-text-index-component.ts';
+import {
+  BUILD_BATCH_SIZE,
+  LinkTextIndexComponent
+} from './link-text-index-component.ts';
 /* eslint-enable import-x/first, import-x/imports-first -- End of the mocked imports. */
 
 describe('LinkTextIndexComponent', () => {
@@ -182,6 +185,37 @@ describe('LinkTextIndexComponent', () => {
     app.metadataCache.trigger('resolve', pdf);
 
     expect(index.getLinkTexts('Bravo.md')).toEqual([]);
+  });
+
+  it('should build a vault larger than one batch', async () => {
+    createFile('Bravo.md', '');
+    for (let noteIndex = 0; noteIndex < BUILD_BATCH_SIZE; noteIndex++) {
+      createFile(`Note ${String(noteIndex)}.md`, '[[Bravo|alpha]]');
+    }
+
+    await load();
+
+    expect(index.getLinkTexts('Bravo.md')[0]?.count).toBe(BUILD_BATCH_SIZE);
+  });
+
+  it('should stop building when switched off between two batches', async () => {
+    createFile('Bravo.md', '');
+    for (let noteIndex = 0; noteIndex < BUILD_BATCH_SIZE; noteIndex++) {
+      createFile(`Note ${String(noteIndex)}.md`, '[[Bravo|alpha]]');
+    }
+    const getFileByPath = app.vault.getFileByPath.bind(app.vault);
+    let readCount = 0;
+    vi.spyOn(app.vault, 'getFileByPath').mockImplementation((path) => {
+      readCount++;
+      if (readCount === BUILD_BATCH_SIZE) {
+        component.unload();
+      }
+      return getFileByPath(path);
+    });
+
+    await load();
+
+    expect(component.isBuilt).toBe(false);
   });
 
   it('should clear the index and release waiters when switched off', async () => {

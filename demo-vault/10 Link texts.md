@@ -30,4 +30,4 @@ A link counts only when its text was written, in the body, in a frontmatter valu
 
 ## What it costs
 
-The module reads the links Obsidian has already parsed, once when it starts, and reads no note. After that it follows Obsidian's own link resolution, one note at a time. It is **on by default**, because it is something other plugins read, and they could not use it if every user had to come here and switch it on first.
+The module reads the links Obsidian has already parsed, once when it starts, in the background, and reads no note. On a real vault of 35,000 notes this took about 3.5 s on a Windows desktop, and the index held about 8,000 texts in a few megabytes of memory. After that it follows Obsidian's own link resolution, one note at a time. It is **on by default**, because it is something other plugins read, and they could not use it if every user had to come here and switch it on first.

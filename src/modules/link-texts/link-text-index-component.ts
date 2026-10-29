@@ -12,12 +12,18 @@ import {
 } from '@mnaoumov/obsidian-lib/file-system';
 import { extractReferenceFile } from '@mnaoumov/obsidian-lib/link';
 import { ensureMetadataCacheReady } from '@mnaoumov/obsidian-lib/metadata-cache';
+import { sleep } from '@mnaoumov/typescript-lib/async';
 import { noop } from '@mnaoumov/typescript-lib/function';
 
 import type { LinkTextIndex } from './link-text-index.ts';
 
 import { isPluginDataPath } from '../../persistence/storage-paths.ts';
 import { readLinkTexts } from './link-texts.ts';
+
+/**
+ * How many notes the build reads before it yields to the event loop.
+ */
+export const BUILD_BATCH_SIZE = 500;
 
 interface LinkTextIndexComponentConstructorParams {
   readonly app: App;
@@ -100,8 +106,20 @@ export class LinkTextIndexComponent extends LayoutReadyComponent {
       return;
     }
 
-    for (const file of this.app.vault.getMarkdownFiles()) {
-      this.refreshSource(file.path);
+    // In batches, yielding between them: on a 35,000-note vault one pass holds the main thread for seconds. A note
+    // changed, moved or deleted between two batches is handled by its own event, and re-reading it here is harmless.
+    const files = this.app.vault.getMarkdownFiles();
+    for (let start = 0; start < files.length; start += BUILD_BATCH_SIZE) {
+      if (start > 0) {
+        await sleep({ milliseconds: 0 });
+        if (this.isUnloaded()) {
+          return;
+        }
+      }
+
+      for (const file of files.slice(start, start + BUILD_BATCH_SIZE)) {
+        this.refreshSource(file.path);
+      }
     }
 
     this.isBuiltValue = true;
