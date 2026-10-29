@@ -18,7 +18,10 @@
  */
 
 import type { TypedApiContract } from '@mnaoumov/typescript-lib/api-contract';
-import type { Reference } from 'obsidian';
+import type {
+  Reference,
+  ReferenceCache
+} from 'obsidian';
 
 import {
   isFile,
@@ -47,6 +50,7 @@ import {
 import type {
   AdvancedMetadataCacheApi,
   AdvancedMetadataCacheMigratableSettings,
+  CodeBlockReference,
   CustomArrayDict,
   DatedValue,
   DatedValuesQuery,
@@ -78,6 +82,24 @@ const isBacklinksDictShape = objectTypeGuard<Pick<BacklinksDict, 'data' | 'get' 
   data: instanceOfTypeGuard<BacklinksDict['data']>(Map),
   get: functionTypeGuard<BacklinksDict['get']>(),
   keys: functionTypeGuard<BacklinksDict['keys']>()
+});
+
+/**
+ * The members of a {@link CodeBlockReference} a caller relies on: not the whole position.
+ */
+interface CodeBlockReferenceShape {
+  readonly isEmbed: boolean;
+  readonly language: string;
+  readonly reference: Pick<ReferenceCache, 'link' | 'original'>;
+}
+
+const isCodeBlockReferenceShape = objectTypeGuard<CodeBlockReferenceShape>({
+  isEmbed: isBoolean,
+  language: isString,
+  reference: objectTypeGuard<Pick<ReferenceCache, 'link' | 'original'>>({
+    link: isString,
+    original: isString
+  })
 });
 
 const isDatedValue = objectTypeGuard<DatedValue>({
@@ -143,6 +165,7 @@ const isUnlinkedMention = objectTypeGuard<UnlinkedMention>({
 });
 
 const BACKLINKS_DICT_GUARD = createExpectedTypeGuard('a backlinks dictionary', isBacklinksDict);
+const CODE_BLOCK_REFERENCE_ARRAY_GUARD = createExpectedTypeGuard('an array of code block references', arrayTypeGuard(isCodeBlockReference));
 const DATED_VALUE_ARRAY_GUARD = createExpectedTypeGuard('an array of dated values', arrayTypeGuard(isDatedValue));
 const DATED_VALUES_QUERY_GUARD = createExpectedTypeGuard('a dated values query', isDatedValuesQuery);
 const LINK_SUGGESTION_ARRAY_GUARD = createExpectedTypeGuard('an array of link suggestions', arrayTypeGuard(isLinkSuggestion));
@@ -170,6 +193,14 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
   getBacklinksForFileSafe: {
     input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
     output: createTypeGuardSchema(nullableGuard(BACKLINKS_DICT_GUARD))
+  },
+  getCodeBlockReferences: {
+    input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(CODE_BLOCK_REFERENCE_ARRAY_GUARD))
+  },
+  getCodeBlockReferencesSafe: {
+    input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(CODE_BLOCK_REFERENCE_ARRAY_GUARD))
   },
   getDatedValues: {
     input: createArgumentsSchema([DATED_VALUES_QUERY_GUARD]),
@@ -255,6 +286,10 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
     input: createArgumentsSchema([createExpectedTypeGuard('a callback', functionTypeGuard<LinkTextsChangedCallback>())]),
     output: createTypeGuardSchema(createExpectedTypeGuard('an unsubscribe function', functionTypeGuard<() => void>()))
   },
+  registerCodeBlockLanguage: {
+    input: createArgumentsSchema([createExpectedTypeGuard('a code block language', isString)]),
+    output: createTypeGuardSchema(createExpectedTypeGuard('an unregister function', functionTypeGuard<() => void>()))
+  },
   registerPropertyName: {
     input: createArgumentsSchema([PROPERTY_NAME_GUARD]),
     output: createTypeGuardSchema(createExpectedTypeGuard('nothing', isUndefined))
@@ -270,4 +305,15 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
  */
 function isBacklinksDict(value: unknown): value is BacklinksDict {
   return isBacklinksDictShape(value);
+}
+
+/**
+ * A guard over the members a caller relies on cannot narrow to the whole {@link ReferenceCache}, so this one line
+ * restates the narrowing.
+ *
+ * @param value - The value to check.
+ * @returns Whether the value is a code block reference.
+ */
+function isCodeBlockReference(value: unknown): value is CodeBlockReference {
+  return isCodeBlockReferenceShape(value);
 }

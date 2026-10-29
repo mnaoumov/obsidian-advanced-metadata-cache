@@ -16,6 +16,7 @@ import { ADVANCED_METADATA_CACHE_API_CONTRACT } from '../api-contract.ts';
 export type {
   AdvancedMetadataCacheApi,
   AdvancedMetadataCacheMigratableSettings,
+  CodeBlockReference,
   DatedValue,
   DatedValuesQuery,
   HeadingTimes,

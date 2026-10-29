@@ -212,3 +212,21 @@ const unsubscribe = api.onLinkTextsChanged((targetPaths) => {
 A link counts only when its display text was **written**, in the body, in a frontmatter value or in an embed, and it resolves to the file. `[[bravo]]` writes none, and a text that only repeats the file's own name or path (`[bravo](bravo.md)`) is left out, compared case-insensitively. An embed's size (`|300`, `|300x200`) is not part of its text. An alias the note already declares is **not** left out, so drop your own repeats when you merge the two.
 
 The index is built at startup from the links Obsidian has already parsed, reading no note, and follows Obsidian's link resolution after that. `getLinkTexts` answers from it as it stands, which is empty until it is built; `getLinkTextsSafe` waits for the build. Both answer **`null` while the Link texts module is off**, which is on by default. `onLinkTextsChanged` calls back synchronously after each change with the paths of the files whose texts changed, or with `null` when the index was just built or cleared; the subscription outlives the module being switched off and on, so subscribe once on load and call the returned function on unload. Ask for the range `^1.9`. [10 Link texts](<../demo-vault/10 Link texts.md>) shows it.
+
+## Code block links
+
+Added in contract `1.10.0`:
+
+```ts
+// On load: blocks of your language are notes, so their links count.
+const unregister = api.registerCodeBlockLanguage('my-tabs');
+this.register(unregister);
+
+for (const { isEmbed, language, reference } of await api.getCodeBlockReferencesSafe('Notes/Some note.md') ?? []) {
+  console.log(language, isEmbed, reference.link, reference.position.start.offset);
+}
+```
+
+`registerCodeBlockLanguage(language)` tells the Code block links module that the content of a code block of that language is markdown, for a plugin that renders such a block as a note. The links and embeds inside are then added to the note's own `app.metadataCache.getFileCache()` entry, among its `links` and `embeds`, with their positions in the note, so backlinks, outgoing links, the graph and Obsidian's rename updates find them with nothing else to call. A pattern such as `my-*` is accepted, matched over the whole language and case-sensitively. The registration is kept in memory only: register on every load and call the returned function on unload. Two plugins may register the same language; it stays until both have unregistered it. A user lists languages of their own in the **Code block languages** setting.
+
+`getCodeBlockReferences(pathOrFile)` tells you which of a note's references came from a code block, and of which language, since nothing is added to Obsidian's own objects to mark them. It answers as things stand; `getCodeBlockReferencesSafe` first waits for the module's startup pass over the vault. Both answer **`null` while the Code block links module is off**, which is on by default. Ask for the range `^1.10`. [11 Code block links](<../demo-vault/11 Code block links.md>) shows it.

@@ -19,6 +19,8 @@ import {
 } from '@mnaoumov/typescript-lib/function';
 
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
+import type { CodeBlockLanguages } from './modules/code-block-links/code-block-languages.ts';
+import type { CodeBlockLinksComponent } from './modules/code-block-links/code-block-links-component.ts';
 import type { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import type { LinkTextIndexComponent } from './modules/link-texts/link-text-index-component.ts';
 import type { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
@@ -31,6 +33,7 @@ import type { UnlinkedMentionsComponent } from './modules/unlinked-mentions/unli
 import type {
   AdvancedMetadataCacheApi,
   AdvancedMetadataCacheMigratableSettings,
+  CodeBlockReference,
   DatedValue,
   DatedValuesQuery,
   HeadingTimes,
@@ -51,11 +54,17 @@ import {
 
 interface PluginApiImplConstructorParams {
   readonly app: App;
+  readonly codeBlockLanguages: CodeBlockLanguages;
   /**
    * Finds the `Backlinks` module's cache, or `null` while the module is off. Asked per call, because a
    * module switched off and on again is a fresh component.
    */
   readonly getBacklinkCacheComponent: () => BacklinkCacheComponent | null;
+  /**
+   * Finds the `Code block links` module's component, or `null` while the module is off. Asked per call, for the
+   * same reason.
+   */
+  readonly getCodeBlockLinksComponent: () => CodeBlockLinksComponent | null;
   /**
    * Finds the `Link texts` module's component, or `null` while the module is off. Asked per call, for the same
    * reason.
@@ -99,7 +108,9 @@ interface PluginApiImplConstructorParams {
  */
 export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigrationApi<AdvancedMetadataCacheMigratableSettings> {
   private readonly app: App;
+  private readonly codeBlockLanguages: CodeBlockLanguages;
   private readonly getBacklinkCacheComponent: () => BacklinkCacheComponent | null;
+  private readonly getCodeBlockLinksComponent: () => CodeBlockLinksComponent | null;
   private readonly getLinkTextIndexComponent: () => LinkTextIndexComponent | null;
   private readonly getNameIndexComponent: () => NameIndexComponent | null;
   private readonly getPropertyValueIndexComponent: () => null | PropertyValueIndexComponent;
@@ -119,7 +130,9 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
 
   public constructor(params: PluginApiImplConstructorParams) {
     this.app = params.app;
+    this.codeBlockLanguages = params.codeBlockLanguages;
     this.getBacklinkCacheComponent = params.getBacklinkCacheComponent;
+    this.getCodeBlockLinksComponent = params.getCodeBlockLinksComponent;
     this.getLinkTextIndexComponent = params.getLinkTextIndexComponent;
     this.getNameIndexComponent = params.getNameIndexComponent;
     this.getPropertyValueIndexComponent = params.getPropertyValueIndexComponent;
@@ -159,6 +172,27 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
    */
   public async getBacklinksForFileSafe(pathOrFile: string | TFile): Promise<CustomArrayDict<Reference> | null> {
     return await this.getBacklinkCacheComponent()?.getBacklinksForFileAsCoreSafe(pathOrFile) ?? null;
+  }
+
+  /**
+   * Lists the links and embeds the `Code block links` module found inside a note's code blocks.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The references, or `null` while the `Code block links` module is off.
+   */
+  public getCodeBlockReferences(pathOrFile: string | TFile): CodeBlockReference[] | null {
+    return this.getCodeBlockLinksComponent()?.getCodeBlockReferences(getPath(this.app, pathOrFile)) ?? null;
+  }
+
+  /**
+   * Lists the links and embeds found inside a note's code blocks, once every note has been read at startup.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The references, or `null` while the `Code block links` module is off.
+   */
+  public async getCodeBlockReferencesSafe(pathOrFile: string | TFile): Promise<CodeBlockReference[] | null> {
+    await this.getCodeBlockLinksComponent()?.waitForBuild();
+    return this.getCodeBlockReferences(pathOrFile);
   }
 
   /**
@@ -409,6 +443,16 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
    */
   public onLinkTextsChanged(callback: LinkTextsChangedCallback): () => void {
     return this.linkTextIndex.onChange(callback);
+  }
+
+  /**
+   * Asks the `Code block links` module to treat the content of code blocks of a language as markdown.
+   *
+   * @param language - The language, or a `*` pattern.
+   * @returns A function that unregisters it.
+   */
+  public registerCodeBlockLanguage(language: string): () => void {
+    return this.codeBlockLanguages.register(language);
   }
 
   /**

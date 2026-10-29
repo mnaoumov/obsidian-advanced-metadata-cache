@@ -10,6 +10,8 @@ import { normalizePath } from 'obsidian';
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
 
 import { BacklinksModuleComponent } from './modules/backlinks/backlinks-module-component.ts';
+import { CodeBlockLanguages } from './modules/code-block-links/code-block-languages.ts';
+import { CodeBlockLinksComponent } from './modules/code-block-links/code-block-links-component.ts';
 import { HeadingTimesComponent } from './modules/headings/heading-times-component.ts';
 import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import { LinkTextIndexComponent } from './modules/link-texts/link-text-index-component.ts';
@@ -97,6 +99,8 @@ export class Plugin extends PluginBase {
     });
     // Owned here too: a consumer subscribes to its changes once, for the plugin's whole life.
     const linkTextIndex = new LinkTextIndex();
+    // Owned here too: a plugin registers its languages once, for its whole life.
+    const codeBlockLanguages = new CodeBlockLanguages();
     const modulesComponent = new ModulesComponent({
       moduleDefinitions: [
         {
@@ -153,6 +157,11 @@ export class Plugin extends PluginBase {
           createComponent: (): LinkTextIndexComponent => new LinkTextIndexComponent({ app: this.app, linkTextIndex }),
           getIsEnabled: (settings): boolean => settings.isLinkTextsModuleEnabled,
           moduleId: 'link-texts'
+        },
+        {
+          createComponent: (): CodeBlockLinksComponent => new CodeBlockLinksComponent({ app: this.app, codeBlockLanguages, pluginSettingsComponent }),
+          getIsEnabled: (settings): boolean => settings.isCodeBlockLinksModuleEnabled,
+          moduleId: 'code-block-links'
         }
       ],
       pluginSettingsComponent
@@ -160,9 +169,14 @@ export class Plugin extends PluginBase {
 
     this.pluginApi = new PluginApiImpl({
       app: this.app,
+      codeBlockLanguages,
       getBacklinkCacheComponent: (): BacklinkCacheComponent | null => {
         const moduleComponent = modulesComponent.getModuleComponent('backlinks');
         return moduleComponent instanceof BacklinksModuleComponent ? moduleComponent.backlinkCacheComponent : null;
+      },
+      getCodeBlockLinksComponent: (): CodeBlockLinksComponent | null => {
+        const moduleComponent = modulesComponent.getModuleComponent('code-block-links');
+        return moduleComponent instanceof CodeBlockLinksComponent ? moduleComponent : null;
       },
       getLinkTextIndexComponent: (): LinkTextIndexComponent | null => {
         const moduleComponent = modulesComponent.getModuleComponent('link-texts');

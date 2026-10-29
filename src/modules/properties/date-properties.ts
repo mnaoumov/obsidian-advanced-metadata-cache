@@ -9,17 +9,15 @@
 import type { ReadonlyPluginSettings } from '@mnaoumov/obsidian-lib/components/plugin-settings-component';
 import type { App } from 'obsidian';
 
-import { escapeRegExp } from '@mnaoumov/typescript-lib/reg-exp';
-
 import type { PluginSettings } from '../../plugin-settings.ts';
+
+import { isMatchingNamePatterns } from '../../name-patterns.ts';
 
 /**
  * The property types whose properties are registered without anybody asking, so every dated value in the
  * vault is in the ordered index.
  */
 const DATE_PROPERTY_TYPES: ReadonlySet<string> = new Set(['date', 'datetime']);
-
-const WILDCARD = '*';
 
 /**
  * Whether a property holds dates, by its assigned type or by its name.
@@ -44,14 +42,5 @@ export function isDatePropertyName(app: App, settings: ReadonlyPluginSettings<Pl
  * @returns Whether any entry matches it.
  */
 export function isMatchingDatePropertyNames(datePropertyNames: readonly string[], propertyName: string): boolean {
-  return datePropertyNames.some((entry) => isMatchingPattern(entry.trim(), propertyName));
-}
-
-function isMatchingPattern(pattern: string, propertyName: string): boolean {
-  if (!pattern) {
-    return false;
-  }
-
-  const source = pattern.split(WILDCARD).map((part) => escapeRegExp(part)).join('.*');
-  return new RegExp(`^${source}$`, 'u').test(propertyName);
+  return isMatchingNamePatterns(datePropertyNames, propertyName);
 }

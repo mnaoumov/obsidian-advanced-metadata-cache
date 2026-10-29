@@ -12,7 +12,7 @@
  *   plugin's own belongs on an Obsidian function, and each has a replacement on the published API below.
  * - **A published API.** {@link AdvancedMetadataCacheApi} is published through the plugin registry
  *   under the plugin id `advanced-metadata-cache` and carries a contract version of its own. It
- *   answers what the `Titles`, `Headings`, `Properties`, `Unlinked mentions` and `Link texts` modules know, which core has no
+ *   answers what the `Titles`, `Headings`, `Properties`, `Unlinked mentions`, `Link texts` and `Code block links` modules know, which core has no
  *   method for, and
  *   since contract `1.3.0` every extra the `Backlinks` and `Names` modules offer beyond the core call.
  *
@@ -32,6 +32,7 @@
 
 import type {
   Reference,
+  ReferenceCache,
   TFile
 } from 'obsidian';
 
@@ -77,6 +78,37 @@ export interface AdvancedMetadataCacheApi {
    * @returns The backlinks; `null` while the `Backlinks` module is off.
    */
   getBacklinksForFileSafe(pathOrFile: string | TFile): Promise<CustomArrayDict<Reference> | null>;
+
+  /**
+   * Lists the links and embeds the `Code block links` module found inside a note's code blocks.
+   *
+   * The same references are already in the note's `app.metadataCache.getFileCache()` entry, among its
+   * `links` and `embeds`, which is what puts them into backlinks, the graph and rename updates; this tells a
+   * consumer which of those came from a code block, and of which language, without anything of this plugin's
+   * own being written onto Obsidian's objects. A reference is listed while its block's language is listed in the
+   * `Code block languages` setting or registered through
+   * {@link AdvancedMetadataCacheApi.registerCodeBlockLanguage}.
+   *
+   * Answers as things stand: at startup, before the module has read the notes, it may answer with too little;
+   * use {@link AdvancedMetadataCacheApi.getCodeBlockReferencesSafe} when that matters.
+   *
+   * Added in contract `1.10.0`.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The references, in the order they appear in the note; empty for a note with none and for a path
+   *   no note answers to. `null` while the `Code block links` module is off.
+   */
+  getCodeBlockReferences(pathOrFile: string | TFile): CodeBlockReference[] | null;
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getCodeBlockReferences}, once the module has read every note at startup.
+   *
+   * Added in contract `1.10.0`.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The references; `null` while the `Code block links` module is off.
+   */
+  getCodeBlockReferencesSafe(pathOrFile: string | TFile): Promise<CodeBlockReference[] | null>;
 
   /**
    * Lists the date-shaped values of the indexed frontmatter properties that fall in a range, in order —
@@ -427,6 +459,25 @@ export interface AdvancedMetadataCacheApi {
   onLinkTextsChanged(callback: LinkTextsChangedCallback): () => void;
 
   /**
+   * Asks the `Code block links` module to treat the content of code blocks of a language as markdown, so the
+   * links and embeds written there count like any other: in backlinks, outgoing links, the graph and rename
+   * updates. For a plugin that renders a code block language as a note, such as an admonition or a tabs block.
+   *
+   * Call it on load, and call the returned function on unload: the registration is kept in memory only, so it
+   * goes away with the plugin. Two plugins may register the same language; it stays until both have
+   * unregistered it. A pattern in which `*` stands for anything (`ad-*`) is accepted, matched over the whole
+   * language and case-sensitively, as in the `Code block languages` setting.
+   *
+   * Registering while the module is off is kept, and applied once the module is switched on.
+   *
+   * Added in contract `1.10.0`.
+   *
+   * @param language - The language as written after the opening fence, or a pattern.
+   * @returns A function that unregisters it; calling it again does nothing.
+   */
+  registerCodeBlockLanguage(language: string): () => void;
+
+  /**
    * Asks the `Properties` module to index a frontmatter property, so
    * {@link AdvancedMetadataCacheApi.getPathsByPropertyValue} and
    * {@link AdvancedMetadataCacheApi.getPathsWithProperty} can answer about it.
@@ -460,6 +511,27 @@ export interface AdvancedMetadataCacheMigratableSettings {
    * Frontmatter properties to add to the title properties, e.g. `['subtitle']`.
    */
   readonly titlePropertyNames?: readonly string[];
+}
+
+/**
+ * A link or embed written inside a code block, as {@link AdvancedMetadataCacheApi.getCodeBlockReferences} lists it.
+ */
+export interface CodeBlockReference {
+  /**
+   * Whether it is an embed (`![[...]]`), listed among the entry's `embeds`, rather than a link, listed among its
+   * `links`.
+   */
+  readonly isEmbed: boolean;
+
+  /**
+   * The language of the innermost listed code block holding it.
+   */
+  readonly language: string;
+
+  /**
+   * The reference as it stands in the note's cache entry, its position in the note.
+   */
+  readonly reference: ReferenceCache;
 }
 
 /**

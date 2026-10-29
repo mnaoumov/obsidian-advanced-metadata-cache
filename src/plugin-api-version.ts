@@ -21,6 +21,8 @@
  * module's answer to which notes mention a note without linking to it.
  * `1.8.0` adds UTC date queries and per-query missing-zone policies, preserving wall-clock defaults.
  * `1.9.0` adds `getLinkTexts`, its `Safe` variant and `onLinkTextsChanged`, as additively: the `Link texts` module's
- * answer to which display texts the links pointing at a file use instead of its name.
+ * answer to which display texts the links pointing at a file use instead of its name. `1.10.0` adds
+ * `registerCodeBlockLanguage`, `getCodeBlockReferences` and its `Safe` variant, as additively: the `Code block links`
+ * module, which counts the links written inside code blocks of the registered languages.
  */
-export const PLUGIN_API_VERSION = '1.9.0';
+export const PLUGIN_API_VERSION = '1.10.0';

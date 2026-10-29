@@ -52,7 +52,8 @@ A copy of the vault ships with every release. You can access it via any of the f
 - **Notes by frontmatter property value**, dates kept in order, for other plugins to ask without scanning the vault, answered from disk at startup. [08 Property index](<./demo-vault/08 Property index.md>)
 - **Unlinked mentions without reading every note**, so the Backlinks pane's **Unlinked mentions** section reads only the notes that mention the note, and lists exactly what it listed before. [09 Unlinked mentions](<./demo-vault/09 Unlinked mentions.md>)
 - **A file answers to the texts links show for it**, so `[alpha](bravo.md)` lets other plugins find `bravo.md` as `alpha`, and `![[scan-0042.pdf|March invoice]]` lets them find an attachment as `March invoice`. [10 Link texts](<./demo-vault/10 Link texts.md>)
-- **Every index is a module of its own**, switched on or off without touching the others; only **Backlinks**, **Properties** and **Link texts** are on by default, and a module switched off unloads completely. [04 Settings](<./demo-vault/04 Settings.md>)
+- **Links inside code blocks that are really notes**, such as an `ad-note` admonition, count like any other link once you list the block's language: in backlinks, outgoing links, the graph and rename updates. [11 Code block links](<./demo-vault/11 Code block links.md>)
+- **Every index is a module of its own**, switched on or off without touching the others; only **Backlinks**, **Properties**, **Link texts** and **Code block links** (which does nothing until a language is listed) are on by default, and a module switched off unloads completely. [04 Settings](<./demo-vault/04 Settings.md>)
 
 Derived caches stay on each device; heading history and registered property names sync through ordinary vault files. See [Storage and sync](./docs/storage.md).
 
@@ -77,7 +78,7 @@ This plugin makes two core calls faster for every plugin that makes them, and pu
 
 `app.metadataCache.getBacklinksForFile(file)` (the **Backlinks** module) and `app.metadataCache.getLinkSuggestions()` (the **Names** module) keep Obsidian's own signature and answer what Obsidian would, so there is nothing to do to use them.
 
-Everything else (the safe, original and reverse-lookup variants of those two calls, titles, heading times, notes by property value or date, and unlinked mentions) is `AdvancedMetadataCacheApi`:
+Everything else (the safe, original and reverse-lookup variants of those two calls, titles, heading times, notes by property value or date, unlinked mentions, link texts, and the code block languages whose links count) is `AdvancedMetadataCacheApi`:
 
 ```ts
 import { watchPluginApi } from '@mnaoumov/obsidian-lib/plugin/plugin-api';

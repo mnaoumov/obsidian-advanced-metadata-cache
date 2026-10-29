@@ -31,7 +31,9 @@ export interface SettingsEditorPlugin extends Plugin {
  * The settings a suite switches.
  */
 export interface SwitchablePluginSettings {
+  readonly codeBlockLinkLanguages: string[];
   readonly defaultTimeZone: string;
+  readonly isCodeBlockLinksModuleEnabled: boolean;
   readonly isHeadingsModuleEnabled: boolean;
   // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Integration tests toggle this module through the settings object.
   isLinkTextsModuleEnabled: boolean;

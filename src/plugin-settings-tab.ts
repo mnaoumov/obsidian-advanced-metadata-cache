@@ -25,6 +25,34 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         }
       }),
       this.settingEx({
+        desc: 'Whether links and embeds written inside code blocks of the languages listed below count like any other link: in backlinks, outgoing links, the graph, and the updates a rename makes. Obsidian skips everything inside a code block, which is wrong for a block a plugin renders as a note, such as an `ad-note` admonition. Only notes with such a block are read. When off, those links are ignored as before.',
+        name: 'Code block links module',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            this.bind({
+              onChanged: () => {
+                this.refresh();
+              },
+              propertyName: 'isCodeBlockLinksModuleEnabled',
+              valueComponent: toggle
+            });
+          });
+        }
+      }),
+      this.settingEx({
+        desc: 'The code block languages whose content is a note, one per line. An exact name, or a pattern in which `*` stands for anything: `ad-*` matches `ad-note` and `ad-warning`. Case-sensitive. Empty by default, so nothing changes until a language is listed here. Other plugins can add their own languages.',
+        name: 'Code block languages',
+        render: (setting) => {
+          setting.addMultipleText((multipleText) => {
+            this.bind({
+              propertyName: 'codeBlockLinkLanguages',
+              valueComponent: multipleText
+            });
+          });
+        },
+        visible: () => this.pluginSettingsComponent.settings.isCodeBlockLinksModuleEnabled
+      }),
+      this.settingEx({
         desc: 'Whether to record when each heading of a note was created, last modified and last seen on screen, so other plugins can sort headings by those times. Obsidian keeps no such record. It is kept in a file in the plugin folder, never in the note, and only for notes opened, created or changed while this is on. A change made on another device is stamped when it arrives here.',
         name: 'Headings module',
         render: (setting) => {

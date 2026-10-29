@@ -20,6 +20,7 @@ const PLUGIN_ID = 'advanced-metadata-cache';
 const CENTRAL_TOPIC_PATH = 'Topics/Central topic.md';
 
 const HEADING_TIMES_WAIT_ATTEMPTS = 50;
+const CODE_BLOCK_LINKS_SETTLE_IN_MILLISECONDS = 500;
 const HEADING_TIMES_POLL_IN_MILLISECONDS = 100;
 
 const PLAYGROUND_PATH = 'Materials/05 Name index/Autocomplete playground.md';
@@ -42,6 +43,7 @@ interface AdvancedMetadataCacheApi {
   getBacklinksForFile(pathOrFile: string): BacklinksDict | null;
   getBacklinksForFileOriginal(file: TFile): BacklinksDict;
   getBacklinksForFileSafe(pathOrFile: string): Promise<BacklinksDict | null>;
+  getCodeBlockReferencesSafe(pathOrFile: string): Promise<CodeBlockReference[] | null>;
   getDatedValuesSafe(query: DatedValuesQuery): Promise<DatedValue[] | null>;
   getHeadingTimes(pathOrFile: string): HeadingTimes[];
   getLinkSuggestions(): LinkSuggestion[] | null;
@@ -60,6 +62,16 @@ interface AdvancedMetadataCacheApi {
 
 interface BacklinksDict {
   count(): number;
+}
+
+/**
+ * One link found inside a code block, as the plugin API reports it. The same shape `CodeBlockReference` in the
+ * root `api.d.ts` ships, narrowed to what the buttons read.
+ */
+interface CodeBlockReference {
+  readonly isEmbed: boolean;
+  readonly language: string;
+  readonly reference: { readonly link: string };
 }
 
 /**
@@ -88,7 +100,9 @@ interface SpecificTimeZone {
 }
 
 interface DemoSettingsPatch {
+  codeBlockLinkLanguages?: string[];
   isBacklinksModuleEnabled?: boolean;
+  isCodeBlockLinksModuleEnabled?: boolean;
   isHeadingsModuleEnabled?: boolean;
   isLinkTextsModuleEnabled?: boolean;
   isNamesModuleEnabled?: boolean;
@@ -763,6 +777,47 @@ export async function showLinkTextsOf(app: App, path: string): Promise<void> {
     const lines = linkTexts.map((linkText) => `${linkText.text}: ${String(linkText.count)} link(s) from ${linkText.sourcePaths.join(', ')}`);
 
     new Notice([`Link texts of ${path}:`, ...lines.length === 0 ? ['none'] : lines].join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+ * Lists the code block languages to count, then reports which notes link to a note and which of those links sit
+ * inside a code block.
+ *
+ * Manual equivalent: list the languages under **Code block languages** in **Settings -> Community plugins ->
+ * `Advanced Metadata Cache`**, then open the core **Backlinks** pane on the note.
+ *
+ * @param app - The Obsidian app.
+ * @param params - The note to ask about, the note holding the blocks, and the languages to count.
+ */
+export async function showCodeBlockLinks(app: App, params: { readonly languages: string[]; readonly sourcePath: string; readonly targetPath: string }): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { codeBlockLinkLanguages: params.languages, isCodeBlockLinksModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.10',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    const references = await api.getCodeBlockReferencesSafe(params.sourcePath) ?? [];
+    // The source is announced again once its blocks are parsed; give Obsidian a moment to resolve it.
+    await sleep(CODE_BLOCK_LINKS_SETTLE_IN_MILLISECONDS);
+    const targetFile = app.vault.getFileByPath(params.targetPath);
+    const backlinkPaths = targetFile ? app.metadataCache.getBacklinksForFile(targetFile).keys() : [];
+
+    new Notice([
+      `Languages counted: ${params.languages.length === 0 ? 'none' : params.languages.join(', ')}`,
+      `Notes linking to ${params.targetPath}: ${backlinkPaths.length === 0 ? 'none' : backlinkPaths.join(', ')}`,
+      `Links inside code blocks of ${params.sourcePath}:`,
+      ...references.length === 0 ? ['none'] : references.map(({ isEmbed, language, reference }) => `  ${isEmbed ? '![[' : '[['}${reference.link}]] in a ${language} block`)
+    ].join('\n'));
   } finally {
     component.unload();
   }
