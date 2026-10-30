@@ -18,6 +18,7 @@
 
 import type { LinkSuggestion } from '@obsidian-typings/obsidian-public-latest';
 
+import dedent from 'dedent';
 import { evalInObsidian } from 'obsidian-integration-testing';
 import { getTemporaryVault } from 'obsidian-integration-testing/vitest-global-setup-plugin';
 import {
@@ -114,19 +115,18 @@ const NOTE_TITLE = 'Titles Integration Real Name';
 const NOTE_HEADING = 'Titles Integration Second Name';
 const NOTE_CONTENT = `---\ntitle: ${NOTE_TITLE}\nheading: ${NOTE_HEADING}\n---\n# Target\n`;
 const PERSON_PATH = 'titles-person.md';
-const PERSON_CONTENT = [
-  '---',
-  'lastName:',
-  '  Коваленко: [uk, ru]',
-  '  Kovalenko: [en]',
-  'firstName:',
-  '  Олена: [uk]',
-  '  Елена: [ru]',
-  '  Olena: [en]',
-  '  Helen: [en]',
-  '---',
-  ''
-].join('\n');
+const PERSON_CONTENT = dedent`
+  ---
+  lastName:
+    Коваленко: [uk, ru]
+    Kovalenko: [en]
+  firstName:
+    Олена: [uk]
+    Елена: [ru]
+    Olena: [en]
+    Helen: [en]
+  ---\n
+`;
 
 /*
  * Every wait is for work already in flight - the plugin loaded before this suite ran, and the note

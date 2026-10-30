@@ -12,6 +12,7 @@
  * platform-specific, and the API is the one a consumer calls on either.
  */
 
+import dedent from 'dedent';
 import { evalInObsidian } from 'obsidian-integration-testing';
 import { getTemporaryVault } from 'obsidian-integration-testing/vitest-global-setup-plugin';
 import {
@@ -75,15 +76,14 @@ const FOLDER_PATH = 'link-texts';
 const TARGET_PATH = `${FOLDER_PATH}/bravo.md`;
 const ATTACHMENT_PATH = `${FOLDER_PATH}/scan-0042.pdf`;
 const SOURCE_PATH = `${FOLDER_PATH}/charlie.md`;
-const SOURCE_CONTENT = [
-  '---',
-  'related: "[[bravo|from frontmatter]]"',
-  '---',
-  '[alpha](bravo.md) and [[bravo|alpha]] and [[bravo]] and [bravo](bravo.md)',
-  '',
-  '![[scan-0042.pdf|March invoice]]',
-  ''
-].join('\n');
+const SOURCE_CONTENT = dedent`
+  ---
+  related: "[[bravo|from frontmatter]]"
+  ---
+  [alpha](bravo.md) and [[bravo|alpha]] and [[bravo]] and [bravo](bravo.md)
+
+  ![[scan-0042.pdf|March invoice]]\n
+`;
 const EDITED_SOURCE_CONTENT = '[[bravo|delta]]\n';
 
 /*

@@ -6,6 +6,7 @@ import type { TFile } from 'obsidian-test-mocks/obsidian';
 
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
+import dedent from 'dedent';
 import { App } from 'obsidian-test-mocks/obsidian';
 import {
   beforeEach,
@@ -197,14 +198,13 @@ describe('TitleIndex', () => {
       settings.titleNamePatterns = [['lastName', 'firstName', 'middleName'], ['firstName', 'lastName']];
       const file = createNote(
         'Naumov Michael.md',
-        [
-          '---',
-          'lastName: {Наумов: [ru, uk], Naumov: [en]}',
-          'firstName: {Михайло: [uk], Михаил: [ru], Mykhailo: [en], Michael: [en]}',
-          'middleName: {Євгенович: [uk], Евгеньевич: [ru]}',
-          '---',
-          ''
-        ].join('\n')
+        dedent`
+          ---
+          lastName: {Наумов: [ru, uk], Naumov: [en]}
+          firstName: {Михайло: [uk], Михаил: [ru], Mykhailo: [en], Michael: [en]}
+          middleName: {Євгенович: [uk], Евгеньевич: [ru]}
+          ---\n
+        `
       );
 
       expect(readTitles(file)).toEqual([
