@@ -443,5 +443,12 @@ describe('Plugin', () => {
     await plugin.onload();
     expect(addCommandSpy).toHaveBeenCalledWith(expect.objectContaining({ id: 'open-demo-vault' }));
   });
+
+  it('should register the report bug command via its command handler', async () => {
+    const plugin = new Plugin(createApp(), createManifest());
+    const addCommandSpy = vi.spyOn(plugin, 'addCommand');
+    await plugin.onload();
+    expect(addCommandSpy).toHaveBeenCalledWith(expect.objectContaining({ id: 'report-bug' }));
+  });
 });
 /* eslint-enable @typescript-eslint/no-extraneous-class -- End of test file. */
