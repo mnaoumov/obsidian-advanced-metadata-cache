@@ -18,6 +18,7 @@
  */
 
 import { sleep as sleepInNode } from '@mnaoumov/typescript-lib/async';
+import dedent from 'dedent';
 import {
   mkdirSync,
   writeFileSync
@@ -247,12 +248,11 @@ function buildVault(): Record<string, string> {
     const folder = `Archive/${String(2010 + (index % 15))}`;
     const firstNeighbor = (index + 1) % FILLER_NOTE_COUNT;
     const secondNeighbor = (index + 7) % FILLER_NOTE_COUNT;
-    files[`${folder}/Note ${String(index)}.md`] = [
-      `# Note ${String(index)}`,
-      '',
-      `Older material. See also [[Note ${String(firstNeighbor)}]] and [[Note ${String(secondNeighbor)}]].`,
-      ''
-    ].join('\n');
+    files[`${folder}/Note ${String(index)}.md`] = dedent`
+      # Note ${String(index)}
+
+      Older material. See also [[Note ${String(firstNeighbor)}]] and [[Note ${String(secondNeighbor)}]].\n
+    `;
   }
 
   return files;

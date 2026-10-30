@@ -12,6 +12,7 @@
  * Named `*.cross-platform.integration.test.ts` so the desktop AND android projects both collect it.
  */
 
+import dedent from 'dedent';
 import { evalInObsidian } from 'obsidian-integration-testing';
 import { getTemporaryVault } from 'obsidian-integration-testing/vitest-global-setup-plugin';
 import {
@@ -92,24 +93,23 @@ const ALPHA_RENAMED_PATH = `${FOLDER_PATH}/alpha-renamed.md`;
 const BRAVO_PATH = `${FOLDER_PATH}/bravo.md`;
 const CHARLIE_PATH = `${FOLDER_PATH}/charlie.md`;
 const SOURCE_PATH = `${FOLDER_PATH}/source.md`;
-const SOURCE_CONTENT = [
-  '# Source',
-  '',
-  '```ad-note Title',
-  'Line one',
-  '',
-  'See [[alpha]] here.',
-  '```',
-  '',
-  '```js',
-  '// [[bravo]]',
-  '```',
-  '',
-  '~~~tabs',
-  '[[charlie]]',
-  '~~~',
-  ''
-].join('\n');
+const SOURCE_CONTENT = dedent`
+  # Source
+
+  \`\`\`ad-note Title
+  Line one
+
+  See [[alpha]] here.
+  \`\`\`
+
+  \`\`\`js
+  // [[bravo]]
+  \`\`\`
+
+  ~~~tabs
+  [[charlie]]
+  ~~~\n
+`;
 
 /*
  * Every wait is for work already in flight, so they are generous, not budgets. Their SUM has to stay under the
