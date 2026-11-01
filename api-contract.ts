@@ -31,7 +31,8 @@ import {
   createApiContractSchemaBuilders,
   createExpectedTypeGuard,
   defineApiContract,
-  nullableGuard
+  nullableGuard,
+  optionalGuard
 } from '@mnaoumov/typescript-lib/api-contract';
 import {
   arrayTypeGuard,
@@ -61,6 +62,7 @@ import type {
   MigrateSettingsParams,
   MigrateSettingsResult,
   SpecificTimeZone,
+  TagQueryOptions,
   UnlinkedMention,
   UnlinkedMentionRange
 } from './api.d.ts';
@@ -154,6 +156,11 @@ const isMigrateSettingsResult = objectTypeGuard<MigrateSettingsResult>({
   isApplied: isBoolean
 });
 
+const isTagQueryOptions = objectTypeGuard<TagQueryOptions>({
+  shouldIncludeNestedTags: optionalTypeGuard(isBoolean),
+  source: optionalTypeGuard((value): value is NonNullable<TagQueryOptions['source']> => value === 'body' || value === 'frontmatter')
+});
+
 const isUnlinkedMentionRange = objectTypeGuard<UnlinkedMentionRange>({
   end: isNumber,
   start: isNumber
@@ -175,6 +182,8 @@ const PATH_OR_FILE_GUARD = createExpectedTypeGuard('a path or a file', isPathOrF
 const PATHS_GUARD = createExpectedTypeGuard('an array of paths', isStringArray);
 const PROPERTY_NAME_GUARD = createExpectedTypeGuard('a property name', isString);
 const PROPERTY_VALUE_GUARD = createExpectedTypeGuard('a property value', isString);
+const TAG_GUARD = createExpectedTypeGuard('a tag', isString);
+const TAG_QUERY_OPTIONS_GUARD = optionalGuard(createExpectedTypeGuard('tag query options', isTagQueryOptions));
 const UNLINKED_MENTION_ARRAY_GUARD = createExpectedTypeGuard('an array of unlinked mentions', arrayTypeGuard(isUnlinkedMention));
 
 /**
@@ -264,6 +273,14 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
   },
   getPathsWithPropertySafe: {
     input: createArgumentsSchema([PROPERTY_NAME_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(PATHS_GUARD))
+  },
+  getPathsWithTag: {
+    input: createArgumentsSchema([TAG_GUARD, TAG_QUERY_OPTIONS_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(PATHS_GUARD))
+  },
+  getPathsWithTagSafe: {
+    input: createArgumentsSchema([TAG_GUARD, TAG_QUERY_OPTIONS_GUARD]),
     output: createTypeGuardSchema(nullableGuard(PATHS_GUARD))
   },
   getTitlePropertyNames: {

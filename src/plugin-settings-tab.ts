@@ -132,6 +132,19 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         visible: () => this.pluginSettingsComponent.settings.isPropertiesModuleEnabled
       }),
       this.settingEx({
+        desc: 'Whether to index which notes carry each tag, written in the body or in the `tags` property, so other plugins can find the notes tagged `#project` without scanning the whole vault. It reads the tags Obsidian has already parsed, never a note. When off, nothing is indexed.',
+        name: 'Tags module',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            // No `onChanged` refresh: no other row depends on this module.
+            this.bind({
+              propertyName: 'isTagsModuleEnabled',
+              valueComponent: toggle
+            });
+          });
+        }
+      }),
+      this.settingEx({
         desc: 'Whether to treat a frontmatter property as a name for the note carrying it, alongside its own name and its `aliases`. Nothing is indexed up front: the properties are read per note, on demand, and they join what the `Names` module answers about. Other plugins can read the same list and the same per-note answer, so the property is named here once rather than in each of them.',
         name: 'Titles module',
         render: (setting) => {

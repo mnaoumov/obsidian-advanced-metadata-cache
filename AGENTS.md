@@ -375,6 +375,26 @@ since that note's own `changed` is coming.
 rewriting the link INSIDE the block through Obsidian's own updater. The module defaults **on** because with an empty
 list it reads nothing, and a plugin registering a language should not have to send its user here first.
 
+## The `tags` module: two sources kept apart, nested tags answered by prefix
+
+`TagIndex` (`src/modules/tags/tag-index.ts`) maps each tag to the notes carrying it, once per SOURCE: the body
+(`CachedMetadata.tags`) and the `tags` property, read through Obsidian's own `parseFrontMatterTags` so the merge is
+exactly `getAllTags`. Kept apart because `getAllTags` loses which one a note used, and the API's `source` option asks for
+it. Keys are the tag lower-cased with no `#`, since Obsidian folds tag case. **A query for `a` answers `a/b` too by
+default**, because that is what Obsidian's own `tag:#a` search does; `shouldIncludeNestedTags: false` is
+the exact tag. The nested match walks the distinct tags per query, `key === tag || key.startsWith(tag + '/')`, rather
+than keeping a prefix map in step: a vault holds thousands of tags at most, and that walk is cheaper than maintaining a
+second structure on every `changed`.
+
+Unlike `LinkTextIndex`, the index is the component's own (`TagIndexComponent.tagIndex`): nothing subscribes to it, so
+nothing needs it to outlive the module. The component is the `link-texts` build shape: listeners first, then a batched
+pass over `getFileCache` once `ensureMetadataCacheReady` resolves, then `metadataCache` `changed`. **A rename CARRIES a
+note's entry to its new path rather than re-reading the cache there**, because tags depend on text alone and the test
+mocks do not move the cache with the file; a note renamed to a non-markdown extension or into the plugin's own data
+folder is dropped, and a file renamed TO `.md` is picked up by the `changed` Obsidian fires after parsing it. Nothing is
+persisted. `tags.cross-platform.integration.test.ts` compares every answer with a full scan of the metadata cache after
+an edit, a rename and a delete. Off by default, like the other opt-in modules.
+
 ## Public surface: the core call answers, the API offers everything else
 
 `backlinks` and `names` **replace a core method** — `getBacklinksForFile`, `getLinkSuggestions` — keeping

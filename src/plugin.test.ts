@@ -122,6 +122,7 @@ interface ApiModuleGetters {
   readonly getLinkTextIndexComponent: () => unknown;
   readonly getNameIndexComponent: () => unknown;
   readonly getPropertyValueIndexComponent: () => unknown;
+  readonly getTagIndexComponent: () => unknown;
   readonly getUnlinkedMentionsComponent: () => unknown;
 }
 
@@ -213,7 +214,7 @@ describe('Plugin', () => {
 
   it('should declare every module', async () => {
     await createLoadedPlugin(createApp());
-    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names', 'titles', 'headings', 'properties', 'unlinked-mentions', 'link-texts', 'code-block-links']);
+    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names', 'titles', 'headings', 'properties', 'unlinked-mentions', 'link-texts', 'code-block-links', 'tags']);
   });
 
   it('should gate the backlinks module on its own setting', async () => {
@@ -359,6 +360,16 @@ describe('Plugin', () => {
     expect(moduleDefinition?.getIsEnabled(settings)).toBe(false);
   });
 
+  it('should gate the tags module on its own setting, and leave it off by default', async () => {
+    await createLoadedPlugin(createApp());
+    const settings = new PluginSettings();
+    const moduleDefinition = getModuleDefinitions()[8];
+
+    expect(moduleDefinition?.getIsEnabled(settings)).toBe(false);
+    settings.isTagsModuleEnabled = true;
+    expect(moduleDefinition?.getIsEnabled(settings)).toBe(true);
+  });
+
   it('should build the properties module on demand, keeping its index in the plugin folder', async () => {
     await createLoadedPlugin(
       createApp(),
@@ -415,6 +426,7 @@ describe('Plugin', () => {
     expect(moduleGetters.getLinkTextIndexComponent()).toBeNull();
     expect(moduleGetters.getNameIndexComponent()).toBeNull();
     expect(moduleGetters.getPropertyValueIndexComponent()).toBeNull();
+    expect(moduleGetters.getTagIndexComponent()).toBeNull();
     expect(moduleGetters.getUnlinkedMentionsComponent()).toBeNull();
 
     hoisted.loadedModules.set('backlinks', getModuleDefinitions()[0]?.createComponent());
@@ -428,6 +440,8 @@ describe('Plugin', () => {
     hoisted.loadedModules.set('link-texts', linkTextIndexComponent);
     const codeBlockLinksComponent = getModuleDefinitions()[7]?.createComponent();
     hoisted.loadedModules.set('code-block-links', codeBlockLinksComponent);
+    const tagIndexComponent = getModuleDefinitions()[8]?.createComponent();
+    hoisted.loadedModules.set('tags', tagIndexComponent);
 
     expect(moduleGetters.getBacklinkCacheComponent()).toBe(hoisted.backlinkCacheComponent);
     expect(moduleGetters.getNameIndexComponent()).toBe(nameIndexComponent);
@@ -435,6 +449,7 @@ describe('Plugin', () => {
     expect(moduleGetters.getUnlinkedMentionsComponent()).toBe(unlinkedMentionsComponent);
     expect(moduleGetters.getLinkTextIndexComponent()).toBe(linkTextIndexComponent);
     expect(moduleGetters.getCodeBlockLinksComponent()).toBe(codeBlockLinksComponent);
+    expect(moduleGetters.getTagIndexComponent()).toBe(tagIndexComponent);
   });
 
   it('should register the open demo vault command via its command handler', async () => {

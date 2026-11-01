@@ -21,6 +21,7 @@ import { ModulesComponent } from './modules/modules-component.ts';
 import { NameIndexComponent } from './modules/names/name-index-component.ts';
 import { PropertyValueIndexComponent } from './modules/properties/property-value-index-component.ts';
 import { PropertyValueIndex } from './modules/properties/property-value-index.ts';
+import { TagIndexComponent } from './modules/tags/tag-index-component.ts';
 import { TitleIndexComponent } from './modules/titles/title-index-component.ts';
 import { TitleIndex } from './modules/titles/title-index.ts';
 import { UnlinkedMentionsComponent } from './modules/unlinked-mentions/unlinked-mentions-component.ts';
@@ -163,6 +164,11 @@ export class Plugin extends PluginBase {
           createComponent: (): CodeBlockLinksComponent => new CodeBlockLinksComponent({ app: this.app, codeBlockLanguages, pluginSettingsComponent }),
           getIsEnabled: (settings): boolean => settings.isCodeBlockLinksModuleEnabled,
           moduleId: 'code-block-links'
+        },
+        {
+          createComponent: (): TagIndexComponent => new TagIndexComponent({ app: this.app }),
+          getIsEnabled: (settings): boolean => settings.isTagsModuleEnabled,
+          moduleId: 'tags'
         }
       ],
       pluginSettingsComponent
@@ -190,6 +196,10 @@ export class Plugin extends PluginBase {
       getPropertyValueIndexComponent: (): null | PropertyValueIndexComponent => {
         const moduleComponent = modulesComponent.getModuleComponent('properties');
         return moduleComponent instanceof PropertyValueIndexComponent ? moduleComponent : null;
+      },
+      getTagIndexComponent: (): null | TagIndexComponent => {
+        const moduleComponent = modulesComponent.getModuleComponent('tags');
+        return moduleComponent instanceof TagIndexComponent ? moduleComponent : null;
       },
       getUnlinkedMentionsComponent: (): null | UnlinkedMentionsComponent => {
         const moduleComponent = modulesComponent.getModuleComponent('unlinked-mentions');

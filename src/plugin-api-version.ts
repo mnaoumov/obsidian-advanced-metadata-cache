@@ -23,6 +23,7 @@
  * `1.9.0` adds `getLinkTexts`, its `Safe` variant and `onLinkTextsChanged`, as additively: the `Link texts` module's
  * answer to which display texts the links pointing at a file use instead of its name. `1.10.0` adds
  * `registerCodeBlockLanguage`, `getCodeBlockReferences` and its `Safe` variant, as additively: the `Code block links`
- * module, which counts the links written inside code blocks of the registered languages.
+ * module, which counts the links written inside code blocks of the registered languages. `1.11.0` adds
+ * `getPathsWithTag` and its `Safe` variant, as additively: the `Tags` module's answer to which notes carry a tag.
  */
-export const PLUGIN_API_VERSION = '1.10.0';
+export const PLUGIN_API_VERSION = '1.11.0';

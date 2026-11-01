@@ -66,6 +66,10 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
     };
     const propertyValue: PayloadCases = { invalid: [[], ['keys'], ['keys', 1], [1, 'a'], ['keys', 'a', 'extra']], valid: [['keys', 'a']] };
     const nullableStrings: PayloadCases = { invalid: [undefined, [1]], valid: [null, ['a']] };
+    const tag: PayloadCases = {
+      invalid: [[], [1], ['#a', null], ['#a', { source: 'title' }], ['#a', { shouldIncludeNestedTags: 'no' }], ['#a', {}, 'extra']],
+      valid: [['#a'], ['a', undefined], ['a', {}], ['a/b', { shouldIncludeNestedTags: false, source: 'body' }], ['a', { source: 'frontmatter' }]]
+    };
     const strings: PayloadCases = { invalid: [null, ['a', 1]], valid: [[], ['a']] };
     const datedValuesQuery: PayloadCases = {
       invalid: [[], [null], [{ from: 1 }], [{ isRecurring: 'yes' }], [{ propertyNames: [1] }], [{ to: null }], [{ timeBasis: 'local' }], [{ missingTimeZone: 'guess' }], [{ missingTimeZone: { zone: 1 } }], [{}, 'extra']],
@@ -116,6 +120,8 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
       getPathsByPropertyValueSafe: { input: propertyValue, output: nullableStrings },
       getPathsWithProperty: { input: name, output: nullableStrings },
       getPathsWithPropertySafe: { input: name, output: nullableStrings },
+      getPathsWithTag: { input: tag, output: nullableStrings },
+      getPathsWithTagSafe: { input: tag, output: nullableStrings },
       getTitlePropertyNames: { input: noArguments, output: strings },
       getTitles: { input: pathOrFile, output: strings },
       getUnlinkedMentions: {

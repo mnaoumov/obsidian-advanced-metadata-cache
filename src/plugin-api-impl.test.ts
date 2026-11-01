@@ -30,6 +30,7 @@ import type { LinkTextIndexComponent } from './modules/link-texts/link-text-inde
 import type { NameIndexComponent } from './modules/names/name-index-component.ts';
 import type { NameIndex } from './modules/names/name-index.ts';
 import type { PropertyValueIndexComponent } from './modules/properties/property-value-index-component.ts';
+import type { TagIndexComponent } from './modules/tags/tag-index-component.ts';
 import type {
   UnlinkedMentionMatch,
   UnlinkedMentionsComponent
@@ -44,6 +45,7 @@ import { CodeBlockLanguages } from './modules/code-block-links/code-block-langua
 import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
 import { PropertyValueIndex } from './modules/properties/property-value-index.ts';
+import { TagIndex } from './modules/tags/tag-index.ts';
 import { TitleIndex } from './modules/titles/title-index.ts';
 import { PluginApiImpl } from './plugin-api-impl.ts';
 import { PLUGIN_API_CONTRACT } from './plugin-api.ts';
@@ -83,6 +85,7 @@ describe('PluginApiImpl', () => {
   let propertyValueIndex: PropertyValueIndex;
   let propertyValueIndexComponent: null | PropertyValueIndexComponent;
   let settings: PluginSettings;
+  let tagIndexComponent: null | TagIndexComponent;
   let unlinkedMentionsComponent: null | UnlinkedMentionsComponent;
 
   beforeEach(() => {
@@ -98,6 +101,7 @@ describe('PluginApiImpl', () => {
     linkTextIndexComponent = null;
     nameIndexComponent = null;
     propertyValueIndexComponent = null;
+    tagIndexComponent = null;
     unlinkedMentionsComponent = null;
 
     const pluginSettingsComponent = strictProxy<PluginSettingsComponent>({
@@ -133,6 +137,7 @@ describe('PluginApiImpl', () => {
       getLinkTextIndexComponent: (): LinkTextIndexComponent | null => linkTextIndexComponent,
       getNameIndexComponent: (): NameIndexComponent | null => nameIndexComponent,
       getPropertyValueIndexComponent: (): null | PropertyValueIndexComponent => propertyValueIndexComponent,
+      getTagIndexComponent: (): null | TagIndexComponent => tagIndexComponent,
       getUnlinkedMentionsComponent: (): null | UnlinkedMentionsComponent => unlinkedMentionsComponent,
       headingTimesIndex,
       linkTextIndex,
@@ -156,6 +161,26 @@ describe('PluginApiImpl', () => {
     for (const methodName of Object.keys(PLUGIN_API_CONTRACT)) {
       expect(pluginApi).toHaveProperty(methodName, expect.any(Function));
     }
+  });
+
+  describe('tags', () => {
+    it('should answer null while the module is off', async () => {
+      expect(pluginApi.getPathsWithTag('#project')).toBeNull();
+      expect(await pluginApi.getPathsWithTagSafe('#project')).toBeNull();
+    });
+
+    it('should answer from the module\'s index, waiting for its build in the Safe variant', async () => {
+      const tagIndex = new TagIndex();
+      tagIndex.setPath('Alpha.md', { bodyTags: new Set(['project/alpha']), frontmatterTags: new Set() });
+      tagIndex.setPath('Bravo.md', { bodyTags: new Set(), frontmatterTags: new Set(['project']) });
+      const waitForBuild = vi.fn().mockResolvedValue(undefined);
+      tagIndexComponent = strictProxy<TagIndexComponent>({ tagIndex, waitForBuild });
+
+      expect(pluginApi.getPathsWithTag('#Project')).toEqual(['Alpha.md', 'Bravo.md']);
+      expect(pluginApi.getPathsWithTag('project', { shouldIncludeNestedTags: false })).toEqual(['Bravo.md']);
+      expect(await pluginApi.getPathsWithTagSafe('project', { source: 'body' })).toEqual(['Alpha.md']);
+      expect(waitForBuild).toHaveBeenCalledOnce();
+    });
   });
 
   describe('code block links', () => {

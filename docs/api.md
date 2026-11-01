@@ -232,3 +232,17 @@ for (const { isEmbed, language, reference } of await api.getCodeBlockReferencesS
 `registerCodeBlockLanguage(language)` tells the Code block links module that the content of a code block of that language is markdown, for a plugin that renders such a block as a note. The links and embeds inside are then added to the note's own `app.metadataCache.getFileCache()` entry, among its `links` and `embeds`, with their positions in the note, so backlinks, outgoing links, the graph and Obsidian's rename updates find them with nothing else to call. A pattern such as `my-*` is accepted, matched over the whole language and case-sensitively. The registration is kept in memory only: register on every load and call the returned function on unload. Two plugins may register the same language; it stays until both have unregistered it. A user lists languages of their own in the **Code block languages** setting.
 
 `getCodeBlockReferences(pathOrFile)` tells you which of a note's references came from a code block, and of which language, since nothing is added to Obsidian's own objects to mark them. It answers as things stand; `getCodeBlockReferencesSafe` first waits for the module's startup pass over the vault. Both answer **`null` while the Code block links module is off**, which is on by default. Ask for the range `^1.10`. [11 Code block links](<../demo-vault/11 Code block links.md>) shows it.
+
+## Notes by tag
+
+Added in contract `1.11.0`:
+
+```ts
+const allProjectNotes = await api.getPathsWithTagSafe('#project') ?? [];
+const taggedInProperty = api.getPathsWithTag('project', { source: 'frontmatter' });
+const exactOnly = api.getPathsWithTag('project', { shouldIncludeNestedTags: false });
+```
+
+`getPathsWithTag(tag, options)` answers which notes carry a tag, which `app.metadataCache.getTags()` only counts. A note carries a tag written in its text (`#project`, `CachedMetadata.tags`) or in its `tags` property (`tags: [project]`), read through Obsidian's own `parseFrontMatterTags`, so the two together are what `getAllTags` lists for it. `source: 'body'` or `source: 'frontmatter'` asks for one of the two, which `getAllTags` cannot tell apart. The tag matches in any casing, with or without its `#`. A note carrying only a nested tag (`#project/alpha`) answers for its parent, as it does in Obsidian's own `tag:#project` search; pass `shouldIncludeNestedTags: false` for the exact tag. `#projects` is never nested under `#project`. The paths come back each once, in code-unit order.
+
+The index is built at startup from the tags Obsidian has already parsed, reading no note, and follows each note Obsidian parses again, renames and deletes after that. Nothing is kept on disk. `getPathsWithTag` answers from it as it stands, which is empty until it is built; `getPathsWithTagSafe` waits for the build. Both answer **`null` while the Tags module is off**, which it is by default: read `getAllTags` over the vault yourself then. Ask for the range `^1.11`. [12 Tags](<../demo-vault/12 Tags.md>) shows it.
