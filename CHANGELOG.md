@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 2.4.0
+
+- docs(readme): point bug reports at the Report a bug command
+- docs: add issue-filing instructions for AI agents
+- feat: add a Report a bug command
+- chore(github): give the bug form the field ids bug-report links prefill
+- build(deps): override re2js to ^2.9.1 for GHSA-gg6h-894w-4m9c
+- docs(agents): measure startup with the Obsidian window visible
+- test(properties): pin list-valued date properties and document name qualifiers
+- feat(code-block-links): count the links inside code blocks of listed languages
+- fix(titles): use a fictional name in the name-pattern examples
+- style: format the name-pattern settings and title index test
+- feat(titles): build extra titles from name patterns over name parts
+- feat(link-texts): index the display texts links use for a file
+- refactor(unlinked-mentions): use the obsidian-lib position containment helpers
+- refactor(unlinked-mentions): adopt the shared incremental file index
+- test(persistence): verify the persistence migration on Android
+- test(unlinked-mentions): measure the build and restore on Android with a real vault
+- build(deps): bump @mnaoumov/typescript-dev-toolkit to ^5.1.0
+- refactor: consume shared word helpers and performance vault harness
+- feat(storage): keep caches local and synchronize heading history
+- chore: adopt readonly interface members
+
 ## 2.3.0
 
 - refactor(properties): name date-query and zone-conversion options
