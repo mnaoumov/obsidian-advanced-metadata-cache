@@ -27,6 +27,7 @@ import type { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
 import type { NameIndexComponent } from './modules/names/name-index-component.ts';
 import type { PropertyValueIndexComponent } from './modules/properties/property-value-index-component.ts';
 import type { PropertyValueIndex } from './modules/properties/property-value-index.ts';
+import type { TagIndexComponent } from './modules/tags/tag-index-component.ts';
 import type { TitleIndex } from './modules/titles/title-index.ts';
 import type { MentionRange } from './modules/unlinked-mentions/unlinked-mention-ranges.ts';
 import type { UnlinkedMentionsComponent } from './modules/unlinked-mentions/unlinked-mentions-component.ts';
@@ -41,6 +42,7 @@ import type {
   LinkTextsChangedCallback,
   MigrateSettingsParams,
   MigrateSettingsResult,
+  TagQueryOptions,
   UnlinkedMention,
   UnlinkedMentionRange
 } from './plugin-api.ts';
@@ -81,6 +83,10 @@ interface PluginApiImplConstructorParams {
    */
   readonly getPropertyValueIndexComponent: () => null | PropertyValueIndexComponent;
   /**
+   * Finds the `Tags` module's component, or `null` while the module is off. Asked per call, for the same reason.
+   */
+  readonly getTagIndexComponent: () => null | TagIndexComponent;
+  /**
    * Finds the `Unlinked mentions` module's component, or `null` while the module is off. Asked per call, for the
    * same reason.
    */
@@ -114,6 +120,7 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   private readonly getLinkTextIndexComponent: () => LinkTextIndexComponent | null;
   private readonly getNameIndexComponent: () => NameIndexComponent | null;
   private readonly getPropertyValueIndexComponent: () => null | PropertyValueIndexComponent;
+  private readonly getTagIndexComponent: () => null | TagIndexComponent;
   private readonly getUnlinkedMentionsComponent: () => null | UnlinkedMentionsComponent;
   private readonly headingTimesIndex: HeadingTimesIndex;
   private readonly linkTextIndex: LinkTextIndex;
@@ -136,6 +143,7 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
     this.getLinkTextIndexComponent = params.getLinkTextIndexComponent;
     this.getNameIndexComponent = params.getNameIndexComponent;
     this.getPropertyValueIndexComponent = params.getPropertyValueIndexComponent;
+    this.getTagIndexComponent = params.getTagIndexComponent;
     this.getUnlinkedMentionsComponent = params.getUnlinkedMentionsComponent;
     this.headingTimesIndex = params.headingTimesIndex;
     this.linkTextIndex = params.linkTextIndex;
@@ -362,6 +370,31 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   public async getPathsWithPropertySafe(propertyName: string): Promise<null | string[]> {
     await this.getPropertyValueIndexComponent()?.waitForBuild();
     return this.propertyValueIndex.getPathsWithProperty(propertyName);
+  }
+
+  /**
+   * Finds every note carrying a tag.
+   *
+   * @param tag - The tag, with or without its `#`, in any casing.
+   * @param options - Which source counts, and whether nested tags answer for their parent.
+   * @returns The vault-relative paths, or `null` while the `Tags` module is off.
+   */
+  // eslint-disable-next-line typescript-dev-toolkit/params-options-name-match -- The type is the published contract's, shared with the interface this class implements.
+  public getPathsWithTag(tag: string, options?: TagQueryOptions): null | string[] {
+    return this.getTagIndexComponent()?.tagIndex.getPathsWithTag(tag, options) ?? null;
+  }
+
+  /**
+   * Finds every note carrying a tag, once the index is built.
+   *
+   * @param tag - The tag, with or without its `#`, in any casing.
+   * @param options - Which source counts, and whether nested tags answer for their parent.
+   * @returns The vault-relative paths, or `null` while the `Tags` module is off.
+   */
+  // eslint-disable-next-line typescript-dev-toolkit/params-options-name-match -- Same published contract type.
+  public async getPathsWithTagSafe(tag: string, options?: TagQueryOptions): Promise<null | string[]> {
+    await this.getTagIndexComponent()?.waitForBuild();
+    return this.getPathsWithTag(tag, options);
   }
 
   /**

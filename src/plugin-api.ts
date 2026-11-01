@@ -24,6 +24,7 @@ export type {
   LinkTextsChangedCallback,
   MigrateSettingsParams,
   MigrateSettingsResult,
+  TagQueryOptions,
   UnlinkedMention,
   UnlinkedMentionRange
 } from '../api.d.ts';

@@ -12,7 +12,7 @@
  *   plugin's own belongs on an Obsidian function, and each has a replacement on the published API below.
  * - **A published API.** {@link AdvancedMetadataCacheApi} is published through the plugin registry
  *   under the plugin id `advanced-metadata-cache` and carries a contract version of its own. It
- *   answers what the `Titles`, `Headings`, `Properties`, `Unlinked mentions`, `Link texts` and `Code block links` modules know, which core has no
+ *   answers what the `Titles`, `Headings`, `Properties`, `Unlinked mentions`, `Link texts`, `Code block links` and `Tags` modules know, which core has no
  *   method for, and
  *   since contract `1.3.0` every extra the `Backlinks` and `Names` modules offer beyond the core call.
  *
@@ -369,6 +369,39 @@ export interface AdvancedMetadataCacheApi {
    *   module is off.
    */
   getPathsWithPropertySafe(propertyName: string): Promise<null | string[]>;
+
+  /**
+   * Finds every note carrying a tag, which `app.metadataCache.getTags()` only counts.
+   *
+   * A note carries a tag written in its body (`#project`) or in its `tags` property (`tags: [project]`), read the
+   * way Obsidian reads them, so together they are what `getAllTags` lists for the note; `options.source` asks for
+   * one of the two. The tag is matched case-insensitively, with or without its `#`. A note carrying only a nested
+   * tag (`#project/alpha`) answers for its parent, as it does in Obsidian's own `tag:#project` search, unless
+   * `options.shouldIncludeNestedTags` is `false`.
+   *
+   * Answered from the `Tags` module's index, built from the tags Obsidian has already parsed and kept current as
+   * it parses notes again; it is empty until built at startup, so use
+   * {@link AdvancedMetadataCacheApi.getPathsWithTagSafe} when you may be asked early.
+   *
+   * Added in contract `1.11.0`.
+   *
+   * @param tag - The tag, with or without its `#`, in any casing.
+   * @param options - Which source counts, and whether nested tags answer for their parent.
+   * @returns The vault-relative paths, each once, in code-unit order; empty for a tag no note carries. `null`
+   *   while the `Tags` module is off — walk the vault then.
+   */
+  getPathsWithTag(tag: string, options?: TagQueryOptions): null | string[];
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getPathsWithTag}, waiting for the index to be built first.
+   *
+   * Added in contract `1.11.0`.
+   *
+   * @param tag - The tag, with or without its `#`, in any casing.
+   * @param options - Which source counts, and whether nested tags answer for their parent.
+   * @returns The vault-relative paths; `null` while the `Tags` module is off.
+   */
+  getPathsWithTagSafe(tag: string, options?: TagQueryOptions): Promise<null | string[]>;
 
   /**
    * The frontmatter properties whose values currently count as a note's title.
@@ -781,6 +814,23 @@ export interface MigrateSettingsResult {
    * proposing plugin must NOT record the migration as done.
    */
   readonly isApplied: boolean;
+}
+
+/**
+ * What {@link AdvancedMetadataCacheApi.getPathsWithTag} asks for, beyond the tag itself.
+ */
+export interface TagQueryOptions {
+  /**
+   * Whether a note carrying only a nested tag (`#project/alpha`) answers for its parent (`#project`). Defaults to
+   * `true`, as in Obsidian's own `tag:#project` search.
+   */
+  readonly shouldIncludeNestedTags?: boolean | undefined;
+
+  /**
+   * Where the note must have written the tag: `'body'` for `#project` in the text, `'frontmatter'` for the
+   * `tags` property. Omitted, either counts.
+   */
+  readonly source?: 'body' | 'frontmatter' | undefined;
 }
 
 /**

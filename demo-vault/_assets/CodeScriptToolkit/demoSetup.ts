@@ -54,6 +54,7 @@ interface AdvancedMetadataCacheApi {
   getPathsByNameSafe(name: string): Promise<null | string[]>;
   getPathsByPropertyValueSafe(propertyName: string, value: string): Promise<null | string[]>;
   getPathsWithPropertySafe(propertyName: string): Promise<null | string[]>;
+  getPathsWithTagSafe(tag: string, options?: { readonly shouldIncludeNestedTags?: boolean; readonly source?: 'body' | 'frontmatter' }): Promise<null | string[]>;
   getTitlePropertyNames(): string[];
   getTitles(pathOrFile: string): string[];
   getUnlinkedMentions(pathOrFile: string): Promise<null | UnlinkedMention[]>;
@@ -777,6 +778,43 @@ export async function showLinkTextsOf(app: App, path: string): Promise<void> {
     const lines = linkTexts.map((linkText) => `${linkText.text}: ${String(linkText.count)} link(s) from ${linkText.sourcePaths.join(', ')}`);
 
     new Notice([`Link texts of ${path}:`, ...lines.length === 0 ? ['none'] : lines].join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+ * Reports which notes carry a tag, in the body, in the `tags` property, and as the exact tag without its nested
+ * tags, as the `Tags` module answers through the API.
+ *
+ * Manual equivalent: search the vault for `tag:#<tag>`, which answers the first line only.
+ *
+ * @param app - The Obsidian app.
+ * @param tag - The tag, with or without its `#`.
+ */
+export async function showNotesWithTag(app: App, tag: string): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isTagsModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.11',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    const answers: [string, null | string[]][] = [
+      ['anywhere, nested tags included', await api.getPathsWithTagSafe(tag)],
+      ['in the body', await api.getPathsWithTagSafe(tag, { source: 'body' })],
+      ['in the tags property', await api.getPathsWithTagSafe(tag, { source: 'frontmatter' })],
+      ['the exact tag only', await api.getPathsWithTagSafe(tag, { shouldIncludeNestedTags: false })]
+    ];
+    const lines = answers.map(([label, paths]) => `${label}: ${paths?.length ? paths.join(', ') : 'none'}`);
+
+    new Notice([`Notes tagged ${tag}:`, ...lines].join('\n'));
   } finally {
     component.unload();
   }
