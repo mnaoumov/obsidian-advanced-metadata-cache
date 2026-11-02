@@ -89,6 +89,26 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
       valid: [null, [], [{ isEmbed: false, language: 'ad-note', reference: CODE_BLOCK_LINK }]]
     };
 
+    const LINK_POSITION = { end: { col: 19, line: 0, offset: 19 }, start: { col: 0, line: 0, offset: 0 } };
+    const EXTERNAL_LINK = { host: 'example.com', isInFrontmatter: false, normalizedUrl: 'example.com', position: LINK_POSITION, url: 'https://example.com' };
+    const nullableExternalLinks: PayloadCases = {
+      invalid: [undefined, [null], [{ ...EXTERNAL_LINK, url: 1 }], [{ ...EXTERNAL_LINK, isInFrontmatter: 'no' }], [{ ...EXTERNAL_LINK, position: { start: LINK_POSITION.start } }], [{ ...EXTERNAL_LINK, position: { end: { line: 0 }, start: LINK_POSITION.start } }]],
+      valid: [null, [], [EXTERNAL_LINK]]
+    };
+    const nullableHostUsages: PayloadCases = { invalid: [undefined, [null], [{ host: 'a.com' }], [{ host: 1, noteCount: 1 }]], valid: [null, [], [{ host: 'a.com', noteCount: 2 }]] };
+    const nullableUrlUsages: PayloadCases = {
+      invalid: [undefined, [null], [{ host: 'a.com', normalizedUrl: 'a.com', noteCount: 1 }], [{ host: 'a.com', normalizedUrl: 'a.com', noteCount: '1', url: 'https://a.com' }]],
+      valid: [null, [], [{ host: 'a.com', normalizedUrl: 'a.com/x', noteCount: 1, url: 'https://a.com/x' }]]
+    };
+    const nullableSimilarHosts: PayloadCases = { invalid: [undefined, [null], [{ host: 'a.com', noteCount: 1 }]], valid: [null, [], [{ distance: 1, host: 'a.com', noteCount: 3 }]] };
+    const optionalHost: PayloadCases = { invalid: [[1], [null], ['a.com', 'extra']], valid: [[], ['a.com'], [undefined]] };
+    const hostQuery: PayloadCases = {
+      invalid: [[], [1], ['a.com', null], ['a.com', { shouldIncludeSubdomains: 'yes' }], ['a.com', {}, 'extra']],
+      valid: [['a.com'], ['a.com', undefined], ['a.com', {}], ['a.com', { shouldIncludeSubdomains: true }]]
+    };
+    const similarHostQuery: PayloadCases = { invalid: [[], [1], ['a.com', '2'], ['a.com', 2, 'extra']], valid: [['a.com'], ['a.com', 1], ['a.com', undefined]] };
+    const url: PayloadCases = { invalid: [[], [1], ['https://a.com', 'extra']], valid: [['https://a.com/x']] };
+
     return {
       getBacklinksForFile: { input: pathOrFile, output: nullableBacklinks },
       getBacklinksForFileOriginal: {
@@ -100,6 +120,12 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
       getCodeBlockReferencesSafe: { input: pathOrFile, output: nullableCodeBlockReferences },
       getDatedValues: { input: datedValuesQuery, output: nullableDatedValues },
       getDatedValuesSafe: { input: datedValuesQuery, output: nullableDatedValues },
+      getExternalLinkHosts: { input: noArguments, output: nullableHostUsages },
+      getExternalLinkHostsSafe: { input: noArguments, output: nullableHostUsages },
+      getExternalLinks: { input: pathOrFile, output: nullableExternalLinks },
+      getExternalLinksSafe: { input: pathOrFile, output: nullableExternalLinks },
+      getExternalLinkUrls: { input: optionalHost, output: nullableUrlUsages },
+      getExternalLinkUrlsSafe: { input: optionalHost, output: nullableUrlUsages },
       getHeadingTimes: {
         input: pathOrFile,
         output: {
@@ -118,10 +144,16 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
       getPathsByNameSafe: { input: name, output: nullableStrings },
       getPathsByPropertyValue: { input: propertyValue, output: nullableStrings },
       getPathsByPropertyValueSafe: { input: propertyValue, output: nullableStrings },
+      getPathsLinkingToHost: { input: hostQuery, output: nullableStrings },
+      getPathsLinkingToHostSafe: { input: hostQuery, output: nullableStrings },
+      getPathsLinkingToUrl: { input: url, output: nullableStrings },
+      getPathsLinkingToUrlSafe: { input: url, output: nullableStrings },
       getPathsWithProperty: { input: name, output: nullableStrings },
       getPathsWithPropertySafe: { input: name, output: nullableStrings },
       getPathsWithTag: { input: tag, output: nullableStrings },
       getPathsWithTagSafe: { input: tag, output: nullableStrings },
+      getSimilarHosts: { input: similarHostQuery, output: nullableSimilarHosts },
+      getSimilarHostsSafe: { input: similarHostQuery, output: nullableSimilarHosts },
       getTitlePropertyNames: { input: noArguments, output: strings },
       getTitles: { input: pathOrFile, output: strings },
       getUnlinkedMentions: {

@@ -21,6 +21,7 @@ import {
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
 import type { CodeBlockLanguages } from './modules/code-block-links/code-block-languages.ts';
 import type { CodeBlockLinksComponent } from './modules/code-block-links/code-block-links-component.ts';
+import type { ExternalLinkIndexComponent } from './modules/external-links/external-link-index-component.ts';
 import type { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import type { LinkTextIndexComponent } from './modules/link-texts/link-text-index-component.ts';
 import type { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
@@ -37,11 +38,16 @@ import type {
   CodeBlockReference,
   DatedValue,
   DatedValuesQuery,
+  ExternalHostUsage,
+  ExternalLink,
+  ExternalUrlUsage,
   HeadingTimes,
+  HostQueryOptions,
   LinkText,
   LinkTextsChangedCallback,
   MigrateSettingsParams,
   MigrateSettingsResult,
+  SimilarHost,
   TagQueryOptions,
   UnlinkedMention,
   UnlinkedMentionRange
@@ -67,6 +73,11 @@ interface PluginApiImplConstructorParams {
    * same reason.
    */
   readonly getCodeBlockLinksComponent: () => CodeBlockLinksComponent | null;
+  /**
+   * Finds the `External links` module's component, or `null` while the module is off. Asked per call, for the
+   * same reason.
+   */
+  readonly getExternalLinkIndexComponent: () => ExternalLinkIndexComponent | null;
   /**
    * Finds the `Link texts` module's component, or `null` while the module is off. Asked per call, for the same
    * reason.
@@ -117,6 +128,7 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   private readonly codeBlockLanguages: CodeBlockLanguages;
   private readonly getBacklinkCacheComponent: () => BacklinkCacheComponent | null;
   private readonly getCodeBlockLinksComponent: () => CodeBlockLinksComponent | null;
+  private readonly getExternalLinkIndexComponent: () => ExternalLinkIndexComponent | null;
   private readonly getLinkTextIndexComponent: () => LinkTextIndexComponent | null;
   private readonly getNameIndexComponent: () => NameIndexComponent | null;
   private readonly getPropertyValueIndexComponent: () => null | PropertyValueIndexComponent;
@@ -140,6 +152,7 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
     this.codeBlockLanguages = params.codeBlockLanguages;
     this.getBacklinkCacheComponent = params.getBacklinkCacheComponent;
     this.getCodeBlockLinksComponent = params.getCodeBlockLinksComponent;
+    this.getExternalLinkIndexComponent = params.getExternalLinkIndexComponent;
     this.getLinkTextIndexComponent = params.getLinkTextIndexComponent;
     this.getNameIndexComponent = params.getNameIndexComponent;
     this.getPropertyValueIndexComponent = params.getPropertyValueIndexComponent;
@@ -222,6 +235,67 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   public async getDatedValuesSafe(query: DatedValuesQuery): Promise<DatedValue[] | null> {
     await this.getPropertyValueIndexComponent()?.waitForBuild();
     return this.propertyValueIndex.getDatedValues(query);
+  }
+
+  /**
+   * Lists every host the vault links to.
+   *
+   * @returns The hosts, or `null` while the `External links` module is off.
+   */
+  public getExternalLinkHosts(): ExternalHostUsage[] | null {
+    return this.getExternalLinkIndexComponent()?.externalLinkIndex.getHosts() ?? null;
+  }
+
+  /**
+   * Lists every host the vault links to, once the index is built.
+   *
+   * @returns The hosts, or `null` while the `External links` module is off.
+   */
+  public async getExternalLinkHostsSafe(): Promise<ExternalHostUsage[] | null> {
+    await this.getExternalLinkIndexComponent()?.waitForBuild();
+    return this.getExternalLinkHosts();
+  }
+
+  /**
+   * Reads a note's external links.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The links, or `null` while the `External links` module is off.
+   */
+  public getExternalLinks(pathOrFile: string | TFile): ExternalLink[] | null {
+    return this.getExternalLinkIndexComponent()?.externalLinkIndex.getLinks(getPath(this.app, pathOrFile)) ?? null;
+  }
+
+  /**
+   * Reads a note's external links, once the index is built.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The links, or `null` while the `External links` module is off.
+   */
+  public async getExternalLinksSafe(pathOrFile: string | TFile): Promise<ExternalLink[] | null> {
+    await this.getExternalLinkIndexComponent()?.waitForBuild();
+    return this.getExternalLinks(pathOrFile);
+  }
+
+  /**
+   * Lists every URL the vault links to, or those on one host.
+   *
+   * @param host - The host whose URLs to list; omitted, every host.
+   * @returns The URLs, or `null` while the `External links` module is off.
+   */
+  public getExternalLinkUrls(host?: string): ExternalUrlUsage[] | null {
+    return this.getExternalLinkIndexComponent()?.externalLinkIndex.getUrls(host) ?? null;
+  }
+
+  /**
+   * Lists every URL the vault links to, or those on one host, once the index is built.
+   *
+   * @param host - The host whose URLs to list; omitted, every host.
+   * @returns The URLs, or `null` while the `External links` module is off.
+   */
+  public async getExternalLinkUrlsSafe(host?: string): Promise<ExternalUrlUsage[] | null> {
+    await this.getExternalLinkIndexComponent()?.waitForBuild();
+    return this.getExternalLinkUrls(host);
   }
 
   /**
@@ -350,6 +424,52 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   }
 
   /**
+   * Finds every note linking to a host.
+   *
+   * @param host - The host.
+   * @param options - Whether the links to a subdomain count.
+   * @returns The vault-relative paths, or `null` while the `External links` module is off.
+   */
+  // eslint-disable-next-line typescript-dev-toolkit/params-options-name-match -- The type is the published contract's, shared with the interface this class implements.
+  public getPathsLinkingToHost(host: string, options?: HostQueryOptions): null | string[] {
+    return this.getExternalLinkIndexComponent()?.externalLinkIndex.getPathsLinkingToHost(host, options) ?? null;
+  }
+
+  /**
+   * Finds every note linking to a host, once the index is built.
+   *
+   * @param host - The host.
+   * @param options - Whether the links to a subdomain count.
+   * @returns The vault-relative paths, or `null` while the `External links` module is off.
+   */
+  // eslint-disable-next-line typescript-dev-toolkit/params-options-name-match -- Same published contract type.
+  public async getPathsLinkingToHostSafe(host: string, options?: HostQueryOptions): Promise<null | string[]> {
+    await this.getExternalLinkIndexComponent()?.waitForBuild();
+    return this.getPathsLinkingToHost(host, options);
+  }
+
+  /**
+   * Finds every note linking to a URL.
+   *
+   * @param url - The URL.
+   * @returns The vault-relative paths, or `null` while the `External links` module is off.
+   */
+  public getPathsLinkingToUrl(url: string): null | string[] {
+    return this.getExternalLinkIndexComponent()?.externalLinkIndex.getPathsLinkingToUrl(url) ?? null;
+  }
+
+  /**
+   * Finds every note linking to a URL, once the index is built.
+   *
+   * @param url - The URL.
+   * @returns The vault-relative paths, or `null` while the `External links` module is off.
+   */
+  public async getPathsLinkingToUrlSafe(url: string): Promise<null | string[]> {
+    await this.getExternalLinkIndexComponent()?.waitForBuild();
+    return this.getPathsLinkingToUrl(url);
+  }
+
+  /**
    * Finds every note carrying a frontmatter property.
    *
    * @param propertyName - The property name.
@@ -395,6 +515,29 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   public async getPathsWithTagSafe(tag: string, options?: TagQueryOptions): Promise<null | string[]> {
     await this.getTagIndexComponent()?.waitForBuild();
     return this.getPathsWithTag(tag, options);
+  }
+
+  /**
+   * Finds the hosts a few edits away from one.
+   *
+   * @param host - The host.
+   * @param maxDistance - The most edits that still count as similar.
+   * @returns The hosts, or `null` while the `External links` module is off.
+   */
+  public getSimilarHosts(host: string, maxDistance?: number): null | SimilarHost[] {
+    return this.getExternalLinkIndexComponent()?.externalLinkIndex.getSimilarHosts(host, maxDistance) ?? null;
+  }
+
+  /**
+   * Finds the hosts a few edits away from one, once the index is built.
+   *
+   * @param host - The host.
+   * @param maxDistance - The most edits that still count as similar.
+   * @returns The hosts, or `null` while the `External links` module is off.
+   */
+  public async getSimilarHostsSafe(host: string, maxDistance?: number): Promise<null | SimilarHost[]> {
+    await this.getExternalLinkIndexComponent()?.waitForBuild();
+    return this.getSimilarHosts(host, maxDistance);
   }
 
   /**

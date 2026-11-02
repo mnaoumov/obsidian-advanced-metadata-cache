@@ -255,3 +255,25 @@ const exactOnly = api.getPathsWithTag('project', { shouldIncludeNestedTags: fals
 `getPathsWithTag(tag, options)` answers which notes carry a tag, which `app.metadataCache.getTags()` only counts. A note carries a tag written in its text (`#project`, `CachedMetadata.tags`) or in its `tags` property (`tags: [project]`), read through Obsidian's own `parseFrontMatterTags`, so the two together are what `getAllTags` lists for it. `source: 'body'` or `source: 'frontmatter'` asks for one of the two, which `getAllTags` cannot tell apart. The tag matches in any casing, with or without its `#`. A note carrying only a nested tag (`#project/alpha`) answers for its parent, as it does in Obsidian's own `tag:#project` search; pass `shouldIncludeNestedTags: false` for the exact tag. `#projects` is never nested under `#project`. The paths come back each once, in code-unit order.
 
 The index is built at startup from the tags Obsidian has already parsed, reading no note, and follows each note Obsidian parses again, renames and deletes after that. Nothing is kept on disk. `getPathsWithTag` answers from it as it stands, which is empty until it is built; `getPathsWithTagSafe` waits for the build. Both answer **`null` while the Tags module is off**, which it is by default: read `getAllTags` over the vault yourself then. Ask for the range `^1.11`. [12 Tags](<../demo-vault/12 Tags.md>) shows it.
+
+## External links
+
+Added in contract `1.13.0`:
+
+```ts
+const siteNotes = await api.getPathsLinkingToHostSafe('github.com') ?? [];
+const withSubdomains = api.getPathsLinkingToHost('github.com', { shouldIncludeSubdomains: true });
+const pageNotes = api.getPathsLinkingToUrl('https://github.com/mnaoumov/obsidian-advanced-metadata-cache');
+const links = api.getExternalLinks('Notes/Research.md');
+const hosts = api.getExternalLinkHosts();
+const urls = api.getExternalLinkUrls('github.com');
+const typos = api.getSimilarHosts('githb.com');
+```
+
+Obsidian's metadata cache holds no external link: neither `[text](https://...)` nor a bare URL is in `links`. The External links module reads every note's text instead, and every `http` or `https` URL counts: bare, in a markdown link, in `<...>`, and in the frontmatter, which is how a URL property counts. A URL inside a fenced code block or an inline code span does not. The punctuation that ends a sentence after a URL is dropped, and so is an unbalanced closing parenthesis, so `[docs](https://a.com/x)` gives `https://a.com/x` while `https://en.wikipedia.org/wiki/Foo_(bar)` keeps its parentheses.
+
+A URL is normalized before it is indexed or looked up: `http` and `https` are one, the host is lowered and loses `www.`, the user info and the `#fragment` are dropped, and so is a trailing `/` of the path. The port, when not the scheme's default, the query string and the path's case are kept, since `watch?v=` names a different page. So `getPathsLinkingToUrl('http://www.GitHub.com/a/#top')` finds the notes linking to `https://github.com/a`, and a URL asked for without a scheme is read as `https`. A host is normalized the same way, and `getPathsLinkingToHost` takes the host exactly unless `shouldIncludeSubdomains` is `true`, when `github.com` also answers for `gist.github.com`.
+
+`getExternalLinks(pathOrFile)` lists one note's links in text order, each with the URL as written, its `normalizedUrl`, its `host`, `isInFrontmatter`, and its `position` in the note: what a site-backlinks view needs once `getPathsLinkingToHost` has named the notes. `getExternalLinkHosts()` and `getExternalLinkUrls(host?)` list what the vault links to, most linked-to first by number of notes, for a link autocomplete; each URL usage carries `url`, the form most notes write it in, which is what to insert. `getSimilarHosts(host, maxDistance = 2)` lists the hosts a few edits away, counting insertions, deletions, substitutions and swaps of two neighboring characters, nearest first and then most linked-to: flag `githb.com` when `github.com` is one edit away and linked to by many notes. Every list is in a stable order, paths in code-unit order.
+
+The index is built when the module is switched on and when Obsidian starts, by reading every note once in the background, after Obsidian's own startup parse. It then follows each note through the text Obsidian hands over when it parses the note again, so an edit costs no read; between a note's save and that parse, the note's links are absent. Nothing is kept on disk yet. Each member answers from the index as it stands, which is empty until it is built; each `Safe` variant waits for the build. All answer **`null` while the External links module is off**, which it is by default. Ask for the range `^1.13`. [13 External links](<../demo-vault/13 External links.md>) shows it.

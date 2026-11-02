@@ -36,6 +36,11 @@ export class PluginSettings {
   /**
    * Off by default, like every module added after the one this plugin was created for.
    */
+  public isExternalLinksModuleEnabled = false;
+
+  /**
+   * Off by default, like every module added after the one this plugin was created for.
+   */
   public isHeadingsModuleEnabled = false;
 
   /**

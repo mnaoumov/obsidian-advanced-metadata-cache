@@ -56,6 +56,9 @@ interface AdvancedMetadataCacheApi {
   getPathsByPropertyValueSafe(propertyName: string, value: string): Promise<null | string[]>;
   getPathsWithPropertySafe(propertyName: string): Promise<null | string[]>;
   getPathsWithTagSafe(tag: string, options?: { readonly shouldIncludeNestedTags?: boolean; readonly source?: 'body' | 'frontmatter' }): Promise<null | string[]>;
+  getPathsLinkingToHostSafe(host: string, options?: { readonly shouldIncludeSubdomains?: boolean }): Promise<null | string[]>;
+  getPathsLinkingToUrlSafe(url: string): Promise<null | string[]>;
+  getSimilarHostsSafe(host: string, maxDistance?: number): Promise<null | SimilarHost[]>;
   getTitlePropertyNames(): string[];
   getUnresolvedBacklinksSafe(linkPath: string): Promise<BacklinksDict | null>;
   getTitles(pathOrFile: string): string[];
@@ -107,6 +110,7 @@ interface DemoSettingsPatch {
   codeBlockLinkLanguages?: string[];
   isBacklinksModuleEnabled?: boolean;
   isCodeBlockLinksModuleEnabled?: boolean;
+  isExternalLinksModuleEnabled?: boolean;
   isHeadingsModuleEnabled?: boolean;
   isLinkTextsModuleEnabled?: boolean;
   isNamesModuleEnabled?: boolean;
@@ -140,6 +144,15 @@ interface LinkText {
   readonly count: number;
   readonly sourcePaths: readonly string[];
   readonly text: string;
+}
+
+/**
+ * One host near another, as the plugin API reports it. The same shape `SimilarHost` in the root `api.d.ts` ships.
+ */
+interface SimilarHost {
+  readonly distance: number;
+  readonly host: string;
+  readonly noteCount: number;
 }
 
 /**
@@ -839,6 +852,45 @@ export async function showNotesWithTag(app: App, tag: string): Promise<void> {
     const lines = answers.map(([label, paths]) => `${label}: ${paths?.length ? paths.join(', ') : 'none'}`);
 
     new Notice([`Notes tagged ${tag}:`, ...lines].join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+ * Reports which notes link to a site, with and without its subdomains, which link to its first-listed page, and which
+ * hosts look like a typo of it, as the `External links` module answers through the API.
+ *
+ * Manual equivalent: search the vault for the host, which also finds it in plain text and inside code.
+ *
+ * @param app - The Obsidian app.
+ * @param host - The site's host.
+ */
+export async function showExternalLinksTo(app: App, host: string): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isExternalLinksModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.13',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    const pageUrl = `https://${host}/mnaoumov/obsidian-advanced-metadata-cache`;
+    const similarHosts = await api.getSimilarHostsSafe(host) ?? [];
+    const answers: [string, null | string[]][] = [
+      [`linking to ${host}`, await api.getPathsLinkingToHostSafe(host)],
+      ['subdomains included', await api.getPathsLinkingToHostSafe(host, { shouldIncludeSubdomains: true })],
+      [`linking to ${pageUrl}`, await api.getPathsLinkingToUrlSafe(pageUrl)]
+    ];
+    const lines = answers.map(([label, paths]) => `${label}: ${paths?.length ? paths.join(', ') : 'none'}`);
+    lines.push(`hosts that look like a typo of it: ${similarHosts.length ? similarHosts.map((similarHost) => `${similarHost.host} (${String(similarHost.noteCount)} note(s))`).join(', ') : 'none'}`);
+
+    new Notice([`External links to ${host}:`, ...lines].join('\n'));
   } finally {
     component.unload();
   }

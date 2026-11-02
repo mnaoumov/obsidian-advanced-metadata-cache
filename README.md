@@ -54,6 +54,7 @@ A copy of the vault ships with every release. You can access it via any of the f
 - **A file answers to the texts links show for it**, so `[alpha](bravo.md)` lets other plugins find `bravo.md` as `alpha`, and `![[scan-0042.pdf|March invoice]]` lets them find an attachment as `March invoice`. [10 Link texts](<./demo-vault/10 Link texts.md>)
 - **Links inside code blocks that are really notes**, such as an `ad-note` admonition, count like any other link once you list the block's language: in backlinks, outgoing links, the graph and rename updates. [11 Code block links](<./demo-vault/11 Code block links.md>)
 - **Which notes carry a tag**, in their text or in their `tags` property, so other plugins find the notes tagged `#project`, nested tags included, without reading every note's cache. [12 Tags](<./demo-vault/12 Tags.md>)
+- **Which notes link to a website**, so other plugins can show a site's backlinks, suggest URLs the vault already uses and flag a host that looks like a typo, from every `http` or `https` link, bare, in a markdown link or in a property. [13 External links](<./demo-vault/13 External links.md>)
 - **Every index is a module of its own**, switched on or off without touching the others; only **Backlinks**, **Properties**, **Link texts** and **Code block links** (which does nothing until a language is listed) are on by default, and a module switched off unloads completely. [04 Settings](<./demo-vault/04 Settings.md>)
 
 Derived caches stay on each device; heading history and registered property names sync through ordinary vault files. See [Storage and sync](./docs/storage.md).
@@ -79,7 +80,7 @@ This plugin makes two core calls faster for every plugin that makes them, and pu
 
 `app.metadataCache.getBacklinksForFile(file)` (the **Backlinks** module) and `app.metadataCache.getLinkSuggestions()` (the **Names** module) keep Obsidian's own signature and answer what Obsidian would, so there is nothing to do to use them.
 
-Everything else (the safe, original and reverse-lookup variants of those two calls, titles, heading times, notes by property value or date, unlinked mentions, link texts, notes by tag, and the code block languages whose links count) is `AdvancedMetadataCacheApi`:
+Everything else (the safe, original and reverse-lookup variants of those two calls, titles, heading times, notes by property value or date, unlinked mentions, link texts, notes by tag, external links, and the code block languages whose links count) is `AdvancedMetadataCacheApi`:
 
 ```ts
 import { watchPluginApi } from '@mnaoumov/obsidian-lib/plugin/plugin-api';
