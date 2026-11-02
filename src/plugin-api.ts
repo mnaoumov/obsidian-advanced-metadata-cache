@@ -26,6 +26,8 @@ export type {
   HostQueryOptions,
   LinkText,
   LinkTextsChangedCallback,
+  MetadataParser,
+  MetadataParserContext,
   MigrateSettingsParams,
   MigrateSettingsResult,
   SimilarHost,

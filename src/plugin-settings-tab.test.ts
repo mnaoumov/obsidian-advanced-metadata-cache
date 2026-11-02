@@ -57,9 +57,11 @@ function createHarness(
     isCodeBlockLinksModuleEnabled: isBacklinksModuleEnabled,
     isHeadingsModuleEnabled: false,
     isNamesModuleEnabled,
+    isNonMarkdownModuleEnabled: isBacklinksModuleEnabled,
     isPropertiesModuleEnabled,
     isTitlesModuleEnabled,
     isUnlinkedMentionsModuleEnabled: false,
+    markdownFileExtensions: [],
     shouldAutomaticallyRefreshBacklinkPanels: false,
     shouldOfferTitlesInLinkSuggestions: false,
     shouldShowProgressBarOnLoad: true,
@@ -80,9 +82,11 @@ function createHarness(
         isCodeBlockLinksModuleEnabled: '',
         isHeadingsModuleEnabled: '',
         isNamesModuleEnabled: '',
+        isNonMarkdownModuleEnabled: '',
         isPropertiesModuleEnabled: '',
         isTitlesModuleEnabled: '',
         isUnlinkedMentionsModuleEnabled: '',
+        markdownFileExtensions: '',
         shouldAutomaticallyRefreshBacklinkPanels: '',
         shouldOfferTitlesInLinkSuggestions: '',
         shouldShowProgressBarOnLoad: '',
@@ -160,7 +164,9 @@ describe('PluginSettingsTab', () => {
       'Offer titles in the [[ autocomplete',
       'Unlinked mentions module',
       'Should automatically refresh backlink panels',
-      'Should show progress bar on load'
+      'Should show progress bar on load',
+      'Non-Markdown module',
+      'Markdown file extensions'
     ]);
     expect(harness.propertyNames).toStrictEqual([
       'isBacklinksModuleEnabled',
@@ -180,20 +186,22 @@ describe('PluginSettingsTab', () => {
       'shouldOfferTitlesInLinkSuggestions',
       'isUnlinkedMentionsModuleEnabled',
       'shouldAutomaticallyRefreshBacklinkPanels',
-      'shouldShowProgressBarOnLoad'
+      'shouldShowProgressBarOnLoad',
+      'isNonMarkdownModuleEnabled',
+      'markdownFileExtensions'
     ]);
   });
 
   it('should show the options belonging to a module that is on', () => {
     const harness = createHarness(true, true, true);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true]);
   });
 
   it('should hide the options belonging to a module that is off, leaving every module toggle visible', () => {
     const harness = createHarness(false);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, false, true, true, true, true, true, false, false, true, true, false, false, false, true, false, false]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, false, true, true, true, true, true, false, false, true, true, false, false, false, true, false, false, true, false]);
   });
 
   it('should hide the titles-in-autocomplete toggle until BOTH modules it needs are on', () => {
@@ -223,6 +231,13 @@ describe('PluginSettingsTab', () => {
     await harness.triggerModuleToggleChange('isCodeBlockLinksModuleEnabled');
 
     expect(refreshSpy).toHaveBeenCalledOnce();
+  });
+
+  it('refreshes the extension setting when the non-Markdown module is toggled', async () => {
+    const harness = createHarness(true);
+    const refresh = vi.spyOn(harness.tab, 'refresh').mockImplementation(() => undefined);
+    await harness.triggerModuleToggleChange('isNonMarkdownModuleEnabled');
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it('should re-render the tab when the names module toggle changes', async () => {

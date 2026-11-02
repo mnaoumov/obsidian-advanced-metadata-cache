@@ -26,6 +26,7 @@ import type { HeadingTimesIndex } from './modules/headings/heading-times-index.t
 import type { LinkTextIndexComponent } from './modules/link-texts/link-text-index-component.ts';
 import type { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
 import type { NameIndexComponent } from './modules/names/name-index-component.ts';
+import type { MetadataParsers } from './modules/non-markdown/metadata-parsers.ts';
 import type { PropertyValueIndexComponent } from './modules/properties/property-value-index-component.ts';
 import type { PropertyValueIndex } from './modules/properties/property-value-index.ts';
 import type { TagIndexComponent } from './modules/tags/tag-index-component.ts';
@@ -45,6 +46,7 @@ import type {
   HostQueryOptions,
   LinkText,
   LinkTextsChangedCallback,
+  MetadataParser,
   MigrateSettingsParams,
   MigrateSettingsResult,
   SimilarHost,
@@ -104,6 +106,7 @@ interface PluginApiImplConstructorParams {
   readonly getUnlinkedMentionsComponent: () => null | UnlinkedMentionsComponent;
   readonly headingTimesIndex: HeadingTimesIndex;
   readonly linkTextIndex: LinkTextIndex;
+  readonly metadataParsers: MetadataParsers;
   readonly pluginSettingsComponent: PluginSettingsComponent;
   readonly propertyValueIndex: PropertyValueIndex;
   readonly titleIndex: TitleIndex;
@@ -136,6 +139,7 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   private readonly getUnlinkedMentionsComponent: () => null | UnlinkedMentionsComponent;
   private readonly headingTimesIndex: HeadingTimesIndex;
   private readonly linkTextIndex: LinkTextIndex;
+  private readonly metadataParsers: MetadataParsers;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
   private readonly propertyValueIndex: PropertyValueIndex;
 
@@ -148,6 +152,7 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   private readonly titleIndex: TitleIndex;
 
   public constructor(params: PluginApiImplConstructorParams) {
+    this.metadataParsers = params.metadataParsers;
     this.app = params.app;
     this.codeBlockLanguages = params.codeBlockLanguages;
     this.getBacklinkCacheComponent = params.getBacklinkCacheComponent;
@@ -650,6 +655,10 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
    */
   public registerCodeBlockLanguage(language: string): () => void {
     return this.codeBlockLanguages.register(language);
+  }
+
+  public registerMetadataParser(extension: string, parser?: MetadataParser): () => void {
+    return this.metadataParsers.register(extension, parser);
   }
 
   /**

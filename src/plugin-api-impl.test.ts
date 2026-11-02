@@ -47,6 +47,7 @@ import { ExternalLinkIndex } from './modules/external-links/external-link-index.
 import { findExternalLinks } from './modules/external-links/external-links.ts';
 import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
+import { MetadataParsers } from './modules/non-markdown/metadata-parsers.ts';
 import { PropertyValueIndex } from './modules/properties/property-value-index.ts';
 import { TagIndex } from './modules/tags/tag-index.ts';
 import { TitleIndex } from './modules/titles/title-index.ts';
@@ -79,6 +80,7 @@ describe('PluginApiImpl', () => {
   let app: App;
   let backlinkCacheComponent: BacklinkCacheComponent | null;
   let codeBlockLanguages: CodeBlockLanguages;
+  let metadataParsers: MetadataParsers;
   let codeBlockLinksComponent: CodeBlockLinksComponent | null;
   let editAndSaveCallCount: number;
   let linkTextIndex: LinkTextIndex;
@@ -134,6 +136,7 @@ describe('PluginApiImpl', () => {
       pluginSettingsComponent
     });
 
+    metadataParsers = new MetadataParsers();
     pluginApi = new PluginApiImpl({
       app: castTo<AppOriginal>(app),
       codeBlockLanguages,
@@ -147,6 +150,7 @@ describe('PluginApiImpl', () => {
       getUnlinkedMentionsComponent: (): null | UnlinkedMentionsComponent => unlinkedMentionsComponent,
       headingTimesIndex,
       linkTextIndex,
+      metadataParsers,
       pluginSettingsComponent,
       propertyValueIndex,
       titleIndex
@@ -253,6 +257,16 @@ describe('PluginApiImpl', () => {
       expect(codeBlockLanguages.isIncluded([], 'ad-note')).toBe(true);
       unregister();
       expect(codeBlockLanguages.isIncluded([], 'ad-note')).toBe(false);
+    });
+
+    it('registers a metadata parser for the caller lifetime even while its module is off', () => {
+      function parser(): null {
+        return null;
+      }
+      const unregister = pluginApi.registerMetadataParser('story', parser);
+      expect(metadataParsers.getRegistration('story')?.parser).toBe(parser);
+      unregister();
+      expect(metadataParsers.getRegistration('story')).toBeNull();
     });
   });
 

@@ -26,7 +26,15 @@ Adding a module means adding its folder, its toggle to `PluginSettings`, its row
 `getSettingDefinitionItems`, and one entry to the array in `Plugin.onloadImpl`. Nothing else knows how
 many modules there are. The `backlinks` module defaults **on**, because it is the behavior this plugin
 inherited wholesale from `Backlink Cache`; a module added later defaults **off**, except `properties`, `link-texts` and `code-block-links`,
-which other plugins read or feed, as their sections say.
+which other plugins read or feed, as their sections say. The `non-markdown` module also defaults on: its extension list is empty and it reads nothing until configured or a consumer registers a parser.
+
+## The `non-markdown` module: core metadata without persistent synthetic hashes
+
+`NonMarkdownComponent` supplies configured extensions through Obsidian's Markdown worker, or a runtime parser from `MetadataParsers`. Registrations belong to the plugin rather than the component, so toggling the module does not revoke a consumer's registration. The newest registration wins; unregister restores the previous registration or the setting. Native `md`, `canvas` and `base` are reserved.
+
+Only `getCache` is patched for direct reads. Core's `iterateAllRefs` and `iterateFileCache` bypass it and read hashes, so their patches append the module's entries too, only while that exact entry is the current answer. Non-empty metadata from another owner wins. `iterateRefsForFile`, core link resolution and Bases already read `getCache`; they need no additional patch. Nothing writes `fileCache`, `metadataCache` or their save methods, so module metadata cannot survive unload or create duplicate native canvas references.
+
+Reads and parses are serial. Each attempt captures a generation, per-path revision, file identity and stat; newer work, rename, delete or unload invalidates the result. Relevant settings and registration changes clear and rebuild. Cleanup announces an empty native cache and queues link resolution again. Parsers must return positions in the original text, because core's rename updater writes through them. Virtual properties must not invent Markdown frontmatter link keys for a different on-disk format. Explicit Markdown-only consumers, including this plugin's other indexes, keep their existing file universe.
 
 ## The `names` module: the patch goes in BEFORE the index is built
 

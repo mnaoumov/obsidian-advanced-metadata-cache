@@ -188,6 +188,10 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
         input: { invalid: [[], [null], [1], ['ad-note', 'extra']], valid: [['ad-note'], ['ad-*']] },
         output: { invalid: [undefined, null, {}], valid: [noop] }
       },
+      registerMetadataParser: {
+        input: { invalid: [[], [1], ['mdx', false], ['mdx', null]], valid: [['mdx'], ['mdx', undefined], ['fountain', (): null => null]] },
+        output: { invalid: [null, false, 'a'], valid: [noop] }
+      },
       registerPropertyName: { input: name, output: { invalid: [null, false, 'a'], valid: [undefined] } }
     };
   }

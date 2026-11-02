@@ -55,7 +55,8 @@ A copy of the vault ships with every release. You can access it via any of the f
 - **Links inside code blocks that are really notes**, such as an `ad-note` admonition, count like any other link once you list the block's language: in backlinks, outgoing links, the graph and rename updates. [11 Code block links](<./demo-vault/11 Code block links.md>)
 - **Which notes carry a tag**, in their text or in their `tags` property, so other plugins find the notes tagged `#project`, nested tags included, without reading every note's cache. [12 Tags](<./demo-vault/12 Tags.md>)
 - **Which notes link to a website**, so other plugins can show a site's backlinks, suggest URLs the vault already uses and flag a host that looks like a typo, from every `http` or `https` link, bare, in a markdown link or in a property. [13 External links](<./demo-vault/13 External links.md>)
-- **Every index is a module of its own**, switched on or off without touching the others; only **Backlinks**, **Properties**, **Link texts** and **Code block links** (which does nothing until a language is listed) are on by default, and a module switched off unloads completely. [04 Settings](<./demo-vault/04 Settings.md>)
+- **Metadata from other file types**, such as Markdown links in `.mdx` or `.fountain`, reaches core backlinks, graph link resolution and Bases property reads; plugins can register their own parsers. [14 Non-Markdown](<./demo-vault/14 Non-Markdown.md>)
+- **Every index is a module of its own**, switched on or off without touching the others; **Backlinks**, **Properties**, **Link texts**, **Code block links** and **Non-Markdown** are on by default. The last two read nothing until configured or registered by a plugin. A module switched off unloads completely. [04 Settings](<./demo-vault/04 Settings.md>)
 
 Derived caches stay on each device; heading history and registered property names sync through ordinary vault files. See [Storage and sync](./docs/storage.md).
 

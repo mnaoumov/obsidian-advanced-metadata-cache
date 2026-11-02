@@ -31,11 +31,23 @@
  */
 
 import type {
+  CachedMetadata,
   Pos,
   Reference,
   ReferenceCache,
   TFile
 } from 'obsidian';
+
+/** A parser receives the original file and its unchanged content. */
+export interface MetadataParserContext {
+  /** The file being indexed. */
+  readonly file: TFile;
+  /** The original content; positions in returned metadata must address this text. */
+  readonly content: string;
+}
+
+/** Returns metadata for the original content, or `null` to decline this file. */
+export type MetadataParser = (context: MetadataParserContext) => CachedMetadata | null | Promise<CachedMetadata | null>;
 
 /**
  * This plugin's API, published through the `@mnaoumov/obsidian-lib` plugin registry under the plugin id
@@ -694,6 +706,24 @@ export interface AdvancedMetadataCacheApi {
    * @returns A function that unregisters it; calling it again does nothing.
    */
   registerCodeBlockLanguage(language: string): () => void;
+
+  /**
+   * Supplies metadata for a non-native extension. Omit the parser to use Obsidian's Markdown worker.
+   * Extensions are exact, case-insensitive, with an optional leading dot. `md`, `canvas` and `base`
+   * are reserved. The most recent registration wins; unregistering restores the previous one.
+   * Register on load and call the returned function on unload. Registrations survive module toggles
+   * but are not persisted. The `Non-Markdown` module must be enabled (it is on by default).
+   *
+   * Metadata is memory-only, exposed through core's cache, backlinks, graph and property reads.
+   * A parser returns metadata for the ORIGINAL content: reference positions and frontmatter keys
+   * must support core's Markdown link rewriting. Never return positions in a transformed document.
+   * Return `null` to decline a file. This does not register a view or change how files open.
+   *
+   * @param extension - A single file extension.
+   * @param parser - A parser for that extension's syntax; omitted for Markdown syntax.
+   * @returns An idempotent unregister function.
+   */
+  registerMetadataParser(extension: string, parser?: MetadataParser): () => void;
 
   /**
    * Asks the `Properties` module to index a frontmatter property, so

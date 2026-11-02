@@ -21,6 +21,7 @@ import type { HeadingTimesIndex } from './modules/headings/heading-times-index.t
 import type { ModuleDefinition } from './modules/modules-component.ts';
 import type { TitleIndex } from './modules/titles/title-index.ts';
 
+import { NonMarkdownComponent } from './modules/non-markdown/non-markdown-component.ts';
 import { PLUGIN_API_VERSION } from './plugin-api-version.ts';
 import { PLUGIN_API_CONTRACT } from './plugin-api.ts';
 import { PluginSettings } from './plugin-settings.ts';
@@ -215,7 +216,17 @@ describe('Plugin', () => {
 
   it('should declare every module', async () => {
     await createLoadedPlugin(createApp());
-    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names', 'titles', 'headings', 'properties', 'unlinked-mentions', 'link-texts', 'code-block-links', 'tags', 'external-links']);
+    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names', 'titles', 'headings', 'properties', 'unlinked-mentions', 'link-texts', 'code-block-links', 'tags', 'external-links', 'non-markdown']);
+  });
+
+  it('keeps non-Markdown registrations usable by default and gives their module its own toggle', async () => {
+    await createLoadedPlugin(createApp());
+    const definition = getModuleDefinitions().find((candidate) => candidate.moduleId === 'non-markdown');
+    const settings = new PluginSettings();
+    expect(definition?.getIsEnabled(settings)).toBe(true);
+    settings.isNonMarkdownModuleEnabled = false;
+    expect(definition?.getIsEnabled(settings)).toBe(false);
+    expect(definition?.createComponent()).toBeInstanceOf(NonMarkdownComponent);
   });
 
   it('should gate the backlinks module on its own setting', async () => {

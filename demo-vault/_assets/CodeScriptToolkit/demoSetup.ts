@@ -114,6 +114,8 @@ interface DemoSettingsPatch {
   isHeadingsModuleEnabled?: boolean;
   isLinkTextsModuleEnabled?: boolean;
   isNamesModuleEnabled?: boolean;
+  isNonMarkdownModuleEnabled?: boolean;
+  markdownFileExtensions?: string[];
   isPropertiesModuleEnabled?: boolean;
   isTitlesModuleEnabled?: boolean;
   isUnlinkedMentionsModuleEnabled?: boolean;
@@ -262,6 +264,21 @@ export function refreshBacklinkPanels(app: App): void {
 export async function changeSettings(app: App, patch: DemoSettingsPatch): Promise<void> {
   await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: patch });
   new Notice('Applied.');
+}
+
+/** Shows the real core metadata of the bundled screenplay, after enabling its extension. */
+export async function showNonMarkdownMetadata(app: App): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isNonMarkdownModuleEnabled: true, markdownFileExtensions: ['fountain'] } });
+  const path = 'Materials/14 Non-Markdown/Scene.fountain';
+  for (let attempt = 0; attempt < HEADING_TIMES_WAIT_ATTEMPTS; attempt++) {
+    const cache = app.metadataCache.getCache(path);
+    if (cache?.headings?.length) {
+      new Notice(`Scene.fountain\nHeading: ${cache.headings[0].heading}\nstage: ${cache.frontmatter?.stage}\nLinks: ${(cache.links ?? []).map((link) => link.link).join(', ')}`);
+      return;
+    }
+    await sleep(HEADING_TIMES_POLL_IN_MILLISECONDS);
+  }
+  throw new Error('Scene.fountain did not receive metadata.');
 }
 
 /**
