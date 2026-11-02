@@ -61,7 +61,7 @@ Derived caches stay on each device; heading history and registered property name
 
 ## See also
 
-[My other Obsidian resources](https://github.com/mnaoumov/obsidian-resources)
+[My other Obsidian resources](https://mnaoumov.dev/obsidian/)
 
 | Plugin | Features | How `Advanced Metadata Cache` differs |
 | --- | --- | --- |
