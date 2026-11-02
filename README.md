@@ -44,7 +44,7 @@ A copy of the vault ships with every release. You can access it via any of the f
 ## What it does
 
 - **A backlink index that keeps itself current**, so the Backlinks pane and every plugin that asks for backlinks stop rescanning the vault. [01 Backlink cache](<./demo-vault/01 Backlink cache.md>)
-- **Three ways to ask** — fast from the cache, safe after pending changes settle, or the original built-in implementation for comparison. [02 Fast, safe, and original backlinks](<./demo-vault/02 Fast, safe, and original backlinks.md>)
+- **Three ways to ask** — fast from the cache, safe after pending changes settle, or the original built-in implementation for comparison — and one more Obsidian has no call for: which notes link to a note that does not exist yet. [02 Fast, safe, and original backlinks](<./demo-vault/02 Fast, safe, and original backlinks.md>)
 - **Canvas files are indexed too**, and so are frontmatter markdown links when [`Frontmatter Markdown Links`](https://community.obsidian.md/plugins/frontmatter-markdown-links) is installed. [03 Canvas backlinks](<./demo-vault/03 Canvas backlinks.md>)
 - **A name index behind the `[[` autocomplete**, so opening it stops rescanning every note in the vault for its name and aliases. [05 Name index](<./demo-vault/05 Name index.md>)
 - **A frontmatter property can name a note too**, found under its `title` and, if you ask, offered under it by the `[[` autocomplete. Name patterns build a person's other names from `lastName` and `firstName`, once per language, so none has to be stored as an alias. [06 Titles](<./demo-vault/06 Titles.md>)

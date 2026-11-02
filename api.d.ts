@@ -457,6 +457,40 @@ export interface AdvancedMetadataCacheApi {
   getUnlinkedMentions(pathOrFile: string | TFile): Promise<null | UnlinkedMention[]>;
 
   /**
+   * Finds the links and embeds that point at a name no file answers to — the backlinks a note would have if it
+   * were created — from the `Backlinks` module's cache.
+   *
+   * The link path is the link as written without its subpath: the key Obsidian records it under in
+   * `app.metadataCache.unresolvedLinks`, such as `Ideas/Draft` for `[[Ideas/Draft#Plan|draft]]`. It is matched
+   * case-insensitively and with a trailing `.md` ignored, so `[[Draft]]`, `[[draft]]` and `[[Draft.md]]` answer
+   * together, as the one note a `Draft.md` created later would be. Only the references that do not resolve right
+   * now are listed: once the target is created they drop out, and once it is deleted or renamed away they come back.
+   *
+   * Fast, and possibly a moment behind a change Obsidian has not finished processing; use
+   * {@link AdvancedMetadataCacheApi.getUnresolvedBacklinksSafe} when the caller has just changed the vault. Until
+   * the module has filled its cache, at startup, it answers by reading the notes Obsidian's own `unresolvedLinks`
+   * names.
+   *
+   * Added in contract `1.12.0`.
+   *
+   * @param linkPath - The link path, with or without a `#` subpath.
+   * @returns The unresolved references, keyed by the path of each linking note; empty when no note links there,
+   *   or when the link path resolves. `null` while the `Backlinks` module is off.
+   */
+  getUnresolvedBacklinks(linkPath: string): CustomArrayDict<Reference> | null;
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getUnresolvedBacklinks}, waiting first for every change already reported to
+   * the cache to be processed.
+   *
+   * Added in contract `1.12.0`.
+   *
+   * @param linkPath - The link path, with or without a `#` subpath.
+   * @returns The unresolved references; `null` while the `Backlinks` module is off.
+   */
+  getUnresolvedBacklinksSafe(linkPath: string): Promise<CustomArrayDict<Reference> | null>;
+
+  /**
    * Offers the user title properties another plugin used to own, and adds the ones they approve to
    * {@link AdvancedMetadataCacheApi.getTitlePropertyNames}.
    *

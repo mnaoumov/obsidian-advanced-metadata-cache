@@ -238,6 +238,22 @@ describe('PluginApiImpl', () => {
       expect(pluginApi.getBacklinksForFileOriginal(file)).toBe(CORE_BACKLINKS);
       expect(getBacklinksForFile).toHaveBeenCalledWith(file);
     });
+
+    it('should answer the unresolved backlinks from the module cache', async () => {
+      const getUnresolvedBacklinks = vi.fn().mockReturnValue(CACHED_BACKLINKS);
+      const getUnresolvedBacklinksSafe = vi.fn().mockResolvedValue(CACHED_BACKLINKS);
+      backlinkCacheComponent = strictProxy<BacklinkCacheComponent>({ getUnresolvedBacklinks, getUnresolvedBacklinksSafe });
+
+      expect(pluginApi.getUnresolvedBacklinks('Ghost')).toBe(CACHED_BACKLINKS);
+      await expect(pluginApi.getUnresolvedBacklinksSafe('Ghost#Plan')).resolves.toBe(CACHED_BACKLINKS);
+      expect(getUnresolvedBacklinks).toHaveBeenCalledWith('Ghost');
+      expect(getUnresolvedBacklinksSafe).toHaveBeenCalledWith('Ghost#Plan');
+    });
+
+    it('should answer null for the unresolved backlinks while the module is off', async () => {
+      expect(pluginApi.getUnresolvedBacklinks('Ghost')).toBeNull();
+      await expect(pluginApi.getUnresolvedBacklinksSafe('Ghost')).resolves.toBeNull();
+    });
   });
 
   describe('names', () => {
