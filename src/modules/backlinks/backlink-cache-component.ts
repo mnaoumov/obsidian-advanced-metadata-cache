@@ -63,6 +63,11 @@ interface BacklinkCacheComponentAddBacklinkParams {
   readonly targetPath: string;
 }
 
+interface BacklinkCacheComponentAddUnresolvedReferencesParams {
+  readonly dict: CustomArrayDict<Reference>;
+  readonly references: Reference[];
+  readonly sourcePath: string;
+}
 interface BacklinkCacheComponentConstructorParams {
   readonly abortSignalComponent: AbortSignalComponent;
   readonly app: App;
@@ -86,11 +91,22 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
 
   private readonly consoleDebugComponent: ConsoleDebugComponent;
   private debouncedProcessPendingActions?: Debouncer<[], Promise<void>>;
+  private isBuilt = false;
+
+  /**
+   * Every reference of every note, by the link path it is written with ({@link getLinkPathKey}) and then by the
+   * note. Kept for resolved references too, and resolved only when asked: a target created, deleted or renamed
+   * changes whether a reference resolves without changing the note that holds it, so an index of the unresolved
+   * ones alone would need every such event to re-read its sources.
+   */
+  private readonly linkPathReferencesMap = new Map<string, Map<string, Set<Reference>>>();
+
   private readonly linksMap = new Map<string, Set<string>>();
   private readonly pendingActions = new Map<string, Action>();
   private readonly pluginNoticeComponent: PluginNoticeComponent;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
   private readonly resolvedBasenameMap = new Map<string, Set<string>>();
+  private readonly sourceLinkPathKeysMap = new Map<string, Set<string>>();
   private readonly unresolvedBasenameMap = new Map<string, Set<string>>();
   private readonly unresolvedLinksMap = new Map<string, Set<string>>();
 
@@ -153,6 +169,52 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
    */
   public getBacklinksForFileOriginal(file: TFile): CustomArrayDict<Reference> {
     return this.backlinksForFilePatchComponent?.getBacklinksForFileOriginal(file) ?? this.app.metadataCache.getBacklinksForFile(file);
+  }
+
+  /**
+   * Finds the references that link to a name no file answers to.
+   *
+   * @param linkPath - The link path as written, with or without a subpath, matched case-insensitively and with a
+   *   trailing `.md` ignored.
+   * @returns The references that do not resolve right now, keyed by the path of each linking note.
+   */
+  public getUnresolvedBacklinks(linkPath: string): CustomArrayDict<Reference> {
+    const linkPathKey = getLinkPathKey(linkPath);
+    const dict = new CustomArrayDictImpl<Reference>();
+
+    if (!this.isBuilt) {
+      // Until the walk has filled the index, the sources are the ones Obsidian's own map names.
+      for (const [sourcePath, unresolvedLinkCounts] of Object.entries(this.app.metadataCache.unresolvedLinks)) {
+        if (Object.keys(unresolvedLinkCounts).every((unresolvedLinkPath) => getLinkPathKey(unresolvedLinkPath) !== linkPathKey)) {
+          continue;
+        }
+
+        const cache = this.app.metadataCache.getCache(sourcePath);
+        const references = cache ? getReferences({ cache }).filter((reference) => getLinkPathKey(reference.link) === linkPathKey) : [];
+        this.addUnresolvedReferences({ dict, references, sourcePath });
+      }
+
+      return dict;
+    }
+
+    for (const [sourcePath, references] of this.linkPathReferencesMap.get(linkPathKey) ?? []) {
+      this.abortSignalComponent.abortSignal.throwIfAborted();
+      this.addUnresolvedReferences({ dict, references: [...references], sourcePath });
+    }
+
+    invokeAsyncSafely(this.processPendingActions.bind(this));
+    return dict;
+  }
+
+  /**
+   * {@link getUnresolvedBacklinks}, waiting for pending changes to be processed first.
+   *
+   * @param linkPath - The link path as written.
+   * @returns The references that do not resolve right now, keyed by the path of each linking note.
+   */
+  public async getUnresolvedBacklinksSafe(linkPath: string): Promise<CustomArrayDict<Reference>> {
+    await this.processPendingActions();
+    return this.getUnresolvedBacklinks(linkPath);
   }
 
   public async refreshBacklinkPanels(): Promise<void> {
@@ -224,6 +286,7 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
     this.registerEvent(this.app.metadataCache.on('changed', this.handleMetadataChanged.bind(this)));
     await ensureMetadataCacheReady(this.app);
     await this.processAllNotes();
+    this.isBuilt = !this.abortSignalComponent.abortSignal.aborted;
   }
 
   private addBacklink(params: BacklinkCacheComponentAddBacklinkParams): void {
@@ -244,6 +307,16 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
 
     linkSet.add(link);
     this.linksMap.get(sourcePath)?.add(targetPath);
+  }
+
+  private addUnresolvedReferences(params: BacklinkCacheComponentAddUnresolvedReferencesParams): void {
+    const { dict, references, sourcePath } = params;
+
+    for (const reference of sortReferences(references)) {
+      if (!extractReferenceFile({ app: this.app, reference, sourcePathOrFile: sourcePath })) {
+        dict.add(sourcePath, reference);
+      }
+    }
   }
 
   private getBacklinksForFileOriginalOrEmpty(pathOrFile: PathOrFile): CustomArrayDict<Reference> {
@@ -388,6 +461,20 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
         return;
       }
 
+      const linkPathKey = getLinkPathKey(link.link);
+      let sourceReferences = this.linkPathReferencesMap.get(linkPathKey)?.get(notePath);
+      if (!sourceReferences) {
+        sourceReferences = new Set<Reference>();
+        let sourceReferencesMap = this.linkPathReferencesMap.get(linkPathKey);
+        if (!sourceReferencesMap) {
+          sourceReferencesMap = new Map<string, Set<Reference>>();
+          this.linkPathReferencesMap.set(linkPathKey, sourceReferencesMap);
+        }
+        sourceReferencesMap.set(notePath, sourceReferences);
+      }
+      sourceReferences.add(link);
+      addToMapSet({ key: notePath, map: this.sourceLinkPathKeysMap, value: linkPathKey });
+
       const resolvedLinkFile = extractReferenceFile({
         app: this.app,
         reference: link,
@@ -454,6 +541,16 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
     }
 
     this.unresolvedLinksMap.delete(path);
+
+    for (const linkPathKey of this.sourceLinkPathKeysMap.get(path) ?? []) {
+      const sourceReferencesMap = this.linkPathReferencesMap.get(linkPathKey);
+      sourceReferencesMap?.delete(path);
+      if (sourceReferencesMap?.size === 0) {
+        this.linkPathReferencesMap.delete(linkPathKey);
+      }
+    }
+
+    this.sourceLinkPathKeysMap.delete(path);
   }
 
   private removePathEntries(path: string): void {
@@ -494,4 +591,14 @@ function getBasenameLower(path: string): string {
   const slashIndex = path.lastIndexOf('/');
   const basename = slashIndex === -1 ? path : path.slice(slashIndex + 1);
   return basename.toLowerCase();
+}
+
+/*
+ * The key a link is indexed by: its link path without the subpath, as Obsidian records it in
+ * `metadataCache.unresolvedLinks`, lower-cased and with a trailing `.md` dropped. `[[Foo]]`, `[[foo]]` and
+ * `[[Foo.md]]` all name the one note a `Foo.md` created later would be, so they are one question.
+ */
+function getLinkPathKey(link: string): string {
+  const loweredLinkPath = splitSubpath(link).linkPath.toLowerCase();
+  return loweredLinkPath.endsWith(MARKDOWN_EXTENSION) ? loweredLinkPath.slice(0, -MARKDOWN_EXTENSION.length) : loweredLinkPath;
 }

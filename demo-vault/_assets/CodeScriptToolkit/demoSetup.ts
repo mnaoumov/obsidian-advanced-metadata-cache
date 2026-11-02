@@ -18,6 +18,7 @@ import { watchPluginApi } from '@mnaoumov/obsidian-lib/plugin/plugin-api';
 
 const PLUGIN_ID = 'advanced-metadata-cache';
 const CENTRAL_TOPIC_PATH = 'Topics/Central topic.md';
+const MISSING_NOTE_LINK_PATH = 'Ideas backlog';
 
 const HEADING_TIMES_WAIT_ATTEMPTS = 50;
 const CODE_BLOCK_LINKS_SETTLE_IN_MILLISECONDS = 500;
@@ -56,6 +57,7 @@ interface AdvancedMetadataCacheApi {
   getPathsWithPropertySafe(propertyName: string): Promise<null | string[]>;
   getPathsWithTagSafe(tag: string, options?: { readonly shouldIncludeNestedTags?: boolean; readonly source?: 'body' | 'frontmatter' }): Promise<null | string[]>;
   getTitlePropertyNames(): string[];
+  getUnresolvedBacklinksSafe(linkPath: string): Promise<BacklinksDict | null>;
   getTitles(pathOrFile: string): string[];
   getUnlinkedMentions(pathOrFile: string): Promise<null | UnlinkedMention[]>;
   registerPropertyName(propertyName: string): void;
@@ -63,6 +65,7 @@ interface AdvancedMetadataCacheApi {
 
 interface BacklinksDict {
   count(): number;
+  keys(): string[];
 }
 
 /**
@@ -203,6 +206,27 @@ export async function compareBacklinks(app: App): Promise<void> {
     `safe:     ${safe.count().toString()}`,
     `original: ${api.getBacklinksForFileOriginal(note).count().toString()}`
   ].join('\n'));
+}
+
+/**
+ * Lists the notes that link to `Ideas backlog`, a note this vault does not have, through
+ * `getUnresolvedBacklinksSafe`.
+ *
+ * Manual equivalent: none in the UI; the Backlinks pane shows a note's backlinks only once the note exists.
+ */
+export async function listUnresolvedBacklinks(app: App): Promise<void> {
+  const api = await getApi(app);
+  const unresolvedBacklinks = await api.getUnresolvedBacklinksSafe(MISSING_NOTE_LINK_PATH);
+
+  if (!unresolvedBacklinks) {
+    new Notice('The Backlinks module is off. Switch it on in the plugin settings.');
+    return;
+  }
+
+  const sourcePaths = unresolvedBacklinks.keys();
+  new Notice(sourcePaths.length === 0
+    ? `Nothing links to ${MISSING_NOTE_LINK_PATH} while it is missing.`
+    : [`Linking to ${MISSING_NOTE_LINK_PATH}, which does not exist:`, ...sourcePaths].join('\n'));
 }
 
 /**

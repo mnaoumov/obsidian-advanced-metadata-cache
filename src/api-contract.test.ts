@@ -131,6 +131,8 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
           valid: [null, [], [{ path: 'Alpha.md', ranges: [] }, { path: 'Beta.md', ranges: [{ end: 5, start: 0 }] }]]
         }
       },
+      getUnresolvedBacklinks: { input: name, output: nullableBacklinks },
+      getUnresolvedBacklinksSafe: { input: name, output: nullableBacklinks },
       migrateSettings: {
         input: {
           invalid: [[], [null], [{ proposedSettings: {} }], [{ proposedSettings: null, sourcePluginId: 'x' }], [{

@@ -463,6 +463,17 @@ claim stays honest. Queuing strictly less is safe.
 Before changing anything in this area, read that parity suite — its cases encode which behaviors are
 guaranteed to match Obsidian exactly.
 
+## Unresolved backlinks: indexed by link path, resolved when asked
+
+`getUnresolvedBacklinks` reads `linkPathReferencesMap`, which holds EVERY reference of every note, resolved or not, by
+its link path (subpath dropped, lower-cased, a trailing `.md` dropped: `getLinkPathKey`). Whether a reference is
+unresolved is decided per query with `extractReferenceFile`, never stored. That is deliberate: creating, deleting or
+renaming a TARGET changes whether a link resolves without any event on the note holding it, and this module re-reads a
+note only on its own events (`updateRelatedLinks` only queues link resolution). An index of the unresolved links alone
+would have gone stale on each of those. The key is not `unresolvedBasenameMap`'s basename, because `[[a/Foo]]` and
+`[[b/Foo]]` name different future notes. Until the initial walk has finished (`isBuilt`), the answer is read from the
+notes Obsidian's own `unresolvedLinks` names, so a caller at startup is never handed a half-filled index.
+
 ## Invariant: a backlink refresh never saves the editor
 
 `BacklinkCacheComponent.refreshBacklinks` reads `metadataCache.getFileCache`, the cache Obsidian already

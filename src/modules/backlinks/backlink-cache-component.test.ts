@@ -100,6 +100,9 @@ vi.mock('./canvas.ts', () => ({
 
 interface ComponentInternals {
   readonly backlinksMap: Map<string, Map<string, Set<Reference>>>;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The tests set whether the walk has filled the index.
+  isBuilt: boolean;
+  readonly linkPathReferencesMap: Map<string, Map<string, Set<Reference>>>;
   readonly linksMap: Map<string, Set<string>>;
   readonly onLayoutReady: () => Promise<void>;
   readonly pendingActions: Map<string, number>;
@@ -107,6 +110,7 @@ interface ComponentInternals {
   readonly refreshBacklinks: (path: string) => void;
   readonly removeLinkedPathEntries: (path: string) => void;
   readonly resolvedBasenameMap: Map<string, Set<string>>;
+  readonly sourceLinkPathKeysMap: Map<string, Set<string>>;
   readonly unresolvedBasenameMap: Map<string, Set<string>>;
   readonly unresolvedLinksMap: Map<string, Set<string>>;
 }
@@ -179,10 +183,12 @@ function createMockApp(): App {
   return strictProxy<App>({
     metadataCache: {
       getBacklinksForFile: vi.fn(),
+      getCache: vi.fn().mockReturnValue(null),
       getCachedFiles: vi.fn().mockReturnValue([]),
       getFileCache: vi.fn().mockReturnValue(null),
       on: vi.fn().mockReturnValue({ id: 'event' }),
       queueFileForLinkResolution: vi.fn(),
+      unresolvedLinks: {},
       updateRelatedLinks: vi.fn()
     },
     vault: {
@@ -912,6 +918,127 @@ describe('BacklinkCacheComponent', () => {
       expect(internals.resolvedBasenameMap.get('target.md')?.has('note.md')).toBe(false);
       expect(internals.unresolvedBasenameMap.get('ghost')?.has('note.md')).toBe(false);
       expect(internals.unresolvedLinksMap.has('note.md')).toBe(false);
+    });
+  });
+
+  describe('getUnresolvedBacklinks', () => {
+    const existingPaths = new Set<string>();
+
+    function keysOf(dict: CustomArrayDict<Reference>): string[] {
+      return dict.keys();
+    }
+
+    function linksOf(dict: CustomArrayDict<Reference>, sourcePath: string): string[] {
+      return (dict.get(sourcePath) ?? []).map((reference) => reference.link);
+    }
+
+    function refreshNote(notePath: string, links: ReferenceCache[]): void {
+      vi.mocked(getFileOrNull).mockReturnValue(createTFile(notePath));
+      vi.mocked(isCanvasFile).mockReturnValue(false);
+      vi.mocked(context.app.metadataCache.getFileCache).mockReturnValue(strictProxy<CachedMetadata>({ links }));
+      vi.mocked(getReferences).mockReturnValue(links);
+      asInternals(context.component).refreshBacklinks.call(context.component, notePath);
+    }
+
+    beforeEach(() => {
+      existingPaths.clear();
+      // A link resolves while a file at `<link path>.md` exists; a non-existing file is never asked for here.
+      vi.mocked(extractReferenceFile).mockImplementation((params) => {
+        const targetPath = `${splitSubpath(params.reference.link).linkPath.replace(/\.md$/i, '')}.md`;
+        return !params.shouldAllowNonExistingFile && existingPaths.has(targetPath) ? createTFile(targetPath) : null;
+      });
+      asInternals(context.component).isBuilt = true;
+    });
+
+    it('should list the references to a missing name, by source, whatever the casing, subpath or .md', () => {
+      refreshNote('a.md', [createLink('Ghost'), createLink('ghost#Heading'), createLink('Other')]);
+      refreshNote('b.md', [createLink('GHOST.md')]);
+
+      const dict = context.component.getUnresolvedBacklinks('ghost');
+
+      expect(keysOf(dict)).toEqual(['a.md', 'b.md']);
+      expect(linksOf(dict, 'a.md')).toEqual(['Ghost', 'ghost#Heading']);
+      expect(linksOf(dict, 'b.md')).toEqual(['GHOST.md']);
+      expect(keysOf(context.component.getUnresolvedBacklinks('Ghost.md#Plan'))).toEqual(['a.md', 'b.md']);
+    });
+
+    it('should keep a link written with a folder apart from the bare name', () => {
+      refreshNote('a.md', [createLink('Ideas/Ghost'), createLink('Ghost')]);
+
+      expect(linksOf(context.component.getUnresolvedBacklinks('Ideas/Ghost'), 'a.md')).toEqual(['Ideas/Ghost']);
+      expect(linksOf(context.component.getUnresolvedBacklinks('Ghost'), 'a.md')).toEqual(['Ghost']);
+    });
+
+    it('should drop a reference once its target is created, and list it again once the target is gone', () => {
+      refreshNote('a.md', [createLink('Ghost')]);
+
+      existingPaths.add('Ghost.md');
+      expect(keysOf(context.component.getUnresolvedBacklinks('Ghost'))).toEqual([]);
+
+      existingPaths.delete('Ghost.md');
+      expect(keysOf(context.component.getUnresolvedBacklinks('Ghost'))).toEqual(['a.md']);
+    });
+
+    it('should list a link that resolves when the note is read and is unresolved later', () => {
+      existingPaths.add('Target.md');
+      refreshNote('a.md', [createLink('Target')]);
+      expect(keysOf(context.component.getUnresolvedBacklinks('Target'))).toEqual([]);
+
+      // The target is renamed away and the link is left as it was.
+      existingPaths.delete('Target.md');
+      expect(keysOf(context.component.getUnresolvedBacklinks('Target'))).toEqual(['a.md']);
+    });
+
+    it('should follow an edit, a removal and a rename of the source', () => {
+      refreshNote('a.md', [createLink('Ghost')]);
+      refreshNote('a.md', [createLink('Other')]);
+      expect(keysOf(context.component.getUnresolvedBacklinks('Ghost'))).toEqual([]);
+      expect(keysOf(context.component.getUnresolvedBacklinks('Other'))).toEqual(['a.md']);
+
+      // A rename is a remove of the old path and a refresh of the new one.
+      asInternals(context.component).removeLinkedPathEntries.call(context.component, 'a.md');
+      refreshNote('renamed.md', [createLink('Other')]);
+      expect(keysOf(context.component.getUnresolvedBacklinks('Other'))).toEqual(['renamed.md']);
+
+      asInternals(context.component).removeLinkedPathEntries.call(context.component, 'renamed.md');
+      const internals = asInternals(context.component);
+      expect(keysOf(context.component.getUnresolvedBacklinks('Other'))).toEqual([]);
+      expect(internals.linkPathReferencesMap.size).toBe(0);
+      expect(internals.sourceLinkPathKeysMap.size).toBe(0);
+    });
+
+    it('should keep a link path another source still holds when one source is removed', () => {
+      refreshNote('a.md', [createLink('Ghost')]);
+      refreshNote('b.md', [createLink('Ghost')]);
+
+      asInternals(context.component).removeLinkedPathEntries.call(context.component, 'a.md');
+
+      expect(keysOf(context.component.getUnresolvedBacklinks('Ghost'))).toEqual(['b.md']);
+    });
+
+    it('should answer from Obsidian\'s own unresolvedLinks until the walk has filled the index', () => {
+      asInternals(context.component).isBuilt = false;
+      castTo<Record<string, Record<string, number>>>(context.app.metadataCache.unresolvedLinks)['a.md'] = { 'Ghost#Plan': 1, 'Other': 1 };
+      castTo<Record<string, Record<string, number>>>(context.app.metadataCache.unresolvedLinks)['b.md'] = { Other: 1 };
+      castTo<Record<string, Record<string, number>>>(context.app.metadataCache.unresolvedLinks)['c.md'] = { ghost: 1 };
+      const links = [createLink('Ghost#Plan'), createLink('Other')];
+      vi.mocked(context.app.metadataCache.getCache).mockImplementation((path) => path === 'a.md' ? strictProxy<CachedMetadata>({ links }) : null);
+      vi.mocked(getReferences).mockReturnValue(links);
+
+      const dict = context.component.getUnresolvedBacklinks('ghost');
+
+      expect(keysOf(dict)).toEqual(['a.md']);
+      expect(linksOf(dict, 'a.md')).toEqual(['Ghost#Plan']);
+      expect(context.app.metadataCache.getCache).not.toHaveBeenCalledWith('b.md');
+    });
+
+    it('should process the pending actions first in the Safe variant', async () => {
+      refreshNote('a.md', [createLink('Ghost')]);
+      vi.mocked(context.app.metadataCache.getFileCache).mockReturnValue(strictProxy<CachedMetadata>({ links: [] }));
+      vi.mocked(getReferences).mockReturnValue([]);
+      context.component.triggerRefresh('a.md');
+
+      await expect(context.component.getUnresolvedBacklinksSafe('Ghost').then(keysOf)).resolves.toEqual([]);
     });
   });
 

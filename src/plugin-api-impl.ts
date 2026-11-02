@@ -446,6 +446,27 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   }
 
   /**
+   * Finds the links and embeds that point at a name no file answers to, from the `Backlinks` module's cache.
+   *
+   * @param linkPath - The link path, with or without a `#` subpath.
+   * @returns The unresolved references, or `null` while the `Backlinks` module is off.
+   */
+  public getUnresolvedBacklinks(linkPath: string): CustomArrayDict<Reference> | null {
+    return this.getBacklinkCacheComponent()?.getUnresolvedBacklinks(linkPath) ?? null;
+  }
+
+  /**
+   * Finds the links and embeds that point at a name no file answers to, once every change already reported to the
+   * cache has been processed.
+   *
+   * @param linkPath - The link path, with or without a `#` subpath.
+   * @returns The unresolved references, or `null` while the `Backlinks` module is off.
+   */
+  public async getUnresolvedBacklinksSafe(linkPath: string): Promise<CustomArrayDict<Reference> | null> {
+    return await this.getBacklinkCacheComponent()?.getUnresolvedBacklinksSafe(linkPath) ?? null;
+  }
+
+  /**
    * Offers the user title properties another plugin proposes, and adds the ones they approve.
    *
    * @param params - The proposal.

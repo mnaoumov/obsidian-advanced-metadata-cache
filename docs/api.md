@@ -20,6 +20,15 @@ const original = api.getBacklinksForFileOriginal(file);
 
 `getBacklinksForFile` reads straight from the cache and accepts a vault path as well as a `TFile`; it may be a moment behind a change Obsidian has not finished processing. `getBacklinksForFileSafe` waits for those changes first. Both answer **`null` while the Backlinks module is off** — call the core method then. `getBacklinksForFileOriginal` is Obsidian's own implementation, bypassing the cache, and always answers. [02 Fast, safe, and original backlinks](<../demo-vault/02 Fast, safe, and original backlinks.md>) runs all three side by side.
 
+Added in contract `1.12.0`:
+
+```ts
+const unresolved = api.getUnresolvedBacklinks('Ideas/Draft');
+const safeUnresolved = await api.getUnresolvedBacklinksSafe('Ideas/Draft');
+```
+
+`getUnresolvedBacklinks` answers *which notes link to a name no file answers to?*: the backlinks a note would have if it were created. The argument is the link path, the link as written without its `#` subpath, which is the key Obsidian records it under in `app.metadataCache.unresolvedLinks`. It is matched case-insensitively and with a trailing `.md` ignored, so `[[Draft]]`, `[[draft]]` and `[[Draft.md]]` answer together, while `[[Ideas/Draft]]` is a question of its own. The answer has the same shape as `getBacklinksForFile`'s, keyed by the linking note, and lists only the references that do not resolve right now: create the target and they drop out, delete it or rename it away and they come back. The `Safe` variant waits for pending changes first. Both answer **`null` while the Backlinks module is off**. The same demo note asks it about a note the vault does not have.
+
 ## Names
 
 Added in contract `1.3.0`:
