@@ -53,6 +53,19 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         visible: () => this.pluginSettingsComponent.settings.isCodeBlockLinksModuleEnabled
       }),
       this.settingEx({
+        desc: 'Whether to index every external link: each `http` or `https` URL written in a note, bare, in a markdown link or in a property, outside code. Other plugins can then find which notes link to a page or a site, suggest URLs already used, and flag a host that looks like a typo of a common one. Obsidian keeps no record of external links, so every note is read once when this is switched on and when Obsidian starts. When off, nothing is indexed.',
+        name: 'External links module',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            // No `onChanged` refresh: no other row depends on this module.
+            this.bind({
+              propertyName: 'isExternalLinksModuleEnabled',
+              valueComponent: toggle
+            });
+          });
+        }
+      }),
+      this.settingEx({
         desc: 'Whether to record when each heading of a note was created, last modified and last seen on screen, so other plugins can sort headings by those times. Obsidian keeps no such record. It is kept in a file in the plugin folder, never in the note, and only for notes opened, created or changed while this is on. A change made on another device is stamped when it arrives here.',
         name: 'Headings module',
         render: (setting) => {

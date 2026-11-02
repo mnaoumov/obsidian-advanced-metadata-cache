@@ -395,6 +395,37 @@ folder is dropped, and a file renamed TO `.md` is picked up by the `changed` Obs
 persisted. `tags.cross-platform.integration.test.ts` compares every answer with a full scan of the metadata cache after
 an edit, a rename and a delete. Off by default, like the other opt-in modules.
 
+## The `external-links` module: the one index that reads note text, and why the reader is the shared one
+
+Obsidian's metadata cache lists no external link at all: the worker leaves `[x](https://...)` out of `links`, and a
+bare URL is never parsed. So `external-links.ts` reads the TEXT, and is the only definition of what counts: every
+`http(s)://` URL, bare, in a markdown link, in `<...>`, and in the frontmatter (that is how a URL property counts, with a
+position, and `isInFrontmatter` says so), except inside a fenced code block or an inline code span, which it finds
+itself rather than from `sections`, so a cache entry that is behind the text cannot shift what is excluded. A trailing
+sentence mark and an unbalanced `)` are trimmed; balanced parentheses stay (`Foo_(bar)`). Fences inside a list item or
+a quote are not recognized, a stated limit, as is `%%comment%%`, which still counts.
+
+**Normalization is a decision, not a convenience**: `http` and `https` are one, the host is lowered and loses
+`www.` and a trailing dot, user info, the fragment and a trailing `/` of the path go; the port (when not the default), the
+query string and the path's case stay, because a query often names a different page. Only `http` and `https` are indexed.
+Lookups go through the same `parseExternalUrl` / `normalizeHost`, so a caller may pass a URL or a host in any of those
+forms, and a URL without a scheme is read as `https`.
+
+The reads, stat checks, rename moves and deletes are `@mnaoumov/obsidian-lib`'s `IncrementalFileIndexComponent` (the
+`files` child), with `shouldAwaitMetadataChange` for Markdown: a `modify` drops the note's record and the `changed` that
+follows hands over the text, so an edit is never read twice, and between the two the note's links are ABSENT from every
+answer. The test mocks parse BEFORE they fire `modify`, the reverse of Obsidian, so the component test triggers that
+`changed` by hand. `shouldMoveRecordsOnRename` is on because links and their positions depend on the text alone. Its
+`load` is an empty map and its `save` a no-op: nothing is persisted yet, so every switch-on reads every note,
+after `ensureMetadataCacheReady` so it does not compete with Obsidian's own startup parse. Persisting the records to the
+local IndexedDB store, as `unlinked-mentions` does, is the follow-up.
+
+`ExternalLinkIndex` keeps the per-path links and, per normalized URL, the notes and each WRITTEN form's notes, so
+`getExternalLinkUrls` can offer the form most notes write (ties to the first in code-unit order) for an autocomplete.
+Host and subdomain queries walk the distinct hosts, as `TagIndex` walks tags. `getSimilarHosts` is an optimal string
+alignment distance (a swap of neighbors is one edit), capped so a row whose minimum passes the bound stops early. The
+UI (suggester, typo hints, a site-backlinks view) belongs to a consumer plugin, as for every other module. Off by default.
+
 ## Public surface: the core call answers, the API offers everything else
 
 `backlinks` and `names` **replace a core method** — `getBacklinksForFile`, `getLinkSuggestions` — keeping

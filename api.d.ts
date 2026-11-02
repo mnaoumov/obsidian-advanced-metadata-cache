@@ -12,7 +12,7 @@
  *   plugin's own belongs on an Obsidian function, and each has a replacement on the published API below.
  * - **A published API.** {@link AdvancedMetadataCacheApi} is published through the plugin registry
  *   under the plugin id `advanced-metadata-cache` and carries a contract version of its own. It
- *   answers what the `Titles`, `Headings`, `Properties`, `Unlinked mentions`, `Link texts`, `Code block links` and `Tags` modules know, which core has no
+ *   answers what the `Titles`, `Headings`, `Properties`, `Unlinked mentions`, `Link texts`, `Code block links`, `Tags` and `External links` modules know, which core has no
  *   method for, and
  *   since contract `1.3.0` every extra the `Backlinks` and `Names` modules offer beyond the core call.
  *
@@ -31,6 +31,7 @@
  */
 
 import type {
+  Pos,
   Reference,
   ReferenceCache,
   TFile
@@ -192,6 +193,77 @@ export interface AdvancedMetadataCacheApi {
   getNonDateValuesSafe(): Promise<DatedValue[] | null>;
 
   /**
+   * Lists every host the vault links to, for a link autocomplete.
+   *
+   * Answered from the `External links` module's index, which reads every note once, since Obsidian's metadata cache
+   * holds no external link; it is empty until built at startup, so use
+   * {@link AdvancedMetadataCacheApi.getExternalLinkHostsSafe} when you may be asked early.
+   *
+   * Added in contract `1.13.0`.
+   *
+   * @returns The hosts, each normalized (lower case, no `www.`, no port), most linked-to first by number of notes,
+   *   then in code-unit order. `null` while the `External links` module is off.
+   */
+  getExternalLinkHosts(): ExternalHostUsage[] | null;
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getExternalLinkHosts}, waiting for the index to be built first.
+   *
+   * Added in contract `1.13.0`.
+   *
+   * @returns The hosts; `null` while the `External links` module is off.
+   */
+  getExternalLinkHostsSafe(): Promise<ExternalHostUsage[] | null>;
+
+  /**
+   * Reads a note's external links, with their positions: every `http(s)://` URL in its text, bare, in a markdown
+   * link, in `<...>` or in the frontmatter, outside code blocks and inline code. Obsidian's metadata cache lists none
+   * of them.
+   *
+   * Answered from the `External links` module's index; it is empty until built at startup, and a note being parsed
+   * again after an edit has no links in it until Obsidian has parsed it, so use
+   * {@link AdvancedMetadataCacheApi.getExternalLinksSafe} when you may be asked early.
+   *
+   * Added in contract `1.13.0`.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The links in text order; empty for a note with none and for a path no note answers to. `null` while the
+   *   `External links` module is off.
+   */
+  getExternalLinks(pathOrFile: string | TFile): ExternalLink[] | null;
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getExternalLinks}, waiting for the index to be built first.
+   *
+   * Added in contract `1.13.0`.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The links; `null` while the `External links` module is off.
+   */
+  getExternalLinksSafe(pathOrFile: string | TFile): Promise<ExternalLink[] | null>;
+
+  /**
+   * Lists every URL the vault links to, or those on one host, for a link autocomplete.
+   *
+   * Added in contract `1.13.0`.
+   *
+   * @param host - The host whose URLs to list, matched exactly once normalized; omitted, every host.
+   * @returns The URLs, most linked-to first by number of notes, then in code-unit order of the normalized URL. `null`
+   *   while the `External links` module is off.
+   */
+  getExternalLinkUrls(host?: string): ExternalUrlUsage[] | null;
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getExternalLinkUrls}, waiting for the index to be built first.
+   *
+   * Added in contract `1.13.0`.
+   *
+   * @param host - The host whose URLs to list; omitted, every host.
+   * @returns The URLs; `null` while the `External links` module is off.
+   */
+  getExternalLinkUrlsSafe(host?: string): Promise<ExternalUrlUsage[] | null>;
+
+  /**
    * Reads when each of a note's headings was created, last modified and last seen.
    *
    * Obsidian keeps no per-heading metadata, so the `Headings` module keeps it: it compares each parse of
@@ -344,6 +416,58 @@ export interface AdvancedMetadataCacheApi {
   getPathsByPropertyValueSafe(propertyName: string, value: string): Promise<null | string[]>;
 
   /**
+   * Finds every note linking to a host: the "backlinks" of a site.
+   *
+   * Answered from the `External links` module's index, as {@link AdvancedMetadataCacheApi.getExternalLinks} is; use
+   * {@link AdvancedMetadataCacheApi.getPathsLinkingToHostSafe} when you may be asked early. Read each note's
+   * {@link AdvancedMetadataCacheApi.getExternalLinks} for the positions.
+   *
+   * Added in contract `1.13.0`.
+   *
+   * @param host - The host, in any casing, with or without `www.`, a scheme, a port or a path.
+   * @param options - Whether the links to a subdomain (`gist.github.com` for `github.com`) count.
+   * @returns The vault-relative paths, each once, in code-unit order; empty for a host no note links to. `null`
+   *   while the `External links` module is off.
+   */
+  getPathsLinkingToHost(host: string, options?: HostQueryOptions): null | string[];
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getPathsLinkingToHost}, waiting for the index to be built first.
+   *
+   * Added in contract `1.13.0`.
+   *
+   * @param host - The host.
+   * @param options - Whether the links to a subdomain count.
+   * @returns The vault-relative paths; `null` while the `External links` module is off.
+   */
+  getPathsLinkingToHostSafe(host: string, options?: HostQueryOptions): Promise<null | string[]>;
+
+  /**
+   * Finds every note linking to a URL.
+   *
+   * The URL is normalized the index's way: `http` and `https` are one, the host is lowered and loses `www.`, the
+   * fragment and a trailing `/` of the path are dropped, the query string is kept. So `http://www.Example.com/a/#top`
+   * finds the notes linking to `https://example.com/a`. A URL without a scheme is read as `https`.
+   *
+   * Added in contract `1.13.0`.
+   *
+   * @param url - The URL.
+   * @returns The vault-relative paths, each once, in code-unit order; empty for a URL no note links to. `null` while
+   *   the `External links` module is off.
+   */
+  getPathsLinkingToUrl(url: string): null | string[];
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getPathsLinkingToUrl}, waiting for the index to be built first.
+   *
+   * Added in contract `1.13.0`.
+   *
+   * @param url - The URL.
+   * @returns The vault-relative paths; `null` while the `External links` module is off.
+   */
+  getPathsLinkingToUrlSafe(url: string): Promise<null | string[]>;
+
+  /**
    * Finds every note carrying a frontmatter property at all, whatever its value — `null` and an empty list
    * included.
    *
@@ -402,6 +526,33 @@ export interface AdvancedMetadataCacheApi {
    * @returns The vault-relative paths; `null` while the `Tags` module is off.
    */
   getPathsWithTagSafe(tag: string, options?: TagQueryOptions): Promise<null | string[]>;
+
+  /**
+   * Finds the hosts the vault links to that are a few edits away from one, which is what a typo looks like: flag
+   * `githb.com` when `github.com` is near it and linked to by many notes.
+   *
+   * Edits are insertions, deletions, substitutions and swaps of two neighboring characters, so `gihtub.com` is one
+   * edit from `github.com`.
+   *
+   * Added in contract `1.13.0`.
+   *
+   * @param host - The host, in any casing, with or without `www.`, a scheme, a port or a path.
+   * @param maxDistance - The most edits that still count as similar; `2` when omitted.
+   * @returns The hosts other than this one, nearest first, then most linked-to, then in code-unit order. `null` while
+   *   the `External links` module is off.
+   */
+  getSimilarHosts(host: string, maxDistance?: number): null | SimilarHost[];
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getSimilarHosts}, waiting for the index to be built first.
+   *
+   * Added in contract `1.13.0`.
+   *
+   * @param host - The host.
+   * @param maxDistance - The most edits that still count as similar.
+   * @returns The hosts; `null` while the `External links` module is off.
+   */
+  getSimilarHostsSafe(host: string, maxDistance?: number): Promise<null | SimilarHost[]>;
 
   /**
    * The frontmatter properties whose values currently count as a note's title.
@@ -757,6 +908,77 @@ export interface DatedValuesQuery {
 }
 
 /**
+ * One host the vault links to, as {@link AdvancedMetadataCacheApi.getExternalLinkHosts} lists it.
+ */
+export interface ExternalHostUsage {
+  /**
+   * The host, normalized: lower case, no `www.`, no port.
+   */
+  readonly host: string;
+
+  /**
+   * How many notes link to it.
+   */
+  readonly noteCount: number;
+}
+
+/**
+ * One external link in a note, as {@link AdvancedMetadataCacheApi.getExternalLinks} reports it.
+ */
+export interface ExternalLink {
+  /**
+   * The URL's host, normalized: lower case, no `www.`, no port.
+   */
+  readonly host: string;
+
+  /**
+   * Whether it is written in the note's frontmatter, i.e. in a property.
+   */
+  readonly isInFrontmatter: boolean;
+
+  /**
+   * The URL, normalized: the host, the port when it is not the default, the path without a trailing `/`, and the
+   * query string; no scheme, no `www.`, no fragment. Two links to the same page compare equal here.
+   */
+  readonly normalizedUrl: string;
+
+  /**
+   * Where the URL is written in the note's text.
+   */
+  readonly position: Pos;
+
+  /**
+   * The URL as written, without the punctuation that ends a sentence around it.
+   */
+  readonly url: string;
+}
+
+/**
+ * One URL the vault links to, as {@link AdvancedMetadataCacheApi.getExternalLinkUrls} lists it.
+ */
+export interface ExternalUrlUsage {
+  /**
+   * Its host, normalized.
+   */
+  readonly host: string;
+
+  /**
+   * The URL, normalized as {@link ExternalLink.normalizedUrl} is.
+   */
+  readonly normalizedUrl: string;
+
+  /**
+   * How many notes link to it.
+   */
+  readonly noteCount: number;
+
+  /**
+   * The URL as most notes write it, the first in code-unit order on a tie: what an autocomplete should insert.
+   */
+  readonly url: string;
+}
+
+/**
  * One heading's times, as {@link AdvancedMetadataCacheApi.getHeadingTimes} reports them. Every time is a
  * Unix epoch in milliseconds.
  */
@@ -795,6 +1017,17 @@ export interface HeadingTimes {
    * been. Reading view is not measured.
    */
   readonly seen: null | number;
+}
+
+/**
+ * What {@link AdvancedMetadataCacheApi.getPathsLinkingToHost} asks for, beyond the host itself.
+ */
+export interface HostQueryOptions {
+  /**
+   * Whether a link to a subdomain (`gist.github.com`) answers for its parent host (`github.com`). Defaults to
+   * `false`: the host exactly.
+   */
+  readonly shouldIncludeSubdomains?: boolean | undefined;
 }
 
 /**
@@ -848,6 +1081,26 @@ export interface MigrateSettingsResult {
    * proposing plugin must NOT record the migration as done.
    */
   readonly isApplied: boolean;
+}
+
+/**
+ * One host near another, as {@link AdvancedMetadataCacheApi.getSimilarHosts} reports it.
+ */
+export interface SimilarHost {
+  /**
+   * How many edits away it is from the host asked about.
+   */
+  readonly distance: number;
+
+  /**
+   * The host, normalized.
+   */
+  readonly host: string;
+
+  /**
+   * How many notes link to it.
+   */
+  readonly noteCount: number;
 }
 
 /**

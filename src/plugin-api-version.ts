@@ -25,6 +25,8 @@
  * `registerCodeBlockLanguage`, `getCodeBlockReferences` and its `Safe` variant, as additively: the `Code block links`
  * module, which counts the links written inside code blocks of the registered languages. `1.11.0` adds
  * `getPathsWithTag` and its `Safe` variant, as additively: the `Tags` module's answer to which notes carry a tag. `1.12.0` adds `getUnresolvedBacklinks` and its `Safe` variant, as additively: the
- * `Backlinks` module's answer to which notes link to a name no file answers to.
+ * `Backlinks` module's answer to which notes link to a name no file answers to. `1.13.0` adds `getExternalLinks`,
+ * `getPathsLinkingToUrl`, `getPathsLinkingToHost`, `getExternalLinkHosts`, `getExternalLinkUrls` and `getSimilarHosts`, each with
+ * its `Safe` variant, as additively: the `External links` module's answer to which notes link to a URL or a site.
  */
-export const PLUGIN_API_VERSION = '1.12.0';
+export const PLUGIN_API_VERSION = '1.13.0';

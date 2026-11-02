@@ -13,6 +13,7 @@ import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-
 import { BacklinksModuleComponent } from './modules/backlinks/backlinks-module-component.ts';
 import { CodeBlockLanguages } from './modules/code-block-links/code-block-languages.ts';
 import { CodeBlockLinksComponent } from './modules/code-block-links/code-block-links-component.ts';
+import { ExternalLinkIndexComponent } from './modules/external-links/external-link-index-component.ts';
 import { HeadingTimesComponent } from './modules/headings/heading-times-component.ts';
 import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import { LinkTextIndexComponent } from './modules/link-texts/link-text-index-component.ts';
@@ -169,6 +170,11 @@ export class Plugin extends PluginBase {
           createComponent: (): TagIndexComponent => new TagIndexComponent({ app: this.app }),
           getIsEnabled: (settings): boolean => settings.isTagsModuleEnabled,
           moduleId: 'tags'
+        },
+        {
+          createComponent: (): ExternalLinkIndexComponent => new ExternalLinkIndexComponent({ app: this.app }),
+          getIsEnabled: (settings): boolean => settings.isExternalLinksModuleEnabled,
+          moduleId: 'external-links'
         }
       ],
       pluginSettingsComponent
@@ -184,6 +190,10 @@ export class Plugin extends PluginBase {
       getCodeBlockLinksComponent: (): CodeBlockLinksComponent | null => {
         const moduleComponent = modulesComponent.getModuleComponent('code-block-links');
         return moduleComponent instanceof CodeBlockLinksComponent ? moduleComponent : null;
+      },
+      getExternalLinkIndexComponent: (): ExternalLinkIndexComponent | null => {
+        const moduleComponent = modulesComponent.getModuleComponent('external-links');
+        return moduleComponent instanceof ExternalLinkIndexComponent ? moduleComponent : null;
       },
       getLinkTextIndexComponent: (): LinkTextIndexComponent | null => {
         const moduleComponent = modulesComponent.getModuleComponent('link-texts');

@@ -26,6 +26,7 @@ import {
 
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
 import type { CodeBlockLinksComponent } from './modules/code-block-links/code-block-links-component.ts';
+import type { ExternalLinkIndexComponent } from './modules/external-links/external-link-index-component.ts';
 import type { LinkTextIndexComponent } from './modules/link-texts/link-text-index-component.ts';
 import type { NameIndexComponent } from './modules/names/name-index-component.ts';
 import type { NameIndex } from './modules/names/name-index.ts';
@@ -42,6 +43,8 @@ import type {
 } from './settings-migration-modal.ts';
 
 import { CodeBlockLanguages } from './modules/code-block-links/code-block-languages.ts';
+import { ExternalLinkIndex } from './modules/external-links/external-link-index.ts';
+import { findExternalLinks } from './modules/external-links/external-links.ts';
 import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
 import { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
 import { PropertyValueIndex } from './modules/properties/property-value-index.ts';
@@ -82,6 +85,7 @@ describe('PluginApiImpl', () => {
   let linkTextIndexComponent: LinkTextIndexComponent | null;
   let nameIndexComponent: NameIndexComponent | null;
   let pluginApi: PluginApiImpl;
+  let externalLinkIndexComponent: ExternalLinkIndexComponent | null;
   let propertyValueIndex: PropertyValueIndex;
   let propertyValueIndexComponent: null | PropertyValueIndexComponent;
   let settings: PluginSettings;
@@ -102,6 +106,7 @@ describe('PluginApiImpl', () => {
     nameIndexComponent = null;
     propertyValueIndexComponent = null;
     tagIndexComponent = null;
+    externalLinkIndexComponent = null;
     unlinkedMentionsComponent = null;
 
     const pluginSettingsComponent = strictProxy<PluginSettingsComponent>({
@@ -134,6 +139,7 @@ describe('PluginApiImpl', () => {
       codeBlockLanguages,
       getBacklinkCacheComponent: (): BacklinkCacheComponent | null => backlinkCacheComponent,
       getCodeBlockLinksComponent: (): CodeBlockLinksComponent | null => codeBlockLinksComponent,
+      getExternalLinkIndexComponent: (): ExternalLinkIndexComponent | null => externalLinkIndexComponent,
       getLinkTextIndexComponent: (): LinkTextIndexComponent | null => linkTextIndexComponent,
       getNameIndexComponent: (): NameIndexComponent | null => nameIndexComponent,
       getPropertyValueIndexComponent: (): null | PropertyValueIndexComponent => propertyValueIndexComponent,
@@ -161,6 +167,48 @@ describe('PluginApiImpl', () => {
     for (const methodName of Object.keys(PLUGIN_API_CONTRACT)) {
       expect(pluginApi).toHaveProperty(methodName, expect.any(Function));
     }
+  });
+
+  describe('external links', () => {
+    it('should answer null while the module is off', async () => {
+      expect(pluginApi.getExternalLinks('Alpha.md')).toBeNull();
+      expect(await pluginApi.getExternalLinksSafe('Alpha.md')).toBeNull();
+      expect(pluginApi.getExternalLinkHosts()).toBeNull();
+      expect(await pluginApi.getExternalLinkHostsSafe()).toBeNull();
+      expect(pluginApi.getExternalLinkUrls()).toBeNull();
+      expect(await pluginApi.getExternalLinkUrlsSafe('a.com')).toBeNull();
+      expect(pluginApi.getPathsLinkingToHost('a.com')).toBeNull();
+      expect(await pluginApi.getPathsLinkingToHostSafe('a.com')).toBeNull();
+      expect(pluginApi.getPathsLinkingToUrl('a.com')).toBeNull();
+      expect(await pluginApi.getPathsLinkingToUrlSafe('a.com')).toBeNull();
+      expect(pluginApi.getSimilarHosts('a.com')).toBeNull();
+      expect(await pluginApi.getSimilarHostsSafe('a.com')).toBeNull();
+    });
+
+    it('should answer from the module\'s index, waiting for its build in the Safe variants', async () => {
+      const externalLinkIndex = new ExternalLinkIndex();
+      externalLinkIndex.setPath('Alpha.md', findExternalLinks('See https://github.com/a and https://gist.github.com/b'));
+      externalLinkIndex.setPath('Bravo.md', findExternalLinks('Typo https://githb.com/a'));
+      const waitForBuild = vi.fn().mockResolvedValue(undefined);
+      externalLinkIndexComponent = strictProxy<ExternalLinkIndexComponent>({ externalLinkIndex, waitForBuild });
+
+      expect(pluginApi.getExternalLinks('Alpha.md')?.map((link) => link.url)).toEqual(['https://github.com/a', 'https://gist.github.com/b']);
+      const bravoLinks = await pluginApi.getExternalLinksSafe('Bravo.md');
+      expect(bravoLinks?.map((link) => link.host)).toEqual(['githb.com']);
+      expect(pluginApi.getExternalLinkHosts()?.map((usage) => usage.host)).toEqual(['gist.github.com', 'githb.com', 'github.com']);
+      const hosts = await pluginApi.getExternalLinkHostsSafe();
+      expect(hosts).toHaveLength(3);
+      expect(pluginApi.getExternalLinkUrls('github.com')?.map((usage) => usage.url)).toEqual(['https://github.com/a']);
+      const urls = await pluginApi.getExternalLinkUrlsSafe();
+      expect(urls).toHaveLength(3);
+      expect(pluginApi.getPathsLinkingToHost('GitHub.com')).toEqual(['Alpha.md']);
+      expect(await pluginApi.getPathsLinkingToHostSafe('githb.com', { shouldIncludeSubdomains: true })).toEqual(['Bravo.md']);
+      expect(pluginApi.getPathsLinkingToUrl('https://www.github.com/a/')).toEqual(['Alpha.md']);
+      expect(await pluginApi.getPathsLinkingToUrlSafe('https://githb.com/a')).toEqual(['Bravo.md']);
+      expect(pluginApi.getSimilarHosts('githb.com')?.map((similarHost) => similarHost.host)).toEqual(['github.com']);
+      expect(await pluginApi.getSimilarHostsSafe('github.com', 1)).toEqual([{ distance: 1, host: 'githb.com', noteCount: 1 }]);
+      expect(waitForBuild).toHaveBeenCalledTimes(6);
+    });
   });
 
   describe('tags', () => {
