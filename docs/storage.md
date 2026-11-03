@@ -1,6 +1,8 @@
 # Storage and sync
 
-The unlinked-mention and property-value caches live in **IndexedDB on each device, outside the vault**. Databases are scoped by Obsidian's local vault identity and this plugin's id. Copying a vault does not copy these caches. Each checkpoint commits changed records and removals together; it does not rewrite a JSON cache file in the vault. The existing startup validation and `Safe` API readiness guarantees still apply.
+The unlinked-mention, property-value and external-link caches live in **IndexedDB on each device, outside the vault**. Databases are scoped by Obsidian's local vault identity and this plugin's id. Copying a vault does not copy these caches. Each checkpoint commits changed records and removals together; it does not rewrite a JSON cache file in the vault. The existing startup validation and `Safe` API readiness guarantees still apply.
+
+External-link records include each link's position and the note's observed modification time and size. On restart or switch-on, unchanged notes reuse those records; changed notes and missing or invalid records are read again. Notes with no links have records too. A same-size rewrite that preserves the modification time cannot be detected by this stat comparison. Clearing the local cache is safe: the next build reads the notes again.
 
 **Heading history and registered property names are authoritative state.** They sync as ordinary Markdown files under `Plugin data/advanced-metadata-cache/`. Obsidian Sync and folder-based sync tools can carry them. Each device owns its own journal files, and records are periodically compacted into bounded snapshots. Files stay below the shared store's 1,000,000-byte default limit. Account storage limits still apply.
 

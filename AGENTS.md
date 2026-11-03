@@ -416,9 +416,22 @@ The reads, stat checks, rename moves and deletes are `@mnaoumov/obsidian-lib`'s 
 follows hands over the text, so an edit is never read twice, and between the two the note's links are ABSENT from every
 answer. The test mocks parse BEFORE they fire `modify`, the reverse of Obsidian, so the component test triggers that
 `changed` by hand. `shouldMoveRecordsOnRename` is on because links and their positions depend on the text alone. Its
-`load` is an empty map and its `save` a no-op: nothing is persisted yet, so every switch-on reads every note,
-after `ensureMetadataCacheReady` so it does not compete with Obsidian's own startup parse. Persisting the records to the
-local IndexedDB store, as `unlinked-mentions` does, is the follow-up.
+`load` restores versioned per-note records from device-local IndexedDB through `PluginIndexStorage` / `LocalIndexStorage`.
+Each record holds the links, their positions, and the `mtime` / `size` observed by the reader. Matching stats reuse the
+record; a changed, missing or malformed record makes the reader scan that note again, after `ensureMetadataCacheReady`
+so it does not compete with Obsidian's own startup parse. Empty link lists are saved too. The reader saves on its
+non-resetting 5 s debounce and on unload, only after reconciliation completes; cleanup awaits its flush before closing
+the store. `EXTERNAL_LINKS_VERSION` controls both the schema and the `external-links-cache-v1` store identity: bump it
+whenever extraction or normalization changes. No external-link cache is synced or written into the vault.
+
+`external-links-build.real-vault.integration.test.ts` compares a cold build with reopening the local checkpoint in a
+new module lifetime. One desktop run on 2026-11-03, Obsidian 1.15.0, visible window, one-processor bulk budget under
+concurrent machine load: 34,587 indexed notes, 52,072 links. Every note was read once before timing, so these are
+OS-cache-warm costs: cold build 103.0 s (34,587 note reads), checkpoint flush 12.8 s, restore 7.7 s (ZERO note reads),
+with all 52,072 links preserved. Restore was about 13.4 times faster, so the checkpoint is retained. These are one-run
+desktop measurements under that budget, not cold-disk or Android numbers. The copied corpus also contained this
+plugin's generated transport notes, which the index and the benchmark both exclude. Run just this comparison with
+`AMC_REAL_VAULT_PATH` set and `npx vitest run src/modules/external-links/external-links-build.real-vault.integration.test.ts --project integration-tests:real-vault --maxWorkers 1`.
 
 `ExternalLinkIndex` keeps the per-path links and, per normalized URL, the notes and each WRITTEN form's notes, so
 `getExternalLinkUrls` can offer the form most notes write (ties to the first in code-unit order) for an autocomplete.
@@ -534,7 +547,7 @@ two patches was installed first.
 
 ## Persistence boundaries
 
-`src/persistence/` separates derived caches from authoritative state. `LocalIndexStorage` stores property/path and unlinked-mention/note records in vault-scoped IndexedDB, committing only changed records and removals. `PluginIndexStorage` serializes lazy opening, migration, writes and closing. Async completions check the owning lifetime, so unloading cannot reopen a store or repopulate a cleared index. Legacy JSON files are removed only after durable replacement and a local migration marker; malformed sources stay intact. File-backed interchange storage remains an injectable test boundary; the plugin always supplies `PluginIndexStorage`.
+`src/persistence/` separates derived caches from authoritative state. `LocalIndexStorage` stores property/path, unlinked-mention/note and external-link/note records in vault-scoped IndexedDB, committing only changed records and removals. `PluginIndexStorage` serializes lazy opening, migration, writes and closing. Async completions check the owning lifetime, so unloading cannot reopen a store or repopulate a cleared index. Legacy JSON files are removed only after durable replacement and a local migration marker; malformed sources stay intact. File-backed interchange storage remains an injectable test boundary; the plugin always supplies `PluginIndexStorage`.
 
 Heading snapshots use one shared register per writer/path. `mergeHeadingNotes` uses the existing matcher, minimum created and maximum modified/seen; `SharedHeadingStorage` uses explicit create/delete incarnation boundaries. Never infer a deletion from omission in a stale snapshot, or from a missing file at startup: sync can deliver journals before notes. Missing notes retain dormant history, resumed on a later create. Legacy observations occupy separate epoch-zero records, so they cannot overwrite live observations or resurrect a deleted incarnation. Rename explicitly retires the source and carries its history to the destination. Lifecycle ordering inherits wall-clock skew, and edits made while tracking is off retain the matcher's original uncertainty.
 

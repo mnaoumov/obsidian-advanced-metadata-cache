@@ -6,6 +6,7 @@ import { noopAsync } from '@mnaoumov/typescript-lib/function';
 
 import type { IndexStorage } from './index-storage.ts';
 
+import { EXTERNAL_LINKS_VERSION } from '../modules/external-links/persisted-external-links.ts';
 import { parsePersistedHeadingTimes } from '../modules/headings/heading-times-index.ts';
 import { parsePersistedUnlinkedMentions } from '../modules/unlinked-mentions/persisted-unlinked-mentions.ts';
 import { LocalIndexStorage } from './local-index-storage.ts';
@@ -20,8 +21,8 @@ interface OpenStorage {
 
 interface PluginIndexStorageConstructorParams {
   readonly app: App;
-  readonly getLegacyPath: () => string;
-  readonly kind: 'headings' | 'mentions' | 'properties';
+  readonly getLegacyPath?: () => string;
+  readonly kind: 'external-links' | 'headings' | 'mentions' | 'properties';
   readonly pluginId: string;
 }
 
@@ -131,6 +132,11 @@ export class PluginIndexStorage implements IndexStorage {
     try {
       let storage: IndexStorage;
       let shared: null | SharedDataStore = null;
+      if (kind === 'external-links') {
+        storage = new LocalIndexStorage({ kind, local: await openLocal(`external-links-cache-v${String(EXTERNAL_LINKS_VERSION)}`) });
+        this.opened = { connections, shared, storage };
+        return this.opened;
+      }
       if (kind === 'headings') {
         const local = await openLocal('heading-observations-v1');
         shared = await SharedDataStore.open({ adapter: app.vault.adapter, kind: 'last-write-wins', local, pluginId, storeId: 'heading-observations-v1' });
@@ -149,8 +155,8 @@ export class PluginIndexStorage implements IndexStorage {
         }
       }
       const existing = await storage.read();
-      const path = this.params.getLegacyPath();
-      if (await app.vault.adapter.exists(path)) {
+      const path = this.params.getLegacyPath?.();
+      if (path && await app.vault.adapter.exists(path)) {
         const json = await app.vault.adapter.read(path);
         if (!checkLegacyIndex(kind, json)) {
           throw new Error(`Cannot migrate invalid index: ${path}. The original file has been preserved.`);
