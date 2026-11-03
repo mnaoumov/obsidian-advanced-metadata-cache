@@ -1,34 +1,39 @@
+import type { IndexedFileRecord } from '@mnaoumov/obsidian-lib/components/incremental-file-index-component';
 import type { App } from 'obsidian';
 
 import { IncrementalFileIndexComponent } from '@mnaoumov/obsidian-lib/components/incremental-file-index-component';
 import { LayoutReadyComponent } from '@mnaoumov/obsidian-lib/components/layout-ready-component';
 import { ensureMetadataCacheReady } from '@mnaoumov/obsidian-lib/metadata-cache';
-import {
-  noop,
-  noopAsync
-} from '@mnaoumov/typescript-lib/function';
+import { invokeAsyncSafely } from '@mnaoumov/typescript-lib/async';
+import { noop } from '@mnaoumov/typescript-lib/function';
 
+import type { IndexStorage } from '../../persistence/index-storage.ts';
 import type { ExternalLink } from '../../plugin-api.ts';
 
 import { isPluginDataPath } from '../../persistence/storage-paths.ts';
 import { ExternalLinkIndex } from './external-link-index.ts';
 import { findExternalLinks } from './external-links.ts';
+import {
+  parsePersistedExternalLinks,
+  stringifyPersistedExternalLinks
+} from './persisted-external-links.ts';
 
 interface ExternalLinkIndexComponentConstructorParams {
   readonly app: App;
+  readonly storage?: IndexStorage;
 }
 
 /**
  * The `External links` module: keeps an {@link ExternalLinkIndex} current for as long as it is on.
  *
- * Obsidian's metadata cache holds no external link, so every note is READ once, after the cache is ready, and then
+ * Obsidian's metadata cache holds no external link, so each note without a reusable record is read after the cache is ready, and then
  * followed through the text `changed` hands over after Obsidian parses it again; a note is never read twice for one
  * edit. The reads, the rename moves and the deletes are `@mnaoumov/obsidian-lib`'s `IncrementalFileIndexComponent`, the
  * `files` child. Between a note's `modify` and its `changed` its links are absent, as the child drops a record it
  * knows to be stale.
  *
- * The index is the component's own, as `TagIndex` is: nothing subscribes to it. Nothing is persisted yet, so each
- * switch-on reads every note.
+ * The index is the component's own, as `TagIndex` is: nothing subscribes to it. The reader restores valid records
+ * with matching stats from device-local storage, and saves completed checkpoints on its debounce and unload.
  */
 export class ExternalLinkIndexComponent extends LayoutReadyComponent {
   public readonly externalLinkIndex = new ExternalLinkIndex();
@@ -57,20 +62,29 @@ export class ExternalLinkIndexComponent extends LayoutReadyComponent {
       accepts: (file): boolean => file.extension === 'md' && !isPluginDataPath(file.path),
       app: this.app,
       indexFile: ({ content }): readonly ExternalLink[] => findExternalLinks(content),
-      load: async (): Promise<ReadonlyMap<string, never>> => {
-        await noopAsync();
-        return new Map();
-      },
+      load: async (): Promise<ReadonlyMap<string, IndexedFileRecord<readonly ExternalLink[]>>> => parsePersistedExternalLinks(await params.storage?.read() ?? null),
       onRemove: (path): void => {
         this.externalLinkIndex.deletePath(path);
       },
       onSet: (path, links): void => {
         this.externalLinkIndex.setPath(path, links);
       },
-      save: noopAsync,
+      save: async (records): Promise<void> => {
+        await params.storage?.write(stringifyPersistedExternalLinks(records));
+      },
       shouldAwaitMetadataChange: (file): boolean => file.extension === 'md',
       // Links and their positions depend on the text alone.
       shouldMoveRecordsOnRename: true
+    });
+    // Children flush before registered cleanup runs; wait for that flush before closing the connection.
+    this.register(() => {
+      invokeAsyncSafely(async () => {
+        try {
+          await this.files.flush();
+        } finally {
+          await params.storage?.close?.();
+        }
+      });
     });
   }
 

@@ -119,6 +119,8 @@ export const config = defineObsidianPluginVitestConfig({
           environmentOptions: {
             obsidianTransport: {
               commandTimeoutInMilliseconds: REAL_VAULT_COMMAND_TIMEOUT_IN_MILLISECONDS,
+              // Startup timing requires a visible window so Chromium does not throttle link resolution.
+              isObsidianAppVisible: true,
               type: 'obsidian-cdp'
             }
           },

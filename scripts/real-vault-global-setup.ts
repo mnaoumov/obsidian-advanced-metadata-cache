@@ -29,23 +29,44 @@ async function populate(): Promise<PopulateFilesParams> {
   }
 
   const files: PopulateFilesParams = {};
-  const entries = await readdir(sourcePath, { recursive: true, withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith('.md')) {
+  const folders = [sourcePath];
+  let count = 0;
+  let nextProgressCount = PROGRESS_NOTE_COUNT;
+  console.warn('[real vault] Reading visible Markdown notes, excluding hidden directories before traversal');
+  while (folders.length > 0) {
+    const folder = folders.pop();
+    if (folder === undefined) {
+      break;
+    }
+    const entries = await readdir(folder, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) {
+        continue;
+      }
+      const fullPath = join(folder, entry.name);
+      if (entry.isDirectory()) {
+        folders.push(fullPath);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.endsWith('.md')) {
+        continue;
+      }
+      const path = relative(sourcePath, fullPath).replaceAll('\\', '/');
+      files[path] = await readFile(fullPath, 'utf-8');
+      count++;
+    }
+    if (!(count >= nextProgressCount)) {
       continue;
     }
 
-    const fullPath = join(entry.parentPath, entry.name);
-    const path = relative(sourcePath, fullPath).replaceAll('\\', '/');
-    if (path.split('/').some((segment) => segment.startsWith('.'))) {
-      continue;
-    }
-
-    files[path] = await readFile(fullPath, 'utf-8');
+    console.warn(`[real vault] Read ${String(count)} notes`);
+    nextProgressCount += PROGRESS_NOTE_COUNT;
   }
-
+  console.warn(`[real vault] Prepared ${String(count)} notes for the temporary vault`);
   return files;
 }
+
+const PROGRESS_NOTE_COUNT = 5000;
 
 const { setup, teardown } = createSetup({ populate });
 

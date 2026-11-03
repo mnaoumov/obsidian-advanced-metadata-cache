@@ -6,12 +6,16 @@ import type { SavedNoteMentions } from '../modules/unlinked-mentions/persisted-u
 import type { IndexStorage } from './index-storage.ts';
 
 import {
+  EXTERNAL_LINKS_VERSION,
+  parsePersistedExternalLinks
+} from '../modules/external-links/persisted-external-links.ts';
+import {
   parsePersistedUnlinkedMentions,
   stringifyPersistedUnlinkedMentions
 } from '../modules/unlinked-mentions/persisted-unlinked-mentions.ts';
 
 interface LocalIndexStorageConstructorParams {
-  readonly kind: 'mentions' | 'properties';
+  readonly kind: 'external-links' | 'mentions' | 'properties';
   readonly local: LocalDataStore;
 }
 
@@ -39,8 +43,12 @@ export class LocalIndexStorage implements IndexStorage {
     await this.queue;
     const entries = await this.params.local.entries();
     this.checkpoint = new Map(entries.map(([key, value]) => [key, JSON.stringify(value) ?? 'null']));
-    if (!this.checkpoint.has('version')) {
+    const version = this.checkpoint.get('version');
+    if (version === undefined) {
       return null;
+    }
+    if (this.params.kind === 'external-links') {
+      return JSON.stringify({ notes: Object.fromEntries(entries.filter(([key]) => key.startsWith('note:')).map(([key, value]) => [key.slice('note:'.length), value])), version: JSON.parse(version) });
     }
     if (this.params.kind === 'mentions') {
       const notes = entries.flatMap(([key, value]) => key.startsWith('note:') ? [[key.slice('note:'.length), value]] : []);
@@ -78,6 +86,13 @@ export class LocalIndexStorage implements IndexStorage {
 
   private encode(json: string): Map<string, string> {
     const entries = new Map<string, string>([['version', '1']]);
+    if (this.params.kind === 'external-links') {
+      entries.set('version', JSON.stringify(EXTERNAL_LINKS_VERSION));
+      for (const [path, note] of parsePersistedExternalLinks(json)) {
+        entries.set(`note:${path}`, JSON.stringify(note));
+      }
+      return entries;
+    }
     if (this.params.kind === 'mentions') {
       const saved = parsePersistedUnlinkedMentions(json);
       if (!saved) {
