@@ -11,6 +11,9 @@
  * Normalized, `http` and `https` are one, the host is lowered and loses `www.`, the user info and the fragment are
  * dropped, and so is a trailing `/` of the path. The port and the query string are kept, since a query often names a
  * different page (`watch?v=`), and so is the path's case.
+ *
+ * These projections are persisted. Bump `EXTERNAL_LINKS_VERSION` in `persisted-external-links.ts` whenever extraction
+ * or normalization changes, so records saved under the previous rules are rebuilt.
  */
 
 import type { Loc } from 'obsidian';

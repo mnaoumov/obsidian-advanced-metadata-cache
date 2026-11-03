@@ -25,7 +25,7 @@ const storages: PluginIndexStorage[] = [];
 interface CreateStorageParams {
   readonly device: string;
   readonly files: Map<string, string>;
-  readonly kind: 'headings' | 'mentions' | 'properties';
+  readonly kind: 'external-links' | 'headings' | 'mentions' | 'properties';
 }
 
 function createAdapter(files: Map<string, string>): DataAdapter {
@@ -70,6 +70,24 @@ function headingDocument(created: number, modified: number, seen: null | number)
 }
 
 describe('PluginIndexStorage', () => {
+  it('should open a local cache without requiring a legacy file migration', async () => {
+    const storage = new PluginIndexStorage({ app: strictProxy<App>({ appId: 'alpha' }), kind: 'mentions', pluginId: 'test' });
+    storages.push(storage);
+    expect(await storage.read()).toBeNull();
+  });
+  it('should restore external-link records from local IndexedDB without creating vault files', async () => {
+    const files = new Map<string, string>();
+    const storage = createStorage({ device: 'alpha', files, kind: 'external-links' });
+    expect(await storage.read()).toBeNull();
+    const json = JSON.stringify({ notes: { 'Alpha.md': { mtime: 1, record: [], size: 0 } }, version: 1 });
+    await storage.write(json);
+    await storage.close();
+    const restored = createStorage({ device: 'alpha', files, kind: 'external-links' });
+    expect(JSON.parse(await restored.read() ?? 'null')).toEqual(JSON.parse(json));
+    expect(files.size).toBe(0);
+    const otherVault = createStorage({ device: 'bravo', files, kind: 'external-links' });
+    expect(await otherVault.read()).toBeNull();
+  });
   beforeEach(() => {
     vi.stubGlobal('indexedDB', new IDBFactory());
     vi.stubGlobal('crypto', webcrypto);

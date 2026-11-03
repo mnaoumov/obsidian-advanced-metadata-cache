@@ -12,6 +12,27 @@ import {
 import { LocalIndexStorage } from './local-index-storage.ts';
 
 describe('LocalIndexStorage', () => {
+  it('should commit only changed external-link notes and preserve the stored schema version on read', async () => {
+    const records = new Map<string>();
+    const commit = vi.fn<LocalDataStore['commit']>(({ entries, removedKeys }) => {
+      for (const key of removedKeys ?? []) {
+        records.delete(key);
+      }
+      for (const [key, value] of entries) {
+        records.set(key, value);
+      }
+      return noopAsync();
+    });
+    const storage = new LocalIndexStorage({ kind: 'external-links', local: strictProxy<LocalDataStore>({ commit, entries: () => Promise.resolve([...records]) }) });
+    await storage.write(JSON.stringify({ notes: { 'Alpha.md': { mtime: 1, record: [], size: 0 }, 'Bravo.md': { mtime: 1, record: [], size: 0 } }, version: 1 }));
+    commit.mockClear();
+    await storage.write(JSON.stringify({ notes: { 'Alpha.md': { mtime: 2, record: [], size: 0 } }, version: 1 }));
+    expect(commit.mock.calls[0]?.[0].entries).toEqual([['note:Alpha.md', { mtime: 2, record: [], size: 0 }]]);
+    expect(commit.mock.calls[0]?.[0].removedKeys).toEqual(['note:Bravo.md']);
+    expect(JSON.parse(await storage.read() ?? 'null')).toEqual({ notes: { 'Alpha.md': { mtime: 2, record: [], size: 0 } }, version: 1 });
+    records.set('version', 2);
+    expect(JSON.parse(await storage.read() ?? 'null')).toMatchObject({ version: 2 });
+  });
   it('should tolerate an empty checkpoint with no clean-key list and unrelated undefined records', async () => {
     const local = strictProxy<LocalDataStore>({ entries: () => Promise.resolve([['version', 1], ['unrelated', undefined]]) });
     const storage = new LocalIndexStorage({ kind: 'mentions', local });

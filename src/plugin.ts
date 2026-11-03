@@ -175,7 +175,11 @@ export class Plugin extends PluginBase {
           moduleId: 'tags'
         },
         {
-          createComponent: (): ExternalLinkIndexComponent => new ExternalLinkIndexComponent({ app: this.app }),
+          createComponent: (): ExternalLinkIndexComponent =>
+            new ExternalLinkIndexComponent({
+              app: this.app,
+              storage: new PluginIndexStorage({ app: this.app, kind: 'external-links', pluginId: this.manifest.id })
+            }),
           getIsEnabled: (settings): boolean => settings.isExternalLinksModuleEnabled,
           moduleId: 'external-links'
         },
