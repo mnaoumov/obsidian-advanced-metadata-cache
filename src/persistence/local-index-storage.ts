@@ -10,12 +10,16 @@ import {
   parsePersistedExternalLinks
 } from '../modules/external-links/persisted-external-links.ts';
 import {
+  HTML_VERSION,
+  parsePersistedHtmlRanges
+} from '../modules/html/persisted-html.ts';
+import {
   parsePersistedUnlinkedMentions,
   stringifyPersistedUnlinkedMentions
 } from '../modules/unlinked-mentions/persisted-unlinked-mentions.ts';
 
 interface LocalIndexStorageConstructorParams {
-  readonly kind: 'external-links' | 'mentions' | 'properties';
+  readonly kind: 'external-links' | 'html' | 'mentions' | 'properties';
   readonly local: LocalDataStore;
 }
 
@@ -47,7 +51,7 @@ export class LocalIndexStorage implements IndexStorage {
     if (version === undefined) {
       return null;
     }
-    if (this.params.kind === 'external-links') {
+    if (this.params.kind === 'external-links' || this.params.kind === 'html') {
       return JSON.stringify({ notes: Object.fromEntries(entries.filter(([key]) => key.startsWith('note:')).map(([key, value]) => [key.slice('note:'.length), value])), version: JSON.parse(version) });
     }
     if (this.params.kind === 'mentions') {
@@ -86,9 +90,9 @@ export class LocalIndexStorage implements IndexStorage {
 
   private encode(json: string): Map<string, string> {
     const entries = new Map<string, string>([['version', '1']]);
-    if (this.params.kind === 'external-links') {
-      entries.set('version', JSON.stringify(EXTERNAL_LINKS_VERSION));
-      for (const [path, note] of parsePersistedExternalLinks(json)) {
+    if (this.params.kind === 'external-links' || this.params.kind === 'html') {
+      entries.set('version', JSON.stringify(this.params.kind === 'html' ? HTML_VERSION : EXTERNAL_LINKS_VERSION));
+      for (const [path, note] of (this.params.kind === 'html' ? parsePersistedHtmlRanges(json) : parsePersistedExternalLinks(json))) {
         entries.set(`note:${path}`, JSON.stringify(note));
       }
       return entries;

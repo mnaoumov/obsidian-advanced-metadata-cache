@@ -62,6 +62,8 @@ import type {
   ExternalUrlUsage,
   HeadingTimes,
   HostQueryOptions,
+  HtmlDiagnostic,
+  HtmlRange,
   LinkSuggestion,
   LinkText,
   LinkTextsChangedCallback,
@@ -151,6 +153,21 @@ const isExternalLink = objectTypeGuard<ExternalLink>({
   }),
   url: isString
 });
+
+const isHtmlRange = objectTypeGuard<HtmlRange>({
+  html: isString,
+  isClosing: isBoolean,
+  kind: (value): value is HtmlRange['kind'] => value === 'tag' || value === 'block',
+  namespace: (value): value is HtmlRange['namespace'] => isString(value) && ['html', 'mathml', 'svg'].includes(value),
+  position: objectTypeGuard<Pos>({ end: isLoc, start: isLoc }),
+  tagName: nullableTypeGuard(isString)
+});
+const isHtmlDiagnostic = objectTypeGuard<HtmlDiagnostic>({
+  kind: (value): value is HtmlDiagnostic['kind'] => value === 'unknown' || value === 'sanitized',
+  range: isHtmlRange
+});
+const HTML_RANGES_GUARD = createExpectedTypeGuard('HTML ranges', arrayTypeGuard(isHtmlRange));
+const HTML_DIAGNOSTICS_GUARD = createExpectedTypeGuard('HTML diagnostics', arrayTypeGuard(isHtmlDiagnostic));
 
 const isExternalUrlUsage = objectTypeGuard<ExternalUrlUsage>({
   host: isString,
@@ -304,6 +321,22 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
   getHeadingTimes: {
     input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
     output: createTypeGuardSchema(createExpectedTypeGuard('an array of heading times', arrayTypeGuard(isHeadingTimes)))
+  },
+  getHtmlDiagnostics: {
+    input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(HTML_DIAGNOSTICS_GUARD))
+  },
+  getHtmlDiagnosticsSafe: {
+    input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(HTML_DIAGNOSTICS_GUARD))
+  },
+  getHtmlRanges: {
+    input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(HTML_RANGES_GUARD))
+  },
+  getHtmlRangesSafe: {
+    input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(HTML_RANGES_GUARD))
   },
   getLinkSuggestions: {
     input: createArgumentsSchema([]),

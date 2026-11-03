@@ -23,6 +23,7 @@ import type { CodeBlockLanguages } from './modules/code-block-links/code-block-l
 import type { CodeBlockLinksComponent } from './modules/code-block-links/code-block-links-component.ts';
 import type { ExternalLinkIndexComponent } from './modules/external-links/external-link-index-component.ts';
 import type { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
+import type { HtmlIndexComponent } from './modules/html/html-index-component.ts';
 import type { LinkTextIndexComponent } from './modules/link-texts/link-text-index-component.ts';
 import type { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
 import type { NameIndexComponent } from './modules/names/name-index-component.ts';
@@ -44,6 +45,8 @@ import type {
   ExternalUrlUsage,
   HeadingTimes,
   HostQueryOptions,
+  HtmlDiagnostic,
+  HtmlRange,
   LinkText,
   LinkTextsChangedCallback,
   MetadataParser,
@@ -80,6 +83,7 @@ interface PluginApiImplConstructorParams {
    * same reason.
    */
   readonly getExternalLinkIndexComponent: () => ExternalLinkIndexComponent | null;
+  readonly getHtmlIndexComponent: () => HtmlIndexComponent | null;
   /**
    * Finds the `Link texts` module's component, or `null` while the module is off. Asked per call, for the same
    * reason.
@@ -132,6 +136,7 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   private readonly getBacklinkCacheComponent: () => BacklinkCacheComponent | null;
   private readonly getCodeBlockLinksComponent: () => CodeBlockLinksComponent | null;
   private readonly getExternalLinkIndexComponent: () => ExternalLinkIndexComponent | null;
+  private readonly getHtmlIndexComponent: () => HtmlIndexComponent | null;
   private readonly getLinkTextIndexComponent: () => LinkTextIndexComponent | null;
   private readonly getNameIndexComponent: () => NameIndexComponent | null;
   private readonly getPropertyValueIndexComponent: () => null | PropertyValueIndexComponent;
@@ -158,6 +163,7 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
     this.getBacklinkCacheComponent = params.getBacklinkCacheComponent;
     this.getCodeBlockLinksComponent = params.getCodeBlockLinksComponent;
     this.getExternalLinkIndexComponent = params.getExternalLinkIndexComponent;
+    this.getHtmlIndexComponent = params.getHtmlIndexComponent;
     this.getLinkTextIndexComponent = params.getLinkTextIndexComponent;
     this.getNameIndexComponent = params.getNameIndexComponent;
     this.getPropertyValueIndexComponent = params.getPropertyValueIndexComponent;
@@ -314,6 +320,44 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
     const file = getFileOrNull({ app: this.app, pathOrFile });
 
     return file ? this.headingTimesIndex.getHeadingTimes(file) : [];
+  }
+
+  /**
+   * Shares runtime fragment validation across consumers.
+   * @param pathOrFile - A note or its path.
+   * @returns Findings, or `null` when unknown.
+   */
+  public getHtmlDiagnostics(pathOrFile: string | TFile): HtmlDiagnostic[] | null {
+    return this.getHtmlIndexComponent()?.getDiagnostics(getPath(this.app, pathOrFile)) ?? null;
+  }
+
+  /**
+   * Waits for HTML startup reconciliation before validation.
+   * @param pathOrFile - A note or its path.
+   * @returns Findings, or `null` when unknown.
+   */
+  public async getHtmlDiagnosticsSafe(pathOrFile: string | TFile): Promise<HtmlDiagnostic[] | null> {
+    await this.getHtmlIndexComponent()?.waitForBuild();
+    return this.getHtmlDiagnostics(pathOrFile);
+  }
+
+  /**
+   * Reads indexed HTML candidates without reading a note.
+   * @param pathOrFile - A note or its path.
+   * @returns Detached ranges, or `null` when unknown.
+   */
+  public getHtmlRanges(pathOrFile: string | TFile): HtmlRange[] | null {
+    return this.getHtmlIndexComponent()?.getRanges(getPath(this.app, pathOrFile)) ?? null;
+  }
+
+  /**
+   * Waits for HTML startup reconciliation.
+   * @param pathOrFile - A note or its path.
+   * @returns Detached ranges, or `null` when unknown.
+   */
+  public async getHtmlRangesSafe(pathOrFile: string | TFile): Promise<HtmlRange[] | null> {
+    await this.getHtmlIndexComponent()?.waitForBuild();
+    return this.getHtmlRanges(pathOrFile);
   }
 
   /**

@@ -8,6 +8,10 @@ Beside it, [api-contract.ts](../api-contract.ts) holds the published API's contr
 
 The contract version moves independently of the plugin's own, so ask for a range, and ask for the lowest version that has every member you call. Each section below says which version it arrived in.
 
+## HTML candidates and diagnostics
+
+Contract `1.15.0` adds the opt-in HTML index: `getHtmlRanges` and `getHtmlDiagnostics`, each with a `Safe` variant. It shares incremental, persisted source ranges and current-runtime sanitizer checks. See [HTML range index](./html.md) for return values, exact positions, namespace policy, costs and coverage limits.
+
 ## Non-Markdown metadata
 
 Added in contract `1.14.0`:

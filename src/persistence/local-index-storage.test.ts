@@ -12,6 +12,28 @@ import {
 import { LocalIndexStorage } from './local-index-storage.ts';
 
 describe('LocalIndexStorage', () => {
+  it('commits HTML deltas and removes deleted notes without rewriting unchanged ranges', async () => {
+    const records = new Map<string>();
+    const commit = vi.fn<LocalDataStore['commit']>(({ entries, removedKeys }) => {
+      for (const key of removedKeys ?? []) {
+        records.delete(key);
+      }
+      for (const [key, value] of entries) {
+        records.set(key, value);
+      }
+      return noopAsync();
+    });
+    const storage = new LocalIndexStorage({ kind: 'html', local: strictProxy<LocalDataStore>({ commit, entries: () => Promise.resolve([...records]) }) });
+    const json = JSON.stringify({ notes: { 'Alpha.md': { mtime: 1, record: [], size: 0 }, 'Bravo.md': { mtime: 1, record: [], size: 0 } }, version: 1 });
+    await storage.write(json);
+    commit.mockClear();
+    await storage.write(json);
+    expect(commit.mock.calls[0]?.[0]).toEqual({ entries: [], removedKeys: [] });
+    const next = { notes: { 'Alpha.md': { mtime: 2, record: [], size: 0 } }, version: 1 };
+    await storage.write(JSON.stringify(next));
+    expect(commit.mock.calls[1]?.[0]).toEqual({ entries: [['note:Alpha.md', { mtime: 2, record: [], size: 0 }]], removedKeys: ['note:Bravo.md'] });
+    expect(JSON.parse(await storage.read() ?? 'null')).toEqual(next);
+  });
   it('should commit only changed external-link notes and preserve the stored schema version on read', async () => {
     const records = new Map<string>();
     const commit = vi.fn<LocalDataStore['commit']>(({ entries, removedKeys }) => {

@@ -109,6 +109,15 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
     const similarHostQuery: PayloadCases = { invalid: [[], [1], ['a.com', '2'], ['a.com', 2, 'extra']], valid: [['a.com'], ['a.com', 1], ['a.com', undefined]] };
     const url: PayloadCases = { invalid: [[], [1], ['https://a.com', 'extra']], valid: [['https://a.com/x']] };
 
+    const HTML_RANGE = { html: '<span>', isClosing: false, kind: 'tag', namespace: 'html', position: LINK_POSITION, tagName: 'span' };
+    const nullableHtmlRanges: PayloadCases = {
+      invalid: [undefined, [null], [{ ...HTML_RANGE, kind: 'other' }], [{ ...HTML_RANGE, namespace: 'other' }], [{ ...HTML_RANGE, namespace: 1 }], [{ ...HTML_RANGE, html: 1 }]],
+      valid: [null, [], [HTML_RANGE], [{ ...HTML_RANGE, kind: 'block', tagName: null }]]
+    };
+    const nullableHtmlDiagnostics: PayloadCases = {
+      invalid: [undefined, [{ kind: 'other', range: HTML_RANGE }], [{ kind: 'unknown', range: null }]],
+      valid: [null, [], [{ kind: 'unknown', range: HTML_RANGE }], [{ kind: 'sanitized', range: HTML_RANGE }]]
+    };
     return {
       getBacklinksForFile: { input: pathOrFile, output: nullableBacklinks },
       getBacklinksForFileOriginal: {
@@ -133,6 +142,10 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
           valid: [[], [HEADING_TIMES]]
         }
       },
+      getHtmlDiagnostics: { input: pathOrFile, output: nullableHtmlDiagnostics },
+      getHtmlDiagnosticsSafe: { input: pathOrFile, output: nullableHtmlDiagnostics },
+      getHtmlRanges: { input: pathOrFile, output: nullableHtmlRanges },
+      getHtmlRangesSafe: { input: pathOrFile, output: nullableHtmlRanges },
       getLinkSuggestions: { input: noArguments, output: nullableSuggestions },
       getLinkSuggestionsOriginal: { input: noArguments, output: { invalid: [null], valid: [[{ file: null, path: 'a' }]] } },
       getLinkSuggestionsSafe: { input: noArguments, output: nullableSuggestions },

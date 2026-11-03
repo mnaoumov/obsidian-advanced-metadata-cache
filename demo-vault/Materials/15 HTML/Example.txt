@@ -1,0 +1,7 @@
+# HTML examples
+
+Text <span title="alpha">bravo</span> and <nonExistingTag>charlie</nonExistingTag>.
+
+<script>alert('example');</script>
+
+This is literal code: `<nonExistingTag>`.
