@@ -40,11 +40,13 @@ export interface SwitchablePluginSettings {
   isLinkTextsModuleEnabled: boolean;
   // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Integration tests toggle this module through the settings object.
   isNamesModuleEnabled: boolean;
+  readonly isNonMarkdownModuleEnabled: boolean;
   readonly isPropertiesModuleEnabled: boolean;
   readonly isTagsModuleEnabled: boolean;
   readonly isTitlesModuleEnabled: boolean;
   // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Integration tests toggle this module through the settings object.
   isUnlinkedMentionsModuleEnabled: boolean;
+  readonly markdownFileExtensions: string[];
   readonly shouldOfferTitlesInLinkSuggestions: boolean;
   readonly titleNamePatterns: string[][];
   readonly titlePropertyNames: string[];

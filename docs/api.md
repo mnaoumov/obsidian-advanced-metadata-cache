@@ -8,6 +8,23 @@ Beside it, [api-contract.ts](../api-contract.ts) holds the published API's contr
 
 The contract version moves independently of the plugin's own, so ask for a range, and ask for the lowest version that has every member you call. Each section below says which version it arrived in.
 
+## Non-Markdown metadata
+
+Added in contract `1.14.0`:
+
+```ts
+const unregister = api.registerMetadataParser('txt');
+this.register(unregister);
+```
+
+Omit the parser to use Obsidian's Markdown worker. A custom `MetadataParser` receives `{ file, content }` and returns `CachedMetadata | null`, synchronously or asynchronously. `content` is the unchanged original file text. Return `null` to decline that file. Extensions are exact and case-insensitive, with an optional leading dot; `md`, `canvas` and `base` are reserved. The most recent registration for an extension wins; removing it restores the previous registration, or the user's extension setting. Unregister is idempotent. Registrations are memory-only and survive the module being toggled, so register on load and unregister on unload.
+
+The **Non-Markdown** module is on by default and supplies entries through core's `getCache` / `getFileCache` and metadata enumerators. Core backlink lookup, graph link resolution and Bases property reads therefore see the same metadata. No synthetic hash or metadata is persisted in core. Existing non-empty metadata from another owner wins. Processing waits for core startup, runs serially, and discards results superseded by edits, renames, registration changes or unload.
+
+**A parser must return references in original-file coordinates.** Core's rename updater may write through those positions; transformed-document offsets would corrupt the source. Frontmatter link keys must describe actual Markdown frontmatter that core can rewrite. Do not invent editable frontmatter links for properties extracted from JSON or another representation. A parser for such a format should return only references core can safely rewrite; its own plugin remains responsible for format-specific property editing. Registering a parser does not register a view or change `getMarkdownFiles()`, and consumers that explicitly filter for Markdown remain Markdown-only.
+
+[14 Non-Markdown](<../demo-vault/14 Non-Markdown.md>) demonstrates extension settings and explains the separate native canvas path.
+
 ## Backlinks
 
 Added in contract `1.3.0`:

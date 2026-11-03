@@ -41,6 +41,8 @@ Open **Settings -> Community plugins -> `Advanced Metadata Cache`** to configure
 
 There is also a command, **`Advanced Metadata Cache`: Refresh backlink panels**, that rebuilds the visible Backlinks panes on demand.
 
+The **Non-Markdown module** (`isNonMarkdownModuleEnabled`, on by default) exposes metadata for additional file types. **Markdown file extensions** (`markdownFileExtensions`, empty by default) selects the extensions parsed as Markdown; other plugins can register custom parsers. See [14 Non-Markdown](<./14 Non-Markdown.md>) for a working screenplay example.
+
 ## See the difference
 
 Automatic refreshing is **off** by default, so the manual command is the behavior most readers actually have. Put a Backlinks pane on screen first, then edit a link in one of the [Topics](<./Topics/Central topic.md>) notes and watch what the pane does:

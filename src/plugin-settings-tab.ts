@@ -254,6 +254,31 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
           });
         },
         visible: () => this.pluginSettingsComponent.settings.isBacklinksModuleEnabled
+      }),
+      this.settingEx({
+        desc: 'Whether configured file types and parsers registered by other plugins supply properties, headings, tags and links to Obsidian. Nothing is read until an extension or parser is added. Canvas links already use Obsidian’s own index.',
+        name: 'Non-Markdown module',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            this.bind({
+              onChanged: () => {
+                this.refresh();
+              },
+              propertyName: 'isNonMarkdownModuleEnabled',
+              valueComponent: toggle
+            });
+          });
+        }
+      }),
+      this.settingEx({
+        desc: 'File extensions whose content uses Markdown syntax, one per line, for example mdx, fountain or txt. Exact, case-insensitive; a leading dot is optional. This indexes Markdown syntax only and does not change how files open. Native md, canvas and base files keep their own parsers.',
+        name: 'Markdown file extensions',
+        render: (setting) => {
+          setting.addMultipleText((multipleText) => {
+            this.bind({ propertyName: 'markdownFileExtensions', valueComponent: multipleText });
+          });
+        },
+        visible: () => this.pluginSettingsComponent.settings.isNonMarkdownModuleEnabled
       })
     ];
   }

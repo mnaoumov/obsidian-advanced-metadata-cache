@@ -56,6 +56,11 @@ export class PluginSettings {
   public isNamesModuleEnabled = false;
 
   /**
+  Supplies non-native metadata only when extensions are configured or a plugin registers a parser.
+  */
+  public isNonMarkdownModuleEnabled = true;
+
+  /**
    * ON by default, unlike every other module added after the one this plugin was created for, because it
    * costs nothing until another plugin registers a property for it to index — and off, every such plugin
    * would first have to ask its user to come here and switch it on.
@@ -77,6 +82,11 @@ export class PluginSettings {
    * it starts, which a user who never opens the `Unlinked mentions` section should not pay for.
    */
   public isUnlinkedMentionsModuleEnabled = false;
+
+  /**
+  Exact non-native extensions parsed as Markdown; empty until the user chooses them.
+  */
+  public markdownFileExtensions: string[] = [];
 
   public shouldAutomaticallyRefreshBacklinkPanels = false;
 

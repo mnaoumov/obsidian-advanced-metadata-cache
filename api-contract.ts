@@ -65,6 +65,7 @@ import type {
   LinkSuggestion,
   LinkText,
   LinkTextsChangedCallback,
+  MetadataParser,
   MigrateSettingsParams,
   MigrateSettingsResult,
   SimilarHost,
@@ -227,6 +228,7 @@ const EXTERNAL_URL_USAGE_ARRAY_GUARD = createExpectedTypeGuard('an array of exte
 const HOST_GUARD = createExpectedTypeGuard('a host', isString);
 const HOST_QUERY_OPTIONS_GUARD = optionalGuard(createExpectedTypeGuard('host query options', isHostQueryOptions));
 const MAX_DISTANCE_GUARD = optionalGuard(createExpectedTypeGuard('a maximum distance', isNumber));
+const METADATA_PARSER_GUARD = optionalGuard(createExpectedTypeGuard('a metadata parser', functionTypeGuard<MetadataParser>()));
 const OPTIONAL_HOST_GUARD = optionalGuard(HOST_GUARD);
 const LINK_SUGGESTION_ARRAY_GUARD = createExpectedTypeGuard('an array of link suggestions', arrayTypeGuard(isLinkSuggestion));
 const LINK_PATH_GUARD = createExpectedTypeGuard('a link path', isString);
@@ -417,6 +419,13 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
   },
   registerCodeBlockLanguage: {
     input: createArgumentsSchema([createExpectedTypeGuard('a code block language', isString)]),
+    output: createTypeGuardSchema(createExpectedTypeGuard('an unregister function', functionTypeGuard<() => void>()))
+  },
+  registerMetadataParser: {
+    input: createArgumentsSchema([
+      createExpectedTypeGuard('a file extension', isString),
+      METADATA_PARSER_GUARD
+    ]),
     output: createTypeGuardSchema(createExpectedTypeGuard('an unregister function', functionTypeGuard<() => void>()))
   },
   registerPropertyName: {

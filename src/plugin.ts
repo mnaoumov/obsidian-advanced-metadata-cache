@@ -20,6 +20,8 @@ import { LinkTextIndexComponent } from './modules/link-texts/link-text-index-com
 import { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
 import { ModulesComponent } from './modules/modules-component.ts';
 import { NameIndexComponent } from './modules/names/name-index-component.ts';
+import { MetadataParsers } from './modules/non-markdown/metadata-parsers.ts';
+import { NonMarkdownComponent } from './modules/non-markdown/non-markdown-component.ts';
 import { PropertyValueIndexComponent } from './modules/properties/property-value-index-component.ts';
 import { PropertyValueIndex } from './modules/properties/property-value-index.ts';
 import { TagIndexComponent } from './modules/tags/tag-index-component.ts';
@@ -104,6 +106,7 @@ export class Plugin extends PluginBase {
     const linkTextIndex = new LinkTextIndex();
     // Owned here too: a plugin registers its languages once, for its whole life.
     const codeBlockLanguages = new CodeBlockLanguages();
+    const metadataParsers = new MetadataParsers();
     const modulesComponent = new ModulesComponent({
       moduleDefinitions: [
         {
@@ -179,6 +182,11 @@ export class Plugin extends PluginBase {
             }),
           getIsEnabled: (settings): boolean => settings.isExternalLinksModuleEnabled,
           moduleId: 'external-links'
+        },
+        {
+          createComponent: (): NonMarkdownComponent => new NonMarkdownComponent({ app: this.app, metadataParsers, pluginSettingsComponent }),
+          getIsEnabled: (settings): boolean => settings.isNonMarkdownModuleEnabled,
+          moduleId: 'non-markdown'
         }
       ],
       pluginSettingsComponent
@@ -221,6 +229,7 @@ export class Plugin extends PluginBase {
       },
       headingTimesIndex,
       linkTextIndex,
+      metadataParsers,
       pluginSettingsComponent,
       propertyValueIndex,
       titleIndex
