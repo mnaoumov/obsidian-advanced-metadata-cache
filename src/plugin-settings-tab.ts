@@ -66,6 +66,15 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         }
       }),
       this.settingEx({
+        desc: 'Whether to keep HTML source ranges for other plugins to check unknown tags and markup removed by Obsidian. Reads each note once, reuses a local checkpoint at startup, then follows edits. When off, HTML lookups are unavailable.',
+        name: 'HTML module',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            this.bind({ propertyName: 'isHtmlModuleEnabled', valueComponent: toggle });
+          });
+        }
+      }),
+      this.settingEx({
         desc: 'Whether to record when each heading of a note was created, last modified and last seen on screen, so other plugins can sort headings by those times. Obsidian keeps no such record. It is kept in a file in the plugin folder, never in the note, and only for notes opened, created or changed while this is on. A change made on another device is stamped when it arrives here.',
         name: 'Headings module',
         render: (setting) => {

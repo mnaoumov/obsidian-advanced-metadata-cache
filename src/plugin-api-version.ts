@@ -28,6 +28,7 @@
  * `Backlinks` module's answer to which notes link to a name no file answers to. `1.13.0` adds `getExternalLinks`,
  * `getPathsLinkingToUrl`, `getPathsLinkingToHost`, `getExternalLinkHosts`, `getExternalLinkUrls` and `getSimilarHosts`, each with
  * its `Safe` variant, as additively: the `External links` module's answer to which notes link to a URL or a site.
+ * `1.15.0` adds shared HTML ranges and fragment diagnostics, with Safe variants.
  * `1.14.0` adds `registerMetadataParser`, supplying core metadata for non-native file extensions.
  */
-export const PLUGIN_API_VERSION = '1.14.0';
+export const PLUGIN_API_VERSION = '1.15.0';

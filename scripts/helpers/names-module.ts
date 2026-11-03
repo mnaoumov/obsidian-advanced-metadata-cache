@@ -36,6 +36,7 @@ export interface SwitchablePluginSettings {
   readonly isCodeBlockLinksModuleEnabled: boolean;
   readonly isExternalLinksModuleEnabled: boolean;
   readonly isHeadingsModuleEnabled: boolean;
+  readonly isHtmlModuleEnabled: boolean;
   // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Integration tests toggle this module through the settings object.
   isLinkTextsModuleEnabled: boolean;
   // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Integration tests toggle this module through the settings object.

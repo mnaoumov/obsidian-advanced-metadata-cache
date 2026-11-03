@@ -8,6 +8,7 @@ import type { IndexStorage } from './index-storage.ts';
 
 import { EXTERNAL_LINKS_VERSION } from '../modules/external-links/persisted-external-links.ts';
 import { parsePersistedHeadingTimes } from '../modules/headings/heading-times-index.ts';
+import { HTML_VERSION } from '../modules/html/persisted-html.ts';
 import { parsePersistedUnlinkedMentions } from '../modules/unlinked-mentions/persisted-unlinked-mentions.ts';
 import { LocalIndexStorage } from './local-index-storage.ts';
 import { SharedHeadingStorage } from './shared-heading-storage.ts';
@@ -22,7 +23,7 @@ interface OpenStorage {
 interface PluginIndexStorageConstructorParams {
   readonly app: App;
   readonly getLegacyPath?: () => string;
-  readonly kind: 'external-links' | 'headings' | 'mentions' | 'properties';
+  readonly kind: 'external-links' | 'headings' | 'html' | 'mentions' | 'properties';
   readonly pluginId: string;
 }
 
@@ -132,6 +133,11 @@ export class PluginIndexStorage implements IndexStorage {
     try {
       let storage: IndexStorage;
       let shared: null | SharedDataStore = null;
+      if (kind === 'html') {
+        storage = new LocalIndexStorage({ kind, local: await openLocal(`html-cache-v${String(HTML_VERSION)}`) });
+        this.opened = { connections, shared, storage };
+        return this.opened;
+      }
       if (kind === 'external-links') {
         storage = new LocalIndexStorage({ kind, local: await openLocal(`external-links-cache-v${String(EXTERNAL_LINKS_VERSION)}`) });
         this.opened = { connections, shared, storage };

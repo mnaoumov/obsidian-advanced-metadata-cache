@@ -24,6 +24,8 @@ export type {
   ExternalUrlUsage,
   HeadingTimes,
   HostQueryOptions,
+  HtmlDiagnostic,
+  HtmlRange,
   LinkText,
   LinkTextsChangedCallback,
   MetadataParser,

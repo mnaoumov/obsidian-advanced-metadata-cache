@@ -403,7 +403,7 @@ folder is dropped, and a file renamed TO `.md` is picked up by the `changed` Obs
 persisted. `tags.cross-platform.integration.test.ts` compares every answer with a full scan of the metadata cache after
 an edit, a rename and a delete. Off by default, like the other opt-in modules.
 
-## The `external-links` module: the one index that reads note text, and why the reader is the shared one
+## The `external-links` module: text extraction through the shared reader
 
 Obsidian's metadata cache lists no external link at all: the worker leaves `[x](https://...)` out of `links`, and a
 bare URL is never parsed. So `external-links.ts` reads the TEXT, and is the only definition of what counts: every
@@ -446,6 +446,14 @@ plugin's generated transport notes, which the index and the benchmark both exclu
 Host and subdomain queries walk the distinct hosts, as `TagIndex` walks tags. `getSimilarHosts` is an optimal string
 alignment distance (a swap of neighbors is one edit), capped so a row whose minimum passes the bound stops early. The
 UI (suggester, typo hints, a site-backlinks view) belongs to a consumer plugin, as for every other module. Off by default.
+
+## The `html` module: shared candidates and runtime fragment validation
+
+`HtmlIndexComponent` reuses the core `sections` cache and the library's `IncrementalFileIndexComponent` to scan missing or changed Markdown notes once for both diagnostic consumers. `html-ranges.ts` owns lexical candidates and original UTF-16 offsets; it never invokes a Markdown parser. Cached HTML blocks and their tag candidates are distinct overlapping range kinds. Missing, pending and not-built records answer `null`, completed empty records `[]`, and query results are detached.
+
+`persisted-html.ts` validates per-note records; `HTML_VERSION` also names `html-cache-v1`, so extraction changes bump it. Stat-matching records restore without reading notes. The local storage writes only changed records and removals. The opt-in component owns readers, listeners, the checkpoint and `HtmlValidation`; unload clears candidates and flushes before closing storage.
+
+`HtmlValidation` compares original inert-template elements to Obsidian's own `sanitizeHTMLToDom` output, ignoring attributes the sanitizer only adds. A weak memo keyed by each immutable indexed record keeps repeated vault sweeps from revalidating unchanged notes; fragment checks are additionally shared by API version, namespace and fragment within a bounded module lifetime. Returned diagnostics and positions are detached. Unknown native HTML and removed/changed markup are separate findings. Custom names with a hyphen are not unknown solely by registration state; SVG/MathML and table/select elements receive parsing context. No validation result is persisted. Inline candidates and fragment context have explicit limits in `docs/html.md`; never advertise full inline Markdown parity or turn a candidate into an automatic destructive fix. The cross-platform oracle pins cached block positions, code exclusions and runtime sanitizer decisions.
 
 ## Public surface: the core call answers, the API offers everything else
 
@@ -555,7 +563,7 @@ two patches was installed first.
 
 ## Persistence boundaries
 
-`src/persistence/` separates derived caches from authoritative state. `LocalIndexStorage` stores property/path, unlinked-mention/note and external-link/note records in vault-scoped IndexedDB, committing only changed records and removals. `PluginIndexStorage` serializes lazy opening, migration, writes and closing. Async completions check the owning lifetime, so unloading cannot reopen a store or repopulate a cleared index. Legacy JSON files are removed only after durable replacement and a local migration marker; malformed sources stay intact. File-backed interchange storage remains an injectable test boundary; the plugin always supplies `PluginIndexStorage`.
+`src/persistence/` separates derived caches from authoritative state. `LocalIndexStorage` stores property/path, unlinked-mention/note, external-link/note and HTML-range/note records in vault-scoped IndexedDB, committing only changed records and removals. `PluginIndexStorage` serializes lazy opening, migration, writes and closing. Async completions check the owning lifetime, so unloading cannot reopen a store or repopulate a cleared index. Legacy JSON files are removed only after durable replacement and a local migration marker; malformed sources stay intact. File-backed interchange storage remains an injectable test boundary; the plugin always supplies `PluginIndexStorage`.
 
 Heading snapshots use one shared register per writer/path. `mergeHeadingNotes` uses the existing matcher, minimum created and maximum modified/seen; `SharedHeadingStorage` uses explicit create/delete incarnation boundaries. Never infer a deletion from omission in a stale snapshot, or from a missing file at startup: sync can deliver journals before notes. Missing notes retain dormant history, resumed on a later create. Legacy observations occupy separate epoch-zero records, so they cannot overwrite live observations or resurrect a deleted incarnation. Rename explicitly retires the source and carries its history to the destination. Lifecycle ordering inherits wall-clock skew, and edits made while tracking is off retain the matcher's original uncertainty.
 

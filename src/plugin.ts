@@ -16,6 +16,7 @@ import { CodeBlockLinksComponent } from './modules/code-block-links/code-block-l
 import { ExternalLinkIndexComponent } from './modules/external-links/external-link-index-component.ts';
 import { HeadingTimesComponent } from './modules/headings/heading-times-component.ts';
 import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
+import { HtmlIndexComponent } from './modules/html/html-index-component.ts';
 import { LinkTextIndexComponent } from './modules/link-texts/link-text-index-component.ts';
 import { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
 import { ModulesComponent } from './modules/modules-component.ts';
@@ -184,6 +185,15 @@ export class Plugin extends PluginBase {
           moduleId: 'external-links'
         },
         {
+          createComponent: (): HtmlIndexComponent =>
+            new HtmlIndexComponent({
+              app: this.app,
+              storage: new PluginIndexStorage({ app: this.app, kind: 'html', pluginId: this.manifest.id })
+            }),
+          getIsEnabled: (settings): boolean => settings.isHtmlModuleEnabled,
+          moduleId: 'html'
+        },
+        {
           createComponent: (): NonMarkdownComponent => new NonMarkdownComponent({ app: this.app, metadataParsers, pluginSettingsComponent }),
           getIsEnabled: (settings): boolean => settings.isNonMarkdownModuleEnabled,
           moduleId: 'non-markdown'
@@ -206,6 +216,10 @@ export class Plugin extends PluginBase {
       getExternalLinkIndexComponent: (): ExternalLinkIndexComponent | null => {
         const moduleComponent = modulesComponent.getModuleComponent('external-links');
         return moduleComponent instanceof ExternalLinkIndexComponent ? moduleComponent : null;
+      },
+      getHtmlIndexComponent: (): HtmlIndexComponent | null => {
+        const component = modulesComponent.getModuleComponent('html');
+        return component instanceof HtmlIndexComponent ? component : null;
       },
       getLinkTextIndexComponent: (): LinkTextIndexComponent | null => {
         const moduleComponent = modulesComponent.getModuleComponent('link-texts');

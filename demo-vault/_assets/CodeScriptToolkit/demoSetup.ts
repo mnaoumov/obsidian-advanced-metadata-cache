@@ -5,6 +5,7 @@ import type {
 import type {
   App,
   Editor,
+  Pos,
   TFile
 } from 'obsidian';
 
@@ -46,6 +47,7 @@ interface AdvancedMetadataCacheApi {
   getBacklinksForFileSafe(pathOrFile: string): Promise<BacklinksDict | null>;
   getCodeBlockReferencesSafe(pathOrFile: string): Promise<CodeBlockReference[] | null>;
   getDatedValuesSafe(query: DatedValuesQuery): Promise<DatedValue[] | null>;
+  getHtmlDiagnosticsSafe(pathOrFile: string): Promise<HtmlDiagnostic[] | null>;
   getHeadingTimes(pathOrFile: string): HeadingTimes[];
   getLinkSuggestions(): LinkSuggestion[] | null;
   getLinkSuggestionsOriginal(): LinkSuggestion[];
@@ -69,6 +71,16 @@ interface AdvancedMetadataCacheApi {
 interface BacklinksDict {
   count(): number;
   keys(): string[];
+}
+
+interface HtmlDiagnostic {
+  readonly kind: string;
+  readonly range: HtmlRange;
+}
+
+interface HtmlRange {
+  readonly position: Pos;
+  readonly tagName: null | string;
 }
 
 /**
@@ -112,6 +124,7 @@ interface DemoSettingsPatch {
   isCodeBlockLinksModuleEnabled?: boolean;
   isExternalLinksModuleEnabled?: boolean;
   isHeadingsModuleEnabled?: boolean;
+  isHtmlModuleEnabled?: boolean;
   isLinkTextsModuleEnabled?: boolean;
   isNamesModuleEnabled?: boolean;
   isNonMarkdownModuleEnabled?: boolean;
@@ -949,6 +962,35 @@ export async function showCodeBlockLinks(app: App, params: { readonly languages:
       `Links inside code blocks of ${params.sourcePath}:`,
       ...references.length === 0 ? ['none'] : references.map(({ isEmbed, language, reference }) => `  ${isEmbed ? '![[' : '[['}${reference.link}]] in a ${language} block`)
     ].join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+ * Shows shared HTML diagnostics for the prepared example.
+ * @param app - The Obsidian app.
+ */
+export async function showHtmlDiagnostics(app: App): Promise<void> {
+  const path = 'Materials/15 HTML/Indexed example.md';
+  if (!app.vault.getFileByPath(path)) {
+    await app.vault.create(path, await app.vault.adapter.read('Materials/15 HTML/Example.txt'));
+  }
+  await changeSettings(app, { isHtmlModuleEnabled: true });
+  const component = new Component();
+  component.load();
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.15', app, component, pluginId: PLUGIN_ID
+    }).whenAvailable();
+    const diagnostics = await api.getHtmlDiagnosticsSafe(path);
+    if (diagnostics === null) {
+      new Notice('HTML index is waiting for metadata. Try the button again.');
+      return;
+    }
+    new Notice(diagnostics.length === 0 ? 'No HTML findings.' : diagnostics.map((diagnostic) =>
+      `${diagnostic.kind}: ${diagnostic.range.tagName} at line ${String(diagnostic.range.position.start.line + 1)}`
+    ).join('\n'));
   } finally {
     component.unload();
   }

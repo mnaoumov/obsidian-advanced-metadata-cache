@@ -12,7 +12,7 @@
  *   plugin's own belongs on an Obsidian function, and each has a replacement on the published API below.
  * - **A published API.** {@link AdvancedMetadataCacheApi} is published through the plugin registry
  *   under the plugin id `advanced-metadata-cache` and carries a contract version of its own. It
- *   answers what the `Titles`, `Headings`, `Properties`, `Unlinked mentions`, `Link texts`, `Code block links`, `Tags` and `External links` modules know, which core has no
+ *   answers what the `Titles`, `Headings`, `Properties`, `Unlinked mentions`, `Link texts`, `Code block links`, `Tags`, `External links` and `HTML` modules know, which core has no
  *   method for, and
  *   since contract `1.3.0` every extra the `Backlinks` and `Names` modules offer beyond the core call.
  *
@@ -54,6 +54,38 @@ export type MetadataParser = (context: MetadataParserContext) => CachedMetadata 
  * `advanced-metadata-cache`.
  */
 export interface AdvancedMetadataCacheApi {
+  /**
+   * Reads cached HTML blocks and lexical tag candidates. `null` means the module is off, not built,
+   * or this note is awaiting its metadata event; an empty array is a completed scan with no candidates.
+   * Inline candidates are not a complete Markdown token index. See `docs/html.md` for limitations.
+   *
+   * @param pathOrFile - A note or its vault-relative path.
+   * @returns Detached source ranges, or `null` when unknown.
+   */
+  getHtmlRanges(pathOrFile: string | TFile): HtmlRange[] | null;
+  /**
+   * Waits for startup reconciliation before reading HTML candidates. A pending edit still answers `null`.
+   *
+   * @param pathOrFile - A note or its vault-relative path.
+   * @returns Detached source ranges, or `null` when unknown.
+   */
+  getHtmlRangesSafe(pathOrFile: string | TFile): Promise<HtmlRange[] | null>;
+  /**
+   * Validates indexed opening tags with Obsidian's current sanitizer, shared across consumers.
+   * Unknown native HTML and sanitizer changes are independent findings; custom elements are not unknown
+   * solely because they contain a hyphen. SVG/MathML candidates use their namespace context.
+   *
+   * @param pathOrFile - A note or its vault-relative path.
+   * @returns Candidate diagnostics; `null` when ranges are unknown.
+   */
+  getHtmlDiagnostics(pathOrFile: string | TFile): HtmlDiagnostic[] | null;
+  /**
+   * Waits for startup reconciliation before validating HTML candidates.
+   *
+   * @param pathOrFile - A note or its vault-relative path.
+   * @returns Candidate diagnostics; `null` when ranges are unknown.
+   */
+  getHtmlDiagnosticsSafe(pathOrFile: string | TFile): Promise<HtmlDiagnostic[] | null>;
   /**
    * Reads a note's backlinks from the `Backlinks` module's cache — the answer the patched
    * `app.metadataCache.getBacklinksForFile()` gives, reachable by path as well as by file.
@@ -745,6 +777,30 @@ export interface AdvancedMetadataCacheApi {
    * @param propertyName - The property name, matched exactly.
    */
   registerPropertyName(propertyName: string): void;
+}
+
+/** An original source range; all offsets and columns are UTF-16 and ends are exclusive. */
+export interface HtmlRange {
+  /** The exact source slice, never rewritten or sanitized. */
+  readonly html: string;
+  /** Whether this is a closing tag. Blocks use `false`. */
+  readonly isClosing: boolean;
+  /** Core's cached HTML block, or a lexical tag candidate. Blocks contain their tag ranges. */
+  readonly kind: 'block' | 'tag';
+  /** The lexical namespace context used for fragment validation. */
+  readonly namespace: 'html' | 'mathml' | 'svg';
+  /** Original note positions. */
+  readonly position: Pos;
+  /** Lowercase name for tags; `null` for blocks. */
+  readonly tagName: null | string;
+}
+
+/** A diagnostic about a candidate, never an instruction to delete source automatically. */
+export interface HtmlDiagnostic {
+  /** Unknown native HTML or a change observed through the current Obsidian sanitizer. */
+  readonly kind: 'sanitized' | 'unknown';
+  /** The exact tag and its original position. */
+  readonly range: HtmlRange;
 }
 
 /**

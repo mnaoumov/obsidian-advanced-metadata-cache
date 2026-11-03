@@ -27,6 +27,7 @@ import {
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
 import type { CodeBlockLinksComponent } from './modules/code-block-links/code-block-links-component.ts';
 import type { ExternalLinkIndexComponent } from './modules/external-links/external-link-index-component.ts';
+import type { HtmlIndexComponent } from './modules/html/html-index-component.ts';
 import type { LinkTextIndexComponent } from './modules/link-texts/link-text-index-component.ts';
 import type { NameIndexComponent } from './modules/names/name-index-component.ts';
 import type { NameIndex } from './modules/names/name-index.ts';
@@ -46,6 +47,8 @@ import { CodeBlockLanguages } from './modules/code-block-links/code-block-langua
 import { ExternalLinkIndex } from './modules/external-links/external-link-index.ts';
 import { findExternalLinks } from './modules/external-links/external-links.ts';
 import { HeadingTimesIndex } from './modules/headings/heading-times-index.ts';
+import { findHtmlRanges } from './modules/html/html-ranges.ts';
+import { HtmlValidation } from './modules/html/html-validation.ts';
 import { LinkTextIndex } from './modules/link-texts/link-text-index.ts';
 import { MetadataParsers } from './modules/non-markdown/metadata-parsers.ts';
 import { PropertyValueIndex } from './modules/properties/property-value-index.ts';
@@ -77,6 +80,7 @@ const INDEXED_SUGGESTIONS: LinkSuggestion[] = [{ file: null, path: 'indexed' }];
 const CORE_SUGGESTIONS: LinkSuggestion[] = [{ file: null, path: 'core' }];
 
 describe('PluginApiImpl', () => {
+  let htmlIndexComponent: HtmlIndexComponent | null = null;
   let app: App;
   let backlinkCacheComponent: BacklinkCacheComponent | null;
   let codeBlockLanguages: CodeBlockLanguages;
@@ -95,6 +99,7 @@ describe('PluginApiImpl', () => {
   let unlinkedMentionsComponent: null | UnlinkedMentionsComponent;
 
   beforeEach(() => {
+    htmlIndexComponent = null;
     vi.clearAllMocks();
     app = App.createConfigured__();
     settings = new PluginSettings();
@@ -143,6 +148,7 @@ describe('PluginApiImpl', () => {
       getBacklinkCacheComponent: (): BacklinkCacheComponent | null => backlinkCacheComponent,
       getCodeBlockLinksComponent: (): CodeBlockLinksComponent | null => codeBlockLinksComponent,
       getExternalLinkIndexComponent: (): ExternalLinkIndexComponent | null => externalLinkIndexComponent,
+      getHtmlIndexComponent: (): HtmlIndexComponent | null => htmlIndexComponent,
       getLinkTextIndexComponent: (): LinkTextIndexComponent | null => linkTextIndexComponent,
       getNameIndexComponent: (): NameIndexComponent | null => nameIndexComponent,
       getPropertyValueIndexComponent: (): null | PropertyValueIndexComponent => propertyValueIndexComponent,
@@ -171,6 +177,27 @@ describe('PluginApiImpl', () => {
     for (const methodName of Object.keys(PLUGIN_API_CONTRACT)) {
       expect(pluginApi).toHaveProperty(methodName, expect.any(Function));
     }
+  });
+
+  it('shares HTML candidates and diagnostics, awaits readiness and answers null while disabled', async () => {
+    expect(pluginApi.getHtmlRanges('Alpha.md')).toBeNull();
+    expect(await pluginApi.getHtmlRangesSafe('Alpha.md')).toBeNull();
+    expect(pluginApi.getHtmlDiagnostics('Alpha.md')).toBeNull();
+    expect(await pluginApi.getHtmlDiagnosticsSafe('Alpha.md')).toBeNull();
+    const ranges = findHtmlRanges({ content: '<script>' });
+    const waitForBuild = vi.fn(noopAsync);
+    const validation = new HtmlValidation();
+    htmlIndexComponent = strictProxy<HtmlIndexComponent>({
+      getDiagnostics: (path) => path === 'Alpha.md' ? validation.diagnose(ranges) : null,
+      getRanges: (path) => path === 'Alpha.md' ? ranges : null,
+      waitForBuild
+    });
+    expect(pluginApi.getHtmlRanges('Alpha.md')).toEqual(ranges);
+    expect(await pluginApi.getHtmlRangesSafe('Alpha.md')).toEqual(ranges);
+    expect(pluginApi.getHtmlDiagnostics('Alpha.md')?.map((diagnostic) => diagnostic.kind)).toEqual(['sanitized']);
+    expect(await pluginApi.getHtmlDiagnosticsSafe('Alpha.md')).toEqual(pluginApi.getHtmlDiagnostics('Alpha.md'));
+    expect(pluginApi.getHtmlDiagnostics('Missing.md')).toBeNull();
+    expect(waitForBuild).toHaveBeenCalledTimes(2);
   });
 
   describe('external links', () => {
