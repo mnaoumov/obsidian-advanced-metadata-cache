@@ -1,5 +1,8 @@
 ---
 related: "[[Ideas backlog]]"
+obsidian-dev-toolkit:
+  demo-vault-validation:
+    allow-wikilinks: The unresolved related property link is the fixture for the unresolved backlinks demo.
 ---
 
 # Fast, safe, and original backlinks
