@@ -28,8 +28,6 @@ interface Harness {
   readonly triggerModuleToggleChange: (propertyName: string) => Promise<void>;
 }
 
-type ModuleToggleChangeHandler = (isEnabledNow: boolean, wasEnabled: boolean) => Promisable<void>;
-
 interface ValueConverters {
   readonly componentToPluginSettingsValueConverter: (uiValue: readonly string[]) => unknown;
   readonly pluginSettingsToComponentValueConverter: (pluginSettingsValue: readonly (readonly string[])[]) => unknown;
@@ -47,9 +45,9 @@ function checkIsVisible(definition: SettingDefinitionItem | undefined): boolean 
 function createHarness(
   isBacklinksModuleEnabled: boolean,
   isTitlesModuleEnabled = false,
-  isNamesModuleEnabled = false,
-  isPropertiesModuleEnabled = isBacklinksModuleEnabled
+  isNamesModuleEnabled = false
 ): Harness {
+  type ModuleToggleChangeHandler = (isEnabledNow: boolean, wasEnabled: boolean) => Promisable<void>;
   const settings = {
     codeBlockLinkLanguages: [],
     datePropertyNames: ['date', '*Date'],
@@ -58,7 +56,7 @@ function createHarness(
     isHeadingsModuleEnabled: false,
     isNamesModuleEnabled,
     isNonMarkdownModuleEnabled: isBacklinksModuleEnabled,
-    isPropertiesModuleEnabled,
+    isPropertiesModuleEnabled: isBacklinksModuleEnabled,
     isTitlesModuleEnabled,
     isUnlinkedMentionsModuleEnabled: false,
     markdownFileExtensions: [],

@@ -180,12 +180,12 @@ describe('BacklinksCorePluginComponent', () => {
       component,
       triggerChange
     } = loadBacklinksCorePluginComponent(false);
-    const patchBacklinksPaneSpy = vi.spyOn(internals(component), 'patchBacklinksPane').mockResolvedValue(false);
+    const patchBacklinksPaneMock = vi.spyOn(internals(component), 'patchBacklinksPane').mockResolvedValue(false).mock;
 
     backlinksCorePlugin.enabled = true;
     triggerChange();
 
-    expect(patchBacklinksPaneSpy).toHaveBeenCalledOnce();
+    expect(patchBacklinksPaneMock.calls).toHaveLength(1);
   });
 
   it('should invoke the enable handler once per enable, not on every change', () => {
@@ -194,13 +194,13 @@ describe('BacklinksCorePluginComponent', () => {
       component,
       triggerChange
     } = loadBacklinksCorePluginComponent(false);
-    const patchBacklinksPaneSpy = vi.spyOn(internals(component), 'patchBacklinksPane').mockResolvedValue(false);
+    const patchBacklinksPaneMock = vi.spyOn(internals(component), 'patchBacklinksPane').mockResolvedValue(false).mock;
 
     backlinksCorePlugin.enabled = true;
     triggerChange();
     triggerChange();
 
-    expect(patchBacklinksPaneSpy).toHaveBeenCalledOnce();
+    expect(patchBacklinksPaneMock.calls).toHaveLength(1);
   });
 
   it('should not invoke the enable handler when the core plugin becomes disabled', () => {
@@ -209,12 +209,12 @@ describe('BacklinksCorePluginComponent', () => {
       component,
       triggerChange
     } = loadBacklinksCorePluginComponent(true);
-    const patchBacklinksPaneSpy = vi.spyOn(internals(component), 'patchBacklinksPane').mockResolvedValue(false);
+    const patchBacklinksPaneMock = vi.spyOn(internals(component), 'patchBacklinksPane').mockResolvedValue(false).mock;
 
     backlinksCorePlugin.enabled = false;
     triggerChange();
 
-    expect(patchBacklinksPaneSpy).not.toHaveBeenCalled();
+    expect(patchBacklinksPaneMock.calls).toHaveLength(0);
   });
 
   it('should invoke the enable handler again after a disable and a re-enable', () => {
@@ -223,14 +223,14 @@ describe('BacklinksCorePluginComponent', () => {
       component,
       triggerChange
     } = loadBacklinksCorePluginComponent(true);
-    const patchBacklinksPaneSpy = vi.spyOn(internals(component), 'patchBacklinksPane').mockResolvedValue(false);
+    const patchBacklinksPaneMock = vi.spyOn(internals(component), 'patchBacklinksPane').mockResolvedValue(false).mock;
 
     backlinksCorePlugin.enabled = false;
     triggerChange();
     backlinksCorePlugin.enabled = true;
     triggerChange();
 
-    expect(patchBacklinksPaneSpy).toHaveBeenCalledOnce();
+    expect(patchBacklinksPaneMock.calls).toHaveLength(1);
   });
 
   it('should patch backlinks pane when plugin is already enabled', async () => {

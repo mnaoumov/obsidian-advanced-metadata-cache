@@ -38,8 +38,6 @@ interface StorageApp {
   readonly vault: Vault;
 }
 
-type StorageConstructor = new (params: StorageConstructorParams) => IndexStorage;
-
 interface StorageConstructorParams {
   readonly app: StorageApp;
   readonly getLegacyPath: () => string;
@@ -57,6 +55,7 @@ describe('legacy persistence migration', () => {
   it('migrates without changing notes and makes authoritative state available in a second local replica', async () => {
     const result = await evalInObsidian({
       async callback({ app, lib: { waitUntil } }) {
+        type StorageConstructor = new (params: StorageConstructorParams) => IndexStorage;
         const plugin = app.plugins.getPlugin('advanced-metadata-cache') as null | PersistencePlugin;
         if (!plugin?.manifest.dir) {
           throw new Error('Plugin not loaded');

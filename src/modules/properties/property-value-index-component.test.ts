@@ -360,7 +360,7 @@ describe('PropertyValueIndexComponent', () => {
     createNote('A.md', '---\nremote: value\n---\n');
     const intervals = vi.spyOn(window, 'setInterval');
     await load();
-    const synchronize = vi.spyOn(index, 'synchronize').mockImplementation(() => Promise.resolve(index.register('remote')));
+    const synchronizeMock = vi.spyOn(index, 'synchronize').mockImplementation(() => Promise.resolve(index.register('remote'))).mock;
     vi.useFakeTimers();
     const journal = createNote('Plugin data/advanced-metadata-cache/names/journal.md', 'internal');
     const acknowledgement = createNote('Plugin data/advanced-metadata-cache/names/have.md', 'ack');
@@ -375,7 +375,7 @@ describe('PropertyValueIndexComponent', () => {
     castTo<() => void>(callback)();
     window.dispatchEvent(new Event('focus'));
     await waitForAllAsyncOperations();
-    expect(synchronize).toHaveBeenCalledTimes(3);
+    expect(synchronizeMock.calls).toHaveLength(3);
     component.unload();
   });
 

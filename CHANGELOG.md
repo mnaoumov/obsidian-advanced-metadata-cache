@@ -14,7 +14,7 @@
 - style: format the name-pattern settings and title index test
 - feat(titles): build extra titles from name patterns over name parts
 - feat(link-texts): index the display texts links use for a file
-- refactor(unlinked-mentions): use the obsidian-lib position containment helpers
+- refactor(unlinked-mentions): use the `obsidian-lib` position containment helpers
 - refactor(unlinked-mentions): adopt the shared incremental file index
 - test(persistence): verify the persistence migration on Android
 - test(unlinked-mentions): measure the build and restore on Android with a real vault
@@ -46,33 +46,33 @@
 
 ## 2.0.3
 
-- test(demo-vault): require `CodeScript Toolkit` 15.0.0, its first release on obsidian-lib 6
-- build(deps): move to obsidian-lib 6 and obsidian-dev-toolkit 5
+- test(demo-vault): require `CodeScript Toolkit` 15.0.0, its first release on `obsidian-lib` 6
+- build(deps): move to `obsidian-lib` 6 and `obsidian-dev-toolkit` 5
 - fix: drop the plugin name from notice text
 - docs: shorten the debugging section
-- chore: replace leftover obsidian-dev-utils references with @mnaoumov/obsidian-lib
+- chore: replace leftover `obsidian-dev-utils` references with @mnaoumov/obsidian-lib
 - docs(readme): lead the Debugging section with `Advanced Debug Mode`
 - build(deps): float brace-expansion, sharp and fast-uri past their advisories
 - fix(backlinks): drain pending actions until the queue stays empty
 - docs: mark plugin names as code
 - chore(github): link Discussions from the issue chooser
-- build(deps): merge taking obsidian-lib 4.3.0 and its validation debug switch
-- test(api-contract): verify the contract with verifyApiContract from typescript-lib 1.5.0
+- build(deps): merge taking `obsidian-lib` 4.3.0 and its validation debug switch
+- test(api-contract): verify the contract with verifyApiContract from `typescript-lib` 1.5.0
 - fix(api-contract): merge reporting the plugin id as the schemas' vendor
 - docs(demo-vault): merge driving the name index's autocomplete demo from a button
-- refactor(api-contract): merge building the contract guards from typescript-lib and obsidian-lib
+- refactor(api-contract): merge building the contract guards from `typescript-lib` and `obsidian-lib`
 
 ## 2.0.2
 
 - fix(canvas): merge keeping the canvas metadata entry out of Obsidian's persisted cache
 - ci: merge attesting release assets through the toolkit's reusable workflow
-- build(demo-vault): require `CodeScript Toolkit` 13.8.0 for the obsidian-lib demo script
+- build(demo-vault): require `CodeScript Toolkit` 13.8.0 for the `obsidian-lib` demo script
 
 ## 2.0.1
 
 - chore(demo-vault): import demoSetup helpers from @mnaoumov/obsidian-lib
-- refactor: merge the move off obsidian-dev-utils onto the @mnaoumov packages
-- refactor(backlinks): merge dropping the subkey cast on obsidian-typings 6.48.0
+- refactor: merge the move off `obsidian-dev-utils` onto the @mnaoumov packages
+- refactor(backlinks): merge dropping the subkey cast on `obsidian-typings` 6.48.0
 - refactor(api): merge building the API contract on @mnaoumov/typescript-lib/api-contract
 
 ## 2.0.0
@@ -102,20 +102,20 @@
 
 - test(screenshots): merge setting the desktop capture theme with applyObsidianTheme
 - refactor: merge watching core-plugin toggles through CorePluginToggleComponent
-- chore(test): merge dropping the perf transport raise obsidian-dev-utils now provides
-- refactor(names): use obsidian-dev-utils' normalizeLinkName
+- chore(test): merge dropping the perf transport raise `obsidian-dev-utils` now provides
+- refactor(names): use `obsidian-dev-utils`' normalizeLinkName
 - chore(lint): merge the shared-config MD025 cleanup
 - test(screenshots): drop the local caret blur now that the capture hides the caret
 - docs(screenshots): merge the re-shot store frames
 - test(screenshots): make desktop frame 4 deterministic
 - test(screenshots): reconcile the staged vault so frame 2 always reports every note
 - fix(screenshots): merge the shortened screenshot captions
-- chore(deps): float obsidian-integration-testing to ^17.0.1 with obsidian-dev-utils ^107.0.0
+- chore(deps): float `obsidian-integration-testing` to ^17.0.1 with `obsidian-dev-utils` ^107.0.0
 
 ## 1.1.0
 
 - feat(api): accept a title property handover through migrateSettings
-- chore(deps): float obsidian-test-mocks to ^7.0.0
+- chore(deps): float `obsidian-test-mocks` to ^7.0.0
 
 ## 1.0.0
 

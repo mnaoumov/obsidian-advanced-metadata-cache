@@ -99,12 +99,8 @@ export class PropertyValueIndexComponent extends LayoutReadyComponent {
    * @param propertyName - The property name.
    */
   public registerPropertyName(propertyName: string): void {
-    if (!this.propertyValueIndex.register(propertyName)) {
-      return;
-    }
-
     // Before the build, the build fills it and saves: a save before the load would overwrite the file.
-    if (!this.isBuiltValue) {
+    if (!this.propertyValueIndex.register(propertyName) || !this.isBuiltValue) {
       return;
     }
 

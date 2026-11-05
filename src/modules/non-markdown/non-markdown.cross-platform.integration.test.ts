@@ -36,7 +36,6 @@ interface BasesContext {
   readonly app: App;
   readonly formulas: Record<string, string>;
 }
-type BasesEntryConstructor = new (context: BasesContext, file: TFile) => BasesEntry;
 interface RegistryValue {
   readonly value?: ApiRegistry;
 }
@@ -119,6 +118,7 @@ describe('non-Markdown metadata', () => {
       const initial = await pollInObsidian({
         intervalInMilliseconds: POLL_INTERVAL_IN_MILLISECONDS,
         poll({ app, obsidianModule }) {
+          type BasesEntryConstructor = new (context: BasesContext, file: TFile) => BasesEntry;
           const target = app.vault.getFileByPath('non-markdown-target.md');
           const source = app.vault.getFileByPath('non-markdown-source.mdx');
           const cache = app.metadataCache.getCache('non-markdown-source.mdx');

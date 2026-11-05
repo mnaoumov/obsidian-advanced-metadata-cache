@@ -272,6 +272,6 @@ describe('the unlinked mentions module on a real vault', () => {
   }, SCENARIO_TIMEOUT_IN_MS);
 });
 
-function toMegabytes(bytes: number | undefined): string {
-  return ((bytes ?? 0) / 1024 / 1024).toFixed(1);
+function toMegabytes(bytes = 0): string {
+  return (bytes / 1024 / 1024).toFixed(1);
 }
