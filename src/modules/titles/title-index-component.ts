@@ -8,6 +8,8 @@ import { isFolder } from '@mnaoumov/obsidian-lib/file-system';
 
 import type { TitleIndex } from './title-index.ts';
 
+import { UnparsedFrontmatterReporterComponent } from './unparsed-frontmatter-reporter-component.ts';
+
 interface TitleIndexComponentConstructorParams {
   readonly app: App;
   readonly titleIndex: TitleIndex;
@@ -23,6 +25,9 @@ interface TitleIndexComponentConstructorParams {
  * **It clears at BOTH edges on purpose.** Nothing invalidates the index while the module is off, so a
  * note whose `title` changed in the meantime has no event left to replay — an answer memoized before
  * the module was switched off must not survive it being switched back on.
+ *
+ * It also owns the {@link UnparsedFrontmatterReporterComponent}: a note whose frontmatter does not parse has no
+ * titles, and while this module is on that is reported rather than left silent.
  */
 export class TitleIndexComponent extends ComponentEx {
   private readonly app: App;
@@ -40,6 +45,8 @@ export class TitleIndexComponent extends ComponentEx {
     this.register(() => {
       this.titleIndex.clear();
     });
+
+    this.addChild(new UnparsedFrontmatterReporterComponent({ app: this.app }));
 
     this.registerEvent(this.app.metadataCache.on('changed', (file) => {
       this.titleIndex.invalidate(file.path);

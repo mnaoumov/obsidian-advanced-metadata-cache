@@ -111,6 +111,16 @@ language's form: that no-fallback rule is the owner's, so a mixed-language name 
 The memo and the names component key on `getTitleSourcesKey`, so editing either list rebuilds. The
 patterns are deliberately NOT an API member: consumers get the names through `getTitles`.
 
+**A note whose frontmatter does not parse is REPORTED, never repaired.** Obsidian's worker keeps the block's `yaml`
+section and drops `frontmatter` and `frontmatterPosition` when the YAML throws (a key written twice is the usual cause),
+silently. The note then loses its titles AND its aliases everywhere, core Quick switcher included.
+`TitleIndexComponent` owns an `UnparsedFrontmatterReporterComponent` that, while the module is on, looks at every note's
+cache after `ensureMetadataCacheReady` and at each `changed`. It reads a note only when its first section is `yaml` and it
+has no `frontmatter`, and re-parses that block with `parseYaml` to get the error. It then `console.warn`s once per note
+and error. A console report was chosen over a `Notice` (a burst at startup on a vault with many such notes) and over an
+API member (no consumer asked). The integration suite pins Obsidian's half: such a note has a `yaml` first section and no
+`frontmatter`.
+
 ## The `headings` module: identity is worked out, and nothing is written into the note
 
 Obsidian has no identity for a heading, and the task this module exists for (`Advanced Note Composer`'s
