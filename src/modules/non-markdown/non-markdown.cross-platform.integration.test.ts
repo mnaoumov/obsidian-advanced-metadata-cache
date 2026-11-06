@@ -36,7 +36,6 @@ interface BasesContext {
   readonly app: App;
   readonly formulas: Record<string, string>;
 }
-type BasesEntryConstructor = new (context: BasesContext, file: TFile) => BasesEntry;
 interface RegistryValue {
   readonly value?: ApiRegistry;
 }
@@ -122,6 +121,7 @@ describe('non-Markdown metadata', () => {
           const target = app.vault.getFileByPath('non-markdown-target.md');
           const source = app.vault.getFileByPath('non-markdown-source.mdx');
           const cache = app.metadataCache.getCache('non-markdown-source.mdx');
+          type BasesEntryConstructor = new (context: BasesContext, file: TFile) => BasesEntry;
           const Entry = obsidianModule.BasesEntry as BasesEntryConstructor;
           const entry = source ? new Entry({ app, formulas: {} }, source) : null;
           const baseProperty: unknown = entry?.getRawProperty('status');

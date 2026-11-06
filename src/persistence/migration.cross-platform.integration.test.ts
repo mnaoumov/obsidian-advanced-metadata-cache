@@ -38,8 +38,6 @@ interface StorageApp {
   readonly vault: Vault;
 }
 
-type StorageConstructor = new (params: StorageConstructorParams) => IndexStorage;
-
 interface StorageConstructorParams {
   readonly app: StorageApp;
   readonly getLegacyPath: () => string;
@@ -92,6 +90,7 @@ describe('legacy persistence migration', () => {
         const paths = await api.getPathsByPropertyValueSafe('legacyProperty', 'current');
         const isSourceRemoved = !await app.vault.adapter.exists(headingPath) && !await app.vault.adapter.exists(propertyPath);
         const isNoteUnchanged = await app.vault.read(note) === content;
+        type StorageConstructor = new (params: StorageConstructorParams) => IndexStorage;
         const HeadingStorage = api.headingTimesIndex.storage.constructor as StorageConstructor;
         const PropertyStorage = api.propertyValueIndex.storage.constructor as StorageConstructor;
         const secondApp = { appId: `${app.appId}-second-device`, vault: app.vault };
