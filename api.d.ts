@@ -1100,7 +1100,8 @@ export interface HeadingTimes {
   /**
    * When the heading's own section — up to the next heading of any level — was last on screen in the
    * active editor for at least one ~2 s dwell while the window had focus, or `null` when it has not
-   * been. Reading view is not measured.
+   * been. Reading view is not measured. It is accurate to about 5 minutes: while a section stays on
+   * screen, the time is moved forward only once it is that old.
    */
   readonly seen: null | number;
 }
