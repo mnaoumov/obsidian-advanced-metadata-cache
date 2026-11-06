@@ -49,8 +49,6 @@ import {
 } from './heading-times-component.ts';
 /* eslint-enable import-x/first, import-x/imports-first -- End of the mocked imports. */
 
-type RecordedTimes = Pick<HeadingTimesRecord, 'created' | 'modified' | 'seen' | 'text'>;
-
 const DATA_FILE_PATH = 'heading-times.json';
 const NOW = 1_000_000;
 
@@ -302,10 +300,10 @@ describe('HeadingTimesComponent', () => {
       hoisted.getVisibleLineRange.mockReturnValueOnce({ fromLine: 5, path: 'Alpha.md', toLine: 25 });
 
       poll();
-      expect(seenOf('Alpha.md')).toEqual([null, null, null]);
+      expect(seenOf()).toEqual([null, null, null]);
       poll();
 
-      expect(seenOf('Alpha.md')).toEqual([NOW, NOW, null]);
+      expect(seenOf()).toEqual([NOW, NOW, null]);
     });
 
     it('should stamp nothing when the two polls were in different notes', () => {
@@ -315,7 +313,7 @@ describe('HeadingTimesComponent', () => {
       poll();
       poll();
 
-      expect(seenOf('Alpha.md')).toEqual([null, null, null]);
+      expect(seenOf()).toEqual([null, null, null]);
     });
 
     it('should stamp nothing when nothing was on screen at one of the polls', () => {
@@ -327,7 +325,7 @@ describe('HeadingTimesComponent', () => {
       poll();
       poll();
 
-      expect(seenOf('Alpha.md')).toEqual([null, null, null]);
+      expect(seenOf()).toEqual([null, null, null]);
     });
 
     it('should stamp nothing when the two ranges do not overlap', () => {
@@ -337,7 +335,7 @@ describe('HeadingTimesComponent', () => {
       poll();
       poll();
 
-      expect(seenOf('Alpha.md')).toEqual([null, null, null]);
+      expect(seenOf()).toEqual([null, null, null]);
     });
 
     it('should stamp nothing in a note it does not track', () => {
@@ -471,13 +469,15 @@ describe('HeadingTimesComponent', () => {
     await waitForAllAsyncOperations();
   }
 
-  function seenOf(path: string): (null | number)[] {
-    return index.get(path)?.headings.map((heading) => heading.seen) ?? [];
+  function seenOf(): (null | number)[] {
+    return index.get('Alpha.md')?.headings.map((heading) => heading.seen) ?? [];
   }
 
   function snapshotsAt(lines: readonly number[]): HeadingSnapshot[] {
     return lines.map((line) => ({ bodyHash: '', level: 1, line, subtreeHash: String(line), text: String(line) }));
   }
+
+  type RecordedTimes = Pick<HeadingTimesRecord, 'created' | 'modified' | 'seen' | 'text'>;
 
   function timesOf(path: string): RecordedTimes[] {
     return index.get(path)?.headings.map(({ created, modified, seen, text }) => ({ created, modified, seen, text })) ?? [];
