@@ -10,6 +10,8 @@
  *   `shouldOfferTitlesInLinkSuggestions` is switched on.
  * - A name pattern builds names from language-keyed name parts as Obsidian itself parses the YAML,
  *   one language at a time, and those names join the name index.
+ * - A note whose frontmatter does not parse (a key written twice) has no titles, as Obsidian reads it,
+ *   and the module says so in the console rather than leaving it silent.
  * - Switching the module off takes every one of those answers with it, whatever that setting says.
  *
  * Named `*.cross-platform.integration.test.ts` so the desktop AND android projects both collect it:
@@ -43,6 +45,17 @@ interface AdvancedMetadataCacheApi {
   readonly getPathsByName: (name: string) => null | string[];
   readonly getTitlePropertyNames: () => string[];
   readonly getTitles: (pathOrFile: string) => string[];
+}
+
+/**
+ * What the broken-frontmatter scenario saw.
+ */
+interface BrokenFrontmatterResult {
+  readonly error: null | string;
+  readonly firstSectionType: null | string;
+  readonly hasFrontmatter: boolean;
+  readonly titles: string[];
+  readonly warnings: string[];
 }
 
 interface ObsidianLibStateBag {
@@ -114,6 +127,8 @@ const NOTE_PATH = `${NOTE_BASENAME}.md`;
 const NOTE_TITLE = 'Titles Integration Real Name';
 const NOTE_HEADING = 'Titles Integration Second Name';
 const NOTE_CONTENT = `---\ntitle: ${NOTE_TITLE}\nheading: ${NOTE_HEADING}\n---\n# Target\n`;
+const BROKEN_PATH = 'titles-broken-frontmatter.md';
+const BROKEN_CONTENT = '---\ntitle: Titles Broken Real Name\nmtime: 2026-07-21\nmtime: 2026-11-03\n---\n# Broken\n';
 const PERSON_PATH = 'titles-person.md';
 const PERSON_CONTENT = dedent`
   ---
@@ -215,6 +230,18 @@ describe('Titles module', () => {
     expect(result.pathsByMixedName).toEqual([]);
   }, SCENARIO_TIMEOUT_IN_MS);
 
+  it('reports a note whose frontmatter does not parse, which Obsidian leaves without titles', async () => {
+    const result = await runBrokenFrontmatterScenario();
+
+    expect(result.error).toBeNull();
+    // Pins Obsidian's own behavior: the block stays a `yaml` section and nothing is read out of it.
+    expect(result.firstSectionType).toBe('yaml');
+    expect(result.hasFrontmatter).toBe(false);
+    expect(result.titles).toEqual([]);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain(BROKEN_PATH);
+  }, SCENARIO_TIMEOUT_IN_MS);
+
   it('takes every answer away when the module is switched off, whatever the autocomplete setting says', async () => {
     // Left ON deliberately by the case above, so this proves the `Titles` toggle is what gates the
     // whole thing rather than the two settings being independent switches over the same array.
@@ -234,6 +261,80 @@ describe('Titles module', () => {
     expect(result.pathsByOwnName).toEqual([NOTE_PATH]);
   }, SCENARIO_TIMEOUT_IN_MS);
 });
+
+/**
+ * Creates a note whose frontmatter writes a key twice, and watches the console for the module's report.
+ *
+ * @returns What Obsidian parsed and what the plugin reported.
+ */
+async function runBrokenFrontmatterScenario(): Promise<BrokenFrontmatterResult> {
+  return evalInObsidian({
+    async callback({
+      app,
+      BROKEN_CONTENT: brokenContent,
+      BROKEN_PATH: brokenPath,
+      INDEX_WAIT_IN_MS: indexWaitMs,
+      lib: { waitUntil },
+      POLL_IN_MS: pollMs
+    }) {
+      const empty: BrokenFrontmatterResult = { error: null, firstSectionType: null, hasFrontmatter: false, titles: [], warnings: [] };
+      const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
+      const api = (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked)?.api;
+
+      if (!api) {
+        return { ...empty, error: 'No live API record' };
+      }
+
+      const warnings: string[] = [];
+      const originalWarn = console.warn;
+      console.warn = (...parameters: unknown[]): void => {
+        if (String(parameters[0]).includes(brokenPath)) {
+          warnings.push(String(parameters[0]));
+        }
+        originalWarn.apply(console, parameters);
+      };
+
+      try {
+        const existing = app.vault.getAbstractFileByPath(brokenPath);
+
+        if (existing) {
+          await app.fileManager.trashFile(existing);
+        }
+
+        await app.vault.create(brokenPath, brokenContent);
+
+        await waitUntil({
+          intervalInMilliseconds: pollMs,
+          message: 'the module to report the note',
+          predicate: () => warnings.length > 0,
+          timeoutInMilliseconds: indexWaitMs
+        });
+
+        const cache = app.metadataCache.getCache(brokenPath);
+
+        return {
+          error: null,
+          firstSectionType: cache?.sections?.[0]?.type ?? null,
+          hasFrontmatter: cache?.frontmatter !== undefined,
+          titles: api.getTitles(brokenPath),
+          warnings
+        };
+      } catch (error) {
+        return { ...empty, error: String(error), warnings };
+      } finally {
+        // eslint-disable-next-line require-atomic-updates -- Restores what this closure replaced; nothing else swaps it.
+        console.warn = originalWarn;
+      }
+    },
+    input: {
+      BROKEN_CONTENT,
+      BROKEN_PATH,
+      INDEX_WAIT_IN_MS,
+      POLL_IN_MS
+    },
+    vaultPath: getTemporaryVault().path
+  });
+}
 
 /**
  * Creates a person note whose name parts are keyed by language, and asks what it is called.

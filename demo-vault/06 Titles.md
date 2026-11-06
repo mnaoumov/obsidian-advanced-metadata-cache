@@ -147,6 +147,12 @@ Obsidian's **Properties** view cannot edit a nested value like these; edit them 
 
 The two are independent on purpose. If you run both, name the property in each. One plugin's setting silently deciding what another one answers is harder to understand than typing `title` twice - and you would have no way to tell, from this plugin's settings, why its answers had changed.
 
+## When a note's title is not found
+
+If the frontmatter of a note does not parse, Obsidian ignores every property in it. The note then has no title and no aliases, and nothing finds it under them, not even the core Quick switcher. The Properties view and the text still show the values, so this is easy to miss. A common cause is a key written twice, such as two `mtime:` lines.
+
+While this module is on, it reports each such note in the developer console (`Ctrl+Shift+I`). The report names the note and gives the YAML error. Fix the error, and the note's titles are found again.
+
 ## Switching it off
 
 ```code-button
