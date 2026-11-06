@@ -136,7 +136,11 @@ saves on a non-resetting 5 s debounce and once more on unload, and clears memory
 
 `seen` is a 2 s poll of the active editor (`visible-lines.ts`): a heading is seen when its own section
 is inside the scrolled area at two consecutive polls. Polling rather than a CodeMirror extension keeps the
-module's whole footprint inside its component, which is the module contract above. The integration
+module's whole footprint inside its component, which is the module contract above. A `seen` time moves
+again only once it is `SEEN_RESOLUTION_IN_MILLISECONDS` (5 min) old: every change is a journal write into
+the vault, and moving it at every poll wrote a journal file every few seconds while a note stayed open,
+each one a vault event (issue #1). For the same reason the `backlinks` module never refreshes the panels for a
+batch of `Plugin data/` paths alone. The integration
 suite does not drive `seen`, because the window cannot be given focus reliably over the transport.
 
 ## The `properties` module: registered names only, durable, answered from disk first

@@ -40,6 +40,7 @@ import {
 
 import type { PluginSettingsComponent } from '../../plugin-settings-component.ts';
 
+import { isPluginDataPath } from '../../persistence/storage-paths.ts';
 import {
   BacklinksCorePluginComponent,
   reloadBacklinksView
@@ -395,6 +396,11 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
       const pathActions = [...this.pendingActions];
       this.pendingActions.clear();
 
+      // The plugin's own `Plugin data/` journals are written into the vault on a timer, and each write is a
+      // vault event. Refreshing every panel for one of them redraws the backlinks of the open note every few
+      // seconds with nothing edited (issue #1), while a journal note never links to anything a panel shows.
+      const shouldRefreshPanels = pathActions.some(([path]) => !isPluginDataPath(path));
+
       for (const [path, action] of pathActions) {
         if (this.abortSignalComponent.abortSignal.aborted) {
           return;
@@ -415,7 +421,7 @@ export class BacklinkCacheComponent extends LayoutReadyComponent {
         }
       }
 
-      if (this.pluginSettingsComponent.settings.shouldAutomaticallyRefreshBacklinkPanels) {
+      if (shouldRefreshPanels && this.pluginSettingsComponent.settings.shouldAutomaticallyRefreshBacklinkPanels) {
         await this.refreshBacklinkPanels();
       }
     }

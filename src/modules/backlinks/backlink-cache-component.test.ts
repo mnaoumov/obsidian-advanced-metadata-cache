@@ -486,6 +486,35 @@ describe('BacklinkCacheComponent', () => {
       expect(reloadBacklinksView).toHaveBeenCalled();
     });
 
+    it('should not refresh backlink panels when only the plugin data journals changed (issue #1)', async () => {
+      context.settings.shouldAutomaticallyRefreshBacklinkPanels = true;
+
+      vi.mocked(getFileOrNull).mockReturnValue(null);
+
+      await setupOnLayoutReady();
+
+      context.component.triggerRefresh('Plugin data/advanced-metadata-cache/heading-observations-v1/devices/a/log-1.md');
+      context.component.triggerRefresh('Plugin data/advanced-metadata-cache/heading-observations-v1/devices/a/have.md');
+      await processPendingActions();
+
+      expect(reloadBacklinksView).not.toHaveBeenCalled();
+      expect(asInternals(context.component).pendingActions.size).toBe(0);
+    });
+
+    it('should refresh backlink panels when a user note changed alongside a plugin data journal', async () => {
+      context.settings.shouldAutomaticallyRefreshBacklinkPanels = true;
+
+      vi.mocked(getFileOrNull).mockReturnValue(null);
+
+      await setupOnLayoutReady();
+
+      context.component.triggerRefresh('Plugin data/advanced-metadata-cache/heading-observations-v1/devices/a/log-1.md');
+      context.component.triggerRefresh('note.md');
+      await processPendingActions();
+
+      expect(reloadBacklinksView).toHaveBeenCalledTimes(1);
+    });
+
     it('should also process actions queued while the backlink panels refresh', async () => {
       context.settings.shouldAutomaticallyRefreshBacklinkPanels = true;
 

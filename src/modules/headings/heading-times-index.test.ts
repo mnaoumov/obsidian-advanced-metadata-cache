@@ -17,7 +17,8 @@ import type { HeadingTimesRecord } from './heading-times-index.ts';
 import { PluginSettings } from '../../plugin-settings.ts';
 import {
   advanceHeadingTimes,
-  HeadingTimesIndex
+  HeadingTimesIndex,
+  SEEN_RESOLUTION_IN_MILLISECONDS
 } from './heading-times-index.ts';
 
 const DATA_FILE_PATH = 'heading-times.json';
@@ -222,6 +223,23 @@ describe('HeadingTimesIndex', () => {
 
       expect(index.isDirty).toBe(false);
       expect(index.get('A.md')).toBe(before);
+    });
+
+    it('should not move a seen time again within the resolution, so a note left open is not saved at every poll (issue #1)', async () => {
+      index.markSeen({ fromLine: 0, path: 'A.md', time: 7, toLine: 0 });
+      await index.save();
+
+      index.markSeen({ fromLine: 0, path: 'A.md', time: 7 + SEEN_RESOLUTION_IN_MILLISECONDS - 1, toLine: 0 });
+
+      expect(index.isDirty).toBe(false);
+      expect(index.get('A.md')?.headings[0]?.seen).toBe(7);
+    });
+
+    it('should move a seen time once the resolution has passed', () => {
+      index.markSeen({ fromLine: 0, path: 'A.md', time: 7, toLine: 0 });
+      index.markSeen({ fromLine: 0, path: 'A.md', time: 7 + SEEN_RESOLUTION_IN_MILLISECONDS, toLine: 0 });
+
+      expect(index.get('A.md')?.headings[0]?.seen).toBe(7 + SEEN_RESOLUTION_IN_MILLISECONDS);
     });
 
     it('should ignore a note it does not track', () => {

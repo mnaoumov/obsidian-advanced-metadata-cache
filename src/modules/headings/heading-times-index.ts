@@ -90,6 +90,15 @@ interface PersistedHeadingTimes {
 const PERSISTED_VERSION = 1;
 
 /**
+ * How far a heading's `seen` time must have fallen behind before a poll moves it again. The editor is
+ * polled every 2 s, and every change of the index is a write of a shared journal into the vault, so a
+ * `seen` moved at every poll wrote a journal file every few seconds for as long as a note stayed open,
+ * and every write was a vault event that refreshed the backlink panels (issue #1). A first sighting is
+ * always stamped at once.
+ */
+export const SEEN_RESOLUTION_IN_MILLISECONDS = 300_000;
+
+/**
  * Answers when a note's headings were created, modified and seen.
  */
 export class HeadingTimesIndex {
@@ -250,7 +259,8 @@ export class HeadingTimesIndex {
   }
 
   /**
-   * Stamps every heading whose own section overlaps a line range as seen.
+   * Stamps every heading whose own section overlaps a line range as seen, unless its `seen` time is
+   * already within {@link SEEN_RESOLUTION_IN_MILLISECONDS} of `time`.
    *
    * @param params - The note, the range and the time.
    */
@@ -266,7 +276,8 @@ export class HeadingTimesIndex {
       const sectionEndLine = (note.headings[index + 1]?.line ?? Infinity) - 1;
 
       const isOnScreen = heading.line <= toLine && sectionEndLine >= fromLine;
-      return isOnScreen && heading.seen !== time ? { ...heading, seen: time } : heading;
+      const isSeenStale = heading.seen === null || Math.abs(time - heading.seen) >= SEEN_RESOLUTION_IN_MILLISECONDS;
+      return isOnScreen && isSeenStale ? { ...heading, seen: time } : heading;
     });
 
     if (headings.some((heading, index) => heading !== note.headings[index])) {
