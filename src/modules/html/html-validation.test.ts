@@ -1,4 +1,5 @@
 import {
+  beforeAll,
   describe,
   expect,
   it,
@@ -8,9 +9,16 @@ import {
 import { findHtmlRanges } from './html-ranges.ts';
 import { HtmlValidation } from './html-validation.ts';
 
-const CACHE_TEST_TIMEOUT_IN_MILLISECONDS = 30_000;
+// Each validation is a sanitizer pass; a small bound proves eviction without thousands of them.
+const MAX_CACHED_FRAGMENTS = 4;
+// The first sanitizer pass pays its one-time setup, which a loaded coverage run stretches far past a test's limit.
+const WARM_UP_TIMEOUT_IN_MILLISECONDS = 120_000;
 
 describe('HTML fragment validation', () => {
+  beforeAll(() => {
+    new HtmlValidation().diagnose(findHtmlRanges({ content: '<svg><circle onclick="alert(1)"></circle></svg><span>' }));
+  }, WARM_UP_TIMEOUT_IN_MILLISECONDS);
+
   it('separates unknown names from sanitizer changes and ignores normal browser normalization', () => {
     const validation = new HtmlValidation();
     const ranges = findHtmlRanges({ content: '<span title=alpha>text</span><nonExistingTag>x</nonExistingTag><alpha-widget/><script></script><span onclick="alert(1)"><a href="https://example.com">' });
@@ -45,7 +53,7 @@ describe('HTML fragment validation', () => {
   });
 
   it('bounds the fragment memo while retaining deterministic answers', () => {
-    const validation = new HtmlValidation();
+    const validation = new HtmlValidation(MAX_CACHED_FRAGMENTS);
     const first = findHtmlRanges({ content: '<script>' });
     const sanitize = vi.spyOn(Range.prototype, 'createContextualFragment');
     const original = validation.diagnose(first);
@@ -54,7 +62,8 @@ describe('HTML fragment validation', () => {
     Object.assign(changed[0]?.range.position.start ?? {}, { offset: 999 });
     changed.length = 0;
     expect(validation.diagnose(first)[0]?.range.position.start.offset).toBe(0);
-    const count = 2050;
+    // Past the bound, so the memo starts over at least once.
+    const count = MAX_CACHED_FRAGMENTS + 2;
     for (let index = 0; index < count; index++) {
       expect(validation.diagnose(findHtmlRanges({ content: `<span title="${String(index)}">` }))).toEqual([]);
     }
@@ -63,5 +72,5 @@ describe('HTML fragment validation', () => {
     expect(sanitize).toHaveBeenCalledTimes(calls);
     expect(validation.diagnose(findHtmlRanges({ content: '<script>' })).map((diagnostic) => diagnostic.kind)).toEqual(['sanitized']);
     sanitize.mockRestore();
-  }, CACHE_TEST_TIMEOUT_IN_MILLISECONDS);
+  });
 });
