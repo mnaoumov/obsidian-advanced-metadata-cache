@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## 2.5.0
+
+### New modules
+
+- **Tags**: answers which notes carry a tag, with body tags and the `tags` property kept apart, and nested tags matched by prefix.
+- **External links**: indexes every note's `http(s)` links by URL and host, with similar-host lookups, restored from a local checkpoint on startup.
+- **Non-Markdown**: supplies core metadata (properties, headings, links) for configured extensions or for a parser another plugin registers.
+- **HTML**: indexes HTML ranges in notes and reports unknown tags and markup Obsidian's sanitizer removes, shared with other plugins through the API.
+
+### API
+
+- API contract 1.15.0: `getHtmlRanges` / `getHtmlRangesSafe` and `getHtmlDiagnostics` / `getHtmlDiagnosticsSafe`.
+- Backlinks: an unresolved-backlinks lookup, which answers which notes link to a name no file answers to.
+- Titles: a note whose frontmatter does not parse is reported in the console, since Obsidian drops its titles and aliases without a word.
+
+### Fixes
+
+- Headings and backlinks no longer write journals or refresh the panels every few seconds while a note sits open.
+
+Fixes #1
+
+### Other
+
+- Documentation: Changelog section in the README, issue forms with optional attachments, and a link to the Obsidian resources page.
+- Tooling: `obsidian-integration-testing` ^17.9.1 with the Android framework readiness gate, and the newer `unicorn` lint rules.
+
 ## 2.4.0
 
 - docs(readme): point bug reports at the Report a bug command
