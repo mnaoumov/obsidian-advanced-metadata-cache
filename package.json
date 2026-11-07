@@ -51,7 +51,7 @@
     "typescript": "$typescript"
   },
   "dependencies": {
-    "@mnaoumov/obsidian-lib": "^10.10.0",
+    "@mnaoumov/obsidian-lib": "^10.11.0",
     "@mnaoumov/typescript-lib": "^2.0.0"
   },
   "devDependencies": {
