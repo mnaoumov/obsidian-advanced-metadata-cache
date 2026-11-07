@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2.6.0
+
+- fix(deps): load on startup again with @mnaoumov/obsidian-lib 10.11.0
+- test(html): keep the HTML validation tests within their limits under load
+- feat: create the plugin data folder only on a device that turns sync on, make it configurable, and add it to Excluded files (#2)
+
 ## 2.5.0
 
 ### New modules
