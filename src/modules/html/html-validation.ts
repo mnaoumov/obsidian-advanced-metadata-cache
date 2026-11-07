@@ -9,7 +9,7 @@ import type {
   HtmlRange
 } from '../../plugin-api.ts';
 
-const MAX_CACHED_FRAGMENTS = 2048;
+const DEFAULT_MAX_CACHED_FRAGMENTS = 2048;
 const WRAPPERS = new Map([
   ['caption', ['table']],
   ['col', ['table', 'colgroup']],
@@ -32,6 +32,11 @@ export class HtmlValidation {
   private readonly records = new WeakMap<readonly HtmlRange[], readonly HtmlDiagnostic[]>();
 
   /**
+   * @param maxCachedFragments - How many fragment answers the memo holds before it starts over.
+   */
+  public constructor(private readonly maxCachedFragments = DEFAULT_MAX_CACHED_FRAGMENTS) {}
+
+  /**
    * Validates only indexed opening tags. Browser normalization alone is not a sanitizer change.
    * Foreign vocabulary is judged by the sanitizer, never a handwritten tag-name blacklist.
    *
@@ -51,7 +56,7 @@ export class HtmlValidation {
       let kinds = this.cache.get(key);
       if (!kinds) {
         kinds = validateTag(range);
-        if (this.cache.size >= MAX_CACHED_FRAGMENTS) {
+        if (this.cache.size >= this.maxCachedFragments) {
           this.cache.clear();
         }
         this.cache.set(key, kinds);
