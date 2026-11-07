@@ -236,7 +236,7 @@ describe('ExternalLinkIndexComponent', () => {
 
   it('should not load the reader when switched off as it is added', async () => {
     createFile('Alpha.md', 'https://a.com');
-    // The reader starts loading inside ddChild, so this is the moment just after it was added.
+    // The reader starts loading inside `addChild`, so this is the moment just after it was added.
     vi.spyOn(IncrementalFileIndexComponent.prototype, 'onload').mockImplementationOnce(() => {
       component.unload();
     });
