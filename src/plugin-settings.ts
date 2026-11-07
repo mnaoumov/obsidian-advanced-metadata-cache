@@ -1,3 +1,5 @@
+import { DEFAULT_PLUGIN_DATA_FOLDER } from './persistence/storage-paths.ts';
+
 export class PluginSettings {
   /**
    * The code block languages whose content is markdown, so the links and embeds written inside count like any
@@ -92,6 +94,16 @@ export class PluginSettings {
   Exact non-native extensions parsed as Markdown; empty until the user chooses them.
   */
   public markdownFileExtensions: string[] = [];
+
+  /**
+   * The folder the next **Move** puts this plugin's synchronized state in: heading times and registered property
+   * names, under its own `advanced-metadata-cache` subfolder.
+   *
+   * Synchronized with the other settings, but it only says where to go: saving it moves nothing. Whether a device
+   * synchronizes at all, and where its stores are anchored, is that device's own choice, kept in its local storage. A
+   * device that never turns sync on creates no folder.
+   */
+  public pluginDataFolder = DEFAULT_PLUGIN_DATA_FOLDER;
 
   public shouldAutomaticallyRefreshBacklinkPanels = false;
 

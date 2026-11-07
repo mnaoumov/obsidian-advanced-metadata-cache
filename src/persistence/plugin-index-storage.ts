@@ -1,10 +1,11 @@
+import type { SharedDataStore } from '@mnaoumov/obsidian-lib/data-stores/shared-data-store';
 import type { App } from 'obsidian';
 
 import { LocalDataStore } from '@mnaoumov/obsidian-lib/data-stores/local-data-store';
-import { SharedDataStore } from '@mnaoumov/obsidian-lib/data-stores/shared-data-store';
 import { noopAsync } from '@mnaoumov/typescript-lib/function';
 
 import type { IndexStorage } from './index-storage.ts';
+import type { PluginDataSync } from './plugin-data-sync.ts';
 
 import { EXTERNAL_LINKS_VERSION } from '../modules/external-links/persisted-external-links.ts';
 import { parsePersistedHeadingTimes } from '../modules/headings/heading-times-index.ts';
@@ -24,6 +25,10 @@ interface PluginIndexStorageConstructorParams {
   readonly app: App;
   readonly getLegacyPath?: () => string;
   readonly kind: 'external-links' | 'headings' | 'html' | 'mentions' | 'properties';
+  /**
+   * Opens the shared stores, with this device's sync consent. Needed by the headings and properties kinds only.
+   */
+  readonly pluginDataSync?: PluginDataSync;
   readonly pluginId: string;
 }
 
@@ -75,6 +80,9 @@ export class PluginIndexStorage implements IndexStorage {
       for (const connection of this.opened?.connections ?? []) {
         connection.close();
       }
+      if (this.opened?.shared) {
+        this.params.pluginDataSync?.release(this.opened.shared);
+      }
       this.opened = null;
       return noopAsync();
     });
@@ -119,6 +127,14 @@ export class PluginIndexStorage implements IndexStorage {
     });
   }
 
+  private getPluginDataSync(): PluginDataSync {
+    const pluginDataSync = this.params.pluginDataSync;
+    if (!pluginDataSync) {
+      throw new Error(`The ${this.params.kind} index storage needs the plugin data sync to open its shared store.`);
+    }
+    return pluginDataSync;
+  }
+
   private async open(): Promise<OpenStorage> {
     if (this.opened) {
       return this.opened;
@@ -130,9 +146,9 @@ export class PluginIndexStorage implements IndexStorage {
       connections.push(local);
       return local;
     }
+    let shared: null | SharedDataStore = null;
     try {
       let storage: IndexStorage;
-      let shared: null | SharedDataStore = null;
       if (kind === 'html') {
         storage = new LocalIndexStorage({ kind, local: await openLocal(`html-cache-v${String(HTML_VERSION)}`) });
         this.opened = { connections, shared, storage };
@@ -145,7 +161,7 @@ export class PluginIndexStorage implements IndexStorage {
       }
       if (kind === 'headings') {
         const local = await openLocal('heading-observations-v1');
-        shared = await SharedDataStore.open({ adapter: app.vault.adapter, kind: 'last-write-wins', local, pluginId, storeId: 'heading-observations-v1' });
+        shared = await this.getPluginDataSync().openShared({ kind: 'last-write-wins', local, storeId: 'heading-observations-v1' });
         // eslint-disable-next-line n/no-unsupported-features/node-builtins -- This is the renderer Web Crypto API, not Node's crypto global.
         const device = await local.getOrCreate('consumer-device', window.crypto.randomUUID());
         if (typeof device !== 'string') {
@@ -156,7 +172,7 @@ export class PluginIndexStorage implements IndexStorage {
         storage = new LocalIndexStorage({ kind, local: await openLocal(`${kind}-cache-v1`) });
         if (kind === 'properties') {
           const local = await openLocal('property-names-v1');
-          shared = await SharedDataStore.open({ adapter: app.vault.adapter, kind: 'minimum', local, pluginId, storeId: 'property-names-v1' });
+          shared = await this.getPluginDataSync().openShared({ kind: 'minimum', local, storeId: 'property-names-v1' });
           storage = new SharedPropertyStorage({ local: storage, names: shared });
         }
       }
@@ -183,6 +199,9 @@ export class PluginIndexStorage implements IndexStorage {
     } catch (error) {
       for (const connection of connections) {
         connection.close();
+      }
+      if (shared) {
+        this.params.pluginDataSync?.release(shared);
       }
       throw error;
     }

@@ -23,4 +23,20 @@ describe('PluginSettingsComponent', () => {
 
     expect(component.settings).toBeInstanceOf(PluginSettings);
   });
+
+  it('should refuse a hidden plugin data folder and accept a visible one', async () => {
+    const component = new PluginSettingsComponent({
+      dataHandler: strictProxy<DataHandler>({}),
+      pluginEventSource: strictProxy<PluginEventSource>({})
+    });
+    const settings = new PluginSettings();
+
+    settings.pluginDataFolder = 'Meta/.sync';
+    const hidden = await component.validate(settings);
+    expect(hidden.pluginDataFolder).toContain('hidden');
+
+    settings.pluginDataFolder = 'Meta/Sync';
+    const visible = await component.validate(settings);
+    expect(visible.pluginDataFolder).toBeUndefined();
+  });
 });

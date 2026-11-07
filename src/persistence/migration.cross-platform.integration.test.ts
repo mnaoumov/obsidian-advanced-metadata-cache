@@ -14,6 +14,7 @@ import {
 import type { PluginSettingsEditor } from '../../scripts/helpers/names-module.ts';
 import type { HeadingTimes } from '../plugin-api.ts';
 import type { IndexStorage } from './index-storage.ts';
+import type { PluginDataSync } from './plugin-data-sync.ts';
 
 interface PersistenceApi {
   readonly getHeadingTimes: (path: string) => HeadingTimes[];
@@ -25,6 +26,7 @@ interface PersistenceApi {
 interface PersistencePlugin {
   readonly manifest: PluginFolder;
   readonly pluginApi: PersistenceApi;
+  readonly pluginDataSync: PluginDataSync;
   readonly pluginSettingsComponent: PluginSettingsEditor;
 }
 
@@ -42,11 +44,17 @@ interface StorageConstructorParams {
   readonly app: StorageApp;
   readonly getLegacyPath: () => string;
   readonly kind: 'headings' | 'properties';
+  readonly pluginDataSync: PluginDataSync;
   readonly pluginId: string;
 }
 
 interface StorageOwner {
   readonly storage: IndexStorage;
+}
+
+interface SyncConstructorParams {
+  readonly app: StorageApp;
+  readonly pluginSettingsComponent: PluginSettingsEditor;
 }
 
 const TIMEOUT_IN_MILLISECONDS = 120_000;
@@ -65,6 +73,8 @@ describe('legacy persistence migration', () => {
         });
         await api.headingTimesIndex.storage.close?.();
         await api.propertyValueIndex.storage.close?.();
+        // Only a device that syncs writes the authoritative state where a second device can read it.
+        await plugin.pluginDataSync.setSyncEnabled(true);
         const content = '---\nlegacyProperty: current\n---\n# Legacy heading\nbody\n';
         const note = await app.vault.create('legacy-migration.md', content);
         await waitUntil({ predicate: () => app.metadataCache.getFileCache(note)?.headings?.length === 1, timeoutInMilliseconds: 5000 });
@@ -93,14 +103,21 @@ describe('legacy persistence migration', () => {
         type StorageConstructor = new (params: StorageConstructorParams) => IndexStorage;
         const HeadingStorage = api.headingTimesIndex.storage.constructor as StorageConstructor;
         const PropertyStorage = api.propertyValueIndex.storage.constructor as StorageConstructor;
+        type SyncConstructor = new (params: SyncConstructorParams) => PluginDataSync;
+        const Sync = plugin.pluginDataSync.constructor as SyncConstructor;
         const secondApp = { appId: `${app.appId}-second-device`, vault: app.vault };
-        const headings = new HeadingStorage({ app: secondApp, getLegacyPath: (): string => 'no-legacy-headings.json', kind: 'headings', pluginId: 'advanced-metadata-cache' });
-        const properties = new PropertyStorage({ app: secondApp, getLegacyPath: (): string => 'no-legacy-properties.json', kind: 'properties', pluginId: 'advanced-metadata-cache' });
+        const secondSync = new Sync({ app: secondApp, pluginSettingsComponent: plugin.pluginSettingsComponent });
+        await secondSync.setSyncEnabled(true);
+        const headings = new HeadingStorage({ app: secondApp, getLegacyPath: (): string => 'no-legacy-headings.json', kind: 'headings', pluginDataSync: secondSync, pluginId: 'advanced-metadata-cache' });
+        const properties = new PropertyStorage({ app: secondApp, getLegacyPath: (): string => 'no-legacy-properties.json', kind: 'properties', pluginDataSync: secondSync, pluginId: 'advanced-metadata-cache' });
         try {
           return { headingReplica: await headings.read(), noteUnchanged: isNoteUnchanged, paths, propertyReplica: await properties.read(), sourceRemoved: isSourceRemoved };
         } finally {
           await headings.close?.();
           await properties.close?.();
+          await secondSync.setSyncEnabled(false);
+          await secondSync.close();
+          await plugin.pluginDataSync.setSyncEnabled(false);
           await plugin.pluginSettingsComponent.editAndSave((settings) => {
             Object.assign(settings, { isHeadingsModuleEnabled: false });
           });

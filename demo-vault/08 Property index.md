@@ -2,7 +2,7 @@
 
 Some plugins find notes by a frontmatter value: which note holds a given key, which notes carry a property at all. Obsidian has no index for that, so each such plugin reads the whole vault, and at startup it has to before it can answer anything.
 
-The **Properties** module keeps that index for them. It indexes only the properties another plugin registers, plus every date property, so with neither it costs nothing, and it is **on by default** for that reason. The values are saved in device-local IndexedDB, so the next startup answers straight from disk. Registered property names sync through bounded Markdown journals under `Plugin data/advanced-metadata-cache/`; their values are rebuilt on each device.
+The **Properties** module keeps that index for them. It indexes only the properties another plugin registers, plus every date property, so with neither it costs nothing, and it is **on by default** for that reason. The values are saved in device-local IndexedDB, so the next startup answers straight from disk. Registered property names stay on each device too, and reach the others only while **Sync between devices** is on, as bounded Markdown journals in the plugin data folder; their values are rebuilt on each device. With sync off, no folder is created.
 
 ## See it
 

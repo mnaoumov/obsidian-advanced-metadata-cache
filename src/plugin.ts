@@ -6,6 +6,7 @@ import { PluginSettingsTabComponent } from '@mnaoumov/obsidian-lib/components/pl
 import { PluginDataHandler } from '@mnaoumov/obsidian-lib/data-handler';
 import { PluginBase } from '@mnaoumov/obsidian-lib/plugin/plugin';
 import { PluginEventSourceImpl } from '@mnaoumov/obsidian-lib/plugin/plugin-event-source';
+import { invokeAsyncSafely } from '@mnaoumov/typescript-lib/async';
 import { normalizePath } from 'obsidian';
 
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
@@ -29,7 +30,10 @@ import { TagIndexComponent } from './modules/tags/tag-index-component.ts';
 import { TitleIndexComponent } from './modules/titles/title-index-component.ts';
 import { TitleIndex } from './modules/titles/title-index.ts';
 import { UnlinkedMentionsComponent } from './modules/unlinked-mentions/unlinked-mentions-component.ts';
+import { PluginDataFolderExclusionComponent } from './persistence/plugin-data-folder-exclusion-component.ts';
+import { PluginDataSync } from './persistence/plugin-data-sync.ts';
 import { PluginIndexStorage } from './persistence/plugin-index-storage.ts';
+import { setPluginDataPathMatcher } from './persistence/storage-paths.ts';
 import { PluginApiImpl } from './plugin-api-impl.ts';
 import { PLUGIN_API_VERSION } from './plugin-api-version.ts';
 import { PLUGIN_API_CONTRACT } from './plugin-api.ts';
@@ -38,6 +42,7 @@ import { PluginSettingsTab } from './plugin-settings-tab.ts';
 
 export class Plugin extends PluginBase {
   private pluginApi: null | PluginApiImpl = null;
+  private pluginDataSync: null | PluginDataSync = null;
 
   /**
    * Declares the API for the base to publish, once `onloadImpl` has built it.
@@ -71,8 +76,25 @@ export class Plugin extends PluginBase {
     );
     this.pluginSettingsComponent = pluginSettingsComponent;
 
+    // Owned here: both shared stores open through it, and every index asks it which notes are the plugin's own.
+    const pluginDataSync = new PluginDataSync({ app: this.app, pluginSettingsComponent });
+    this.pluginDataSync = pluginDataSync;
+    setPluginDataPathMatcher((path) => pluginDataSync.isPluginDataPath(path));
+    this.registerAsyncCleanup(async () => {
+      setPluginDataPathMatcher(null);
+      const closing = this.pluginDataSync?.close();
+      this.pluginDataSync = null;
+      await closing;
+    });
+    // Read once the settings are, so the settings tab shows this device's choice even before any store opens.
+    this.app.workspace.onLayoutReady(() => {
+      invokeAsyncSafely(() => pluginDataSync.ensureLoaded());
+    });
+    this.addChild(new PluginDataFolderExclusionComponent({ app: this.app, pluginDataSync, pluginSettingsComponent }));
+
     const pluginSettingsTab = new PluginSettingsTab({
       plugin: this,
+      pluginDataSync,
       pluginSettingsComponent
     });
     this.addChild(
@@ -94,14 +116,14 @@ export class Plugin extends PluginBase {
       app: this.app,
       getDataFilePath: (): string => this.getDataFilePath('heading-times.json'),
       pluginSettingsComponent,
-      storage: new PluginIndexStorage({ app: this.app, getLegacyPath: (): string => this.getDataFilePath('heading-times.json'), kind: 'headings', pluginId: this.manifest.id })
+      storage: new PluginIndexStorage({ app: this.app, getLegacyPath: (): string => this.getDataFilePath('heading-times.json'), kind: 'headings', pluginDataSync, pluginId: this.manifest.id })
     });
     // Owned here too: a registration must outlive the module being switched off and on again.
     const propertyValueIndex = new PropertyValueIndex({
       app: this.app,
       getDataFilePath: (): string => this.getDataFilePath('property-values.json'),
       pluginSettingsComponent,
-      storage: new PluginIndexStorage({ app: this.app, getLegacyPath: (): string => this.getDataFilePath('property-values.json'), kind: 'properties', pluginId: this.manifest.id })
+      storage: new PluginIndexStorage({ app: this.app, getLegacyPath: (): string => this.getDataFilePath('property-values.json'), kind: 'properties', pluginDataSync, pluginId: this.manifest.id })
     });
     // Owned here too: a consumer subscribes to its changes once, for the plugin's whole life.
     const linkTextIndex = new LinkTextIndex();

@@ -138,8 +138,8 @@ create or `changed` while the module is on; at that first sight every heading is
 is stamped. There is deliberately no vault walk: a vault walk would only produce baselines.
 
 `HeadingTimesIndex` is owned by the plugin (the published API reads it for the plugin's whole life, the
-same reason as `TitleIndex`) and persisted through per-device shared observation journals under
-`Plugin data/advanced-metadata-cache/`, with device-local IndexedDB replicas. `HeadingTimesComponent` loads it on layout
+same reason as `TitleIndex`) and persisted through per-device shared observation journals in the plugin data
+folder (see "Persistence boundaries"), with device-local IndexedDB replicas. `HeadingTimesComponent` loads it on layout
 ready, then catches up on tracked notes whose `mtime` moved while nothing watched, stamping them with
 that `mtime`; it re-checks the `mtime` after each read so a `changed` that landed meanwhile wins. It
 saves on a non-resetting 5 s debounce and once more on unload, and clears memory at both edges.
@@ -150,7 +150,7 @@ module's whole footprint inside its component, which is the module contract abov
 again only once it is `SEEN_RESOLUTION_IN_MILLISECONDS` (5 min) old: every change is a journal write into
 the vault, and moving it at every poll wrote a journal file every few seconds while a note stayed open,
 each one a vault event (issue #1). For the same reason the `backlinks` module never refreshes the panels for a
-batch of `Plugin data/` paths alone. The integration
+batch of plugin data paths alone. The integration
 suite does not drive `seen`, because the window cannot be given focus reliably over the transport.
 
 ## The `properties` module: registered names only, durable, answered from disk first
@@ -582,3 +582,7 @@ two patches was installed first.
 Heading snapshots use one shared register per writer/path. `mergeHeadingNotes` uses the existing matcher, minimum created and maximum modified/seen; `SharedHeadingStorage` uses explicit create/delete incarnation boundaries. Never infer a deletion from omission in a stale snapshot, or from a missing file at startup: sync can deliver journals before notes. Missing notes retain dormant history, resumed on a later create. Legacy observations occupy separate epoch-zero records, so they cannot overwrite live observations or resurrect a deleted incarnation. Rename explicitly retires the source and carries its history to the destination. Lifecycle ordering inherits wall-clock skew, and edits made while tracking is off retain the matcher's original uncertainty.
 
 Property names use minimum registers as a grow-only set. Shared state synchronizes after relevant metadata transport changes (debounced, ignoring `have.md`), every 30 seconds, and on focus; listeners and connections belong to the module lifetime. Compaction runs after every 120 writes. The plugin's own Markdown transport is excluded from its heading tracking and unlinked-mention answers, preventing feedback writes and matches in generated data. See `docs/storage.md` for the user-facing sync and recovery contract.
+
+**Both shared stores open through `PluginDataSync` (`plugin-data-sync.ts`), owned by the plugin, and a device that never turns sync on creates no folder.** It keeps this device's consent and the discovery anchor in its own IndexedDB store (`plugin-data-sync-v1`), never in `data.json`: a synced setting must not enroll a new device, and a different anchor is a different store. `SharedDataStore` makes no adapter call while disabled, so the state lives in the local replica until the switch goes on. An upgraded device starts on only when the `headings` module is on and `Plugin data/advanced-metadata-cache/heading-observations-v1` already exists: property names are rebuilt by their consumers and by the date-property scan, heading times are not. The anchor is fixed at first enable: `Plugin data` when the vault already holds this plugin's history there, else `@Plugin sync data (DO NOT REMOVE)`, the folder the author's other plugins share. **The `pluginDataFolder` setting moves nothing by itself**: the settings tab's **Move** calls `relocate`, which records the target locally first and relocates every open store through the library's anchored protocol; a store opened later follows the recorded target. Never open a shared store with any other `folder`, or relocate by changing the anchor, because the anchor is where every device discovers the moves.
+
+`isPluginDataPath` is a free function read by a dozen indexes, so the plugin installs `PluginDataSync.isPluginDataPath` into it on load and restores the two known folders on unload (`setPluginDataPathMatcher`), instead of threading the owner through every component. Its answer covers the anchor, every folder a move used, the target, the legacy and default folders, and the folder the synced setting names (where another device may already have moved the store). `PluginDataFolderExclusionComponent` adds those folders to Excluded files only while this device syncs, writes the shared folder's top-level README only when there is none (another plugin may own it), keeps its own `advanced-metadata-cache/README.md` current, and gives up its entry on disable only once no other plugin's subfolder is left there.
