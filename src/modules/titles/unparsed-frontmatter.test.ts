@@ -59,6 +59,16 @@ describe('getFrontmatterParseError', () => {
     }
   });
 
+  it('should report a block whose position stops before a closing delimiter', () => {
+    const text = '---\ntitle: A\ntitle: B\n';
+    expect(getFrontmatterParseError(text, makePosition(text, 'title: B'))).toEqual(expect.any(String));
+  });
+
+  it('should not report a block that is only its two delimiters', () => {
+    const text = '---\n---\nBody';
+    expect(getFrontmatterParseError(text, makePosition(text, '\n---'))).toBeNull();
+  });
+
   it('should not report text that does not open with a delimiter', () => {
     const text = 'title: A\ntitle: B\n---';
     expect(getFrontmatterParseError(text, makePosition(text, '---'))).toBeNull();

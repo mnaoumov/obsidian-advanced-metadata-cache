@@ -17,12 +17,15 @@ import type {
 
 import { parseYaml } from 'obsidian';
 
-const FRONTMATTER_DELIMITER_LINE_REGEX = /^---[ \t]*$/;
+/**
+ * The opening delimiter line, with the line break that ends it: a block is at least that and one more line.
+ */
+const OPENING_DELIMITER_REGEX = /^---[ \t]*\r?\n/;
 
 /**
- * The opening delimiter and at least one more line.
+ * The closing delimiter line, when the block's position includes it.
  */
-const MIN_BLOCK_LINE_COUNT = 2;
+const CLOSING_DELIMITER_REGEX = /(?:^|\r?\n)---[ \t]*$/;
 
 /**
  * Parses a note's frontmatter block again, to get the error Obsidian's worker swallowed.
@@ -32,14 +35,13 @@ const MIN_BLOCK_LINE_COUNT = 2;
  * @returns The YAML error's message, or `null` when the block parses (empty, a scalar, a list or a mapping).
  */
 export function getFrontmatterParseError(text: string, position: Pos): null | string {
-  const lines = text.slice(position.start.offset, position.end.offset).split(/\r?\n/);
+  const block = text.slice(position.start.offset, position.end.offset);
 
-  if (lines.length < MIN_BLOCK_LINE_COUNT || !FRONTMATTER_DELIMITER_LINE_REGEX.test(lines[0] ?? '')) {
+  if (!OPENING_DELIMITER_REGEX.test(block)) {
     return null;
   }
 
-  const lastLine = lines.at(-1) ?? '';
-  const yaml = (FRONTMATTER_DELIMITER_LINE_REGEX.test(lastLine) ? lines.slice(1, -1) : lines.slice(1)).join('\n');
+  const yaml = block.replace(OPENING_DELIMITER_REGEX, '').replace(CLOSING_DELIMITER_REGEX, '');
 
   if (!yaml.trim()) {
     return null;
@@ -49,7 +51,12 @@ export function getFrontmatterParseError(text: string, position: Pos): null | st
     parseYaml(yaml);
     return null;
   } catch (error) {
-    return error instanceof Error ? error.message : String(error);
+    /* v8 ignore start -- parseYaml throws only Error instances. */
+    if (!(error instanceof Error)) {
+      return String(error);
+    }
+    /* v8 ignore stop */
+    return error.message;
   }
 }
 
