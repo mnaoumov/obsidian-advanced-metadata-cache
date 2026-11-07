@@ -5,6 +5,7 @@ import type {
   PluginManifest
 } from 'obsidian';
 
+import { noopAsync } from '@mnaoumov/typescript-lib/function';
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { Component } from 'obsidian';
@@ -35,6 +36,7 @@ const hoisted = vi.hoisted(() => ({
   loadedModules: new Map<string>(),
   modulesComponentConstructor: vi.fn(),
   nameIndexComponentConstructor: vi.fn(),
+  pluginDataSyncClose: vi.fn(),
   pluginSettingsComponentConstructor: vi.fn(),
   pluginSettingsTabConstructor: vi.fn(),
   titleIndexComponentConstructor: vi.fn()
@@ -105,6 +107,29 @@ vi.mock('./modules/titles/title-index-component.ts', () => ({
   }
 }));
 
+// The real one opens IndexedDB, which this environment has none of; what it does is covered by its own suite.
+vi.mock('./persistence/plugin-data-sync.ts', () => ({
+  PluginDataSync: class {
+    public async close(): Promise<void> {
+      hoisted.pluginDataSyncClose();
+      await noopAsync();
+    }
+
+    public async ensureLoaded(): Promise<void> {
+      await noopAsync();
+    }
+
+    public isPluginDataPath(path: string): boolean {
+      return path === 'plugin-data-path';
+    }
+  }
+}));
+
+// The real component listens to the settings component's own event surface, which the stub above does not carry.
+vi.mock('./persistence/plugin-data-folder-exclusion-component.ts', () => ({
+  PluginDataFolderExclusionComponent: class extends Component {}
+}));
+
 vi.mock('./modules/headings/heading-times-component.ts', () => ({
   HeadingTimesComponent: class extends Component {
     public constructor(params: unknown) {
@@ -114,6 +139,8 @@ vi.mock('./modules/headings/heading-times-component.ts', () => ({
   }
 }));
 
+// eslint-disable-next-line import-x/first, import-x/imports-first -- vi.mock must precede imports.
+import { isPluginDataPath } from './persistence/storage-paths.ts';
 // eslint-disable-next-line import-x/first, import-x/imports-first -- vi.mock must precede imports.
 import { Plugin } from './plugin.ts';
 
@@ -201,6 +228,28 @@ describe('Plugin', () => {
   it('should create a plugin instance', async () => {
     const plugin = await createLoadedPlugin(createApp());
     expect(plugin).toBeInstanceOf(Plugin);
+  });
+
+  it('should answer which paths are its own data from its sync owner while loaded, and from the known folders after', async () => {
+    // Loaded through `load()`, which is what makes `unload()` run the registered cleanups.
+    const app = createApp();
+    const trigger = vi.spyOn(app.workspace, 'trigger');
+    const plugin = new Plugin(app, createManifest());
+    plugin.load();
+    // The base announces itself once its whole feature surface, where the cleanup is registered, is up.
+    await vi.waitFor(() => {
+      expect(trigger.mock.calls.some(([name]) => name.endsWith('plugin-loaded'))).toBe(true);
+    });
+    expect(isPluginDataPath('plugin-data-path')).toBe(true);
+    expect(isPluginDataPath('Plugin data/advanced-metadata-cache/a.md')).toBe(false);
+
+    plugin.unload();
+
+    await vi.waitFor(() => {
+      expect(hoisted.pluginDataSyncClose).toHaveBeenCalledOnce();
+    });
+    expect(isPluginDataPath('plugin-data-path')).toBe(false);
+    expect(isPluginDataPath('Plugin data/advanced-metadata-cache/a.md')).toBe(true);
   });
 
   it('should wire up all components in onloadImpl', async () => {

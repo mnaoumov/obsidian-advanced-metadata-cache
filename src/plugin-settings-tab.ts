@@ -1,12 +1,27 @@
+import type { PluginSettingsTabBaseConstructorParams } from '@mnaoumov/obsidian-lib/plugin/plugin-settings-tab';
 import type { SettingDefinitionItem } from 'obsidian';
 
 import { PluginSettingsTabBase } from '@mnaoumov/obsidian-lib/plugin/plugin-settings-tab';
+import { convertAsyncToSync } from '@mnaoumov/typescript-lib/async';
+import { Notice } from 'obsidian';
 
+import type { PluginDataSync } from './persistence/plugin-data-sync.ts';
 import type { PluginSettings } from './plugin-settings.ts';
 
 import { parseNamePatterns } from './modules/titles/title-index.ts';
 
+interface PluginSettingsTabConstructorParams extends PluginSettingsTabBaseConstructorParams<PluginSettings> {
+  readonly pluginDataSync: PluginDataSync;
+}
+
 export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
+  private readonly pluginDataSync: PluginDataSync;
+
+  public constructor(params: PluginSettingsTabConstructorParams) {
+    super(params);
+    this.pluginDataSync = params.pluginDataSync;
+  }
+
   protected override getSettingDefinitionItems(): SettingDefinitionItem[] {
     return [
       this.settingEx({
@@ -288,7 +303,49 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
           });
         },
         visible: () => this.pluginSettingsComponent.settings.isNonMarkdownModuleEnabled
+      }),
+      this.settingEx({
+        desc: 'Whether this device syncs the state this plugin shares between devices: heading times, and the names of the properties other plugins asked it to index. When on, it is written to the plugin data folder below, for your sync tool to carry. When off, it stays in this device’s local storage and no folder is created. Each device decides for itself, and turning it off deletes nothing.',
+        name: 'Sync between devices',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            toggle.setValue(this.pluginDataSync.isSyncEnabled);
+            toggle.onChange(convertAsyncToSync(async (isEnabled: boolean) => {
+              try {
+                await this.pluginDataSync.setSyncEnabled(isEnabled);
+              } catch (error) {
+                showError('Sync between devices', error);
+              }
+              this.refresh();
+            }));
+          });
+        }
+      }),
+      this.settingEx({
+        desc: 'The folder the synced state goes to, in its own `advanced-metadata-cache` subfolder. Shared with other plugins that keep their sync data the same way. Changing it moves nothing: press Move, on one device, while sync is on. The history is copied and verified, the old folder is kept for the devices that have not caught up yet, and the folder is added to Excluded files. A hidden folder is refused, because sync tools skip it.',
+        name: 'Plugin data folder',
+        render: (setting) => {
+          setting.addText((text) => {
+            this.bind({ propertyName: 'pluginDataFolder', valueComponent: text });
+          });
+          setting.addButton((button) => {
+            button.setButtonText('Move');
+            button.setDisabled(!this.pluginDataSync.isSyncEnabled);
+            button.onClick(convertAsyncToSync(async () => {
+              try {
+                await this.pluginDataSync.relocate(this.pluginSettingsComponent.settings.pluginDataFolder);
+              } catch (error) {
+                showError('Plugin data folder', error);
+              }
+              this.refresh();
+            }));
+          });
+        }
       })
     ];
   }
+}
+
+function showError(title: string, error: unknown): void {
+  new Notice(`${title}: ${error instanceof Error ? error.message : String(error)}`);
 }

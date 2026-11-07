@@ -8,7 +8,7 @@ The **Headings** module keeps that record. For every heading of a note it tracks
 - **modified** - when its section last changed: its text, its level, or anything under it, subheadings included. Moving a whole section elsewhere in the note does not count;
 - **seen** - when its own section was last on screen in the editor, for a couple of seconds, while the window had focus.
 
-Nothing is written into your notes. The times sync as bounded Markdown journals under `Plugin data/advanced-metadata-cache/`, with a local IndexedDB replica on each device. It is a record for other plugins to read: [Advanced Note Composer](https://github.com/mnaoumov/obsidian-advanced-note-composer) uses it to sort headings by these times.
+Nothing is written into your notes. Each device keeps the times in its own local storage. They reach your other devices only once **Sync between devices** is turned on in the plugin's settings, on each of them: then they are written as bounded Markdown journals into the plugin data folder (`@Plugin sync data (DO NOT REMOVE)` by default), which the plugin adds to **Excluded files**. With sync off, no folder is created. It is a record for other plugins to read: [Advanced Note Composer](https://github.com/mnaoumov/obsidian-advanced-note-composer) uses it to sort headings by these times.
 
 ## See it
 

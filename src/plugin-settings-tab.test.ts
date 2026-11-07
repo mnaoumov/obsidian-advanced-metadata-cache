@@ -10,19 +10,26 @@ import { SettingEx } from '@mnaoumov/obsidian-lib/setting-ex';
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import {
+  Notice,
+  ToggleComponent
+} from 'obsidian-test-mocks/obsidian';
+import {
   describe,
   expect,
   it,
   vi
 } from 'vitest';
 
+import type { PluginDataSync } from './persistence/plugin-data-sync.ts';
 import type { PluginSettings } from './plugin-settings.ts';
 
 import { PluginSettingsTab } from './plugin-settings-tab.ts';
 
 interface Harness {
   readonly bindParams: Map<string, unknown>;
+  readonly containerEl: HTMLElement;
   readonly definitions: SettingDefinitionItem[];
+  readonly pluginDataSync: PluginDataSync;
   readonly propertyNames: string[];
   readonly tab: PluginSettingsTab;
   readonly triggerModuleToggleChange: (propertyName: string) => Promise<void>;
@@ -45,7 +52,8 @@ function checkIsVisible(definition: SettingDefinitionItem | undefined): boolean 
 function createHarness(
   isBacklinksModuleEnabled: boolean,
   isTitlesModuleEnabled = false,
-  isNamesModuleEnabled = false
+  isNamesModuleEnabled = false,
+  pluginDataSync: PluginDataSync = createPluginDataSync()
 ): Harness {
   const settings = {
     codeBlockLinkLanguages: [],
@@ -59,6 +67,7 @@ function createHarness(
     isTitlesModuleEnabled,
     isUnlinkedMentionsModuleEnabled: false,
     markdownFileExtensions: [],
+    pluginDataFolder: 'Sync/Data',
     shouldAutomaticallyRefreshBacklinkPanels: false,
     shouldOfferTitlesInLinkSuggestions: false,
     shouldShowProgressBarOnLoad: true,
@@ -84,6 +93,7 @@ function createHarness(
         isTitlesModuleEnabled: '',
         isUnlinkedMentionsModuleEnabled: '',
         markdownFileExtensions: '',
+        pluginDataFolder: '',
         shouldAutomaticallyRefreshBacklinkPanels: '',
         shouldOfferTitlesInLinkSuggestions: '',
         shouldShowProgressBarOnLoad: '',
@@ -103,6 +113,7 @@ function createHarness(
 
   const tab = new PluginSettingsTab({
     plugin,
+    pluginDataSync,
     pluginSettingsComponent
   });
 
@@ -131,13 +142,23 @@ function createHarness(
 
   return {
     bindParams,
+    containerEl: tab.containerEl,
     definitions,
+    pluginDataSync,
     propertyNames,
     tab,
     triggerModuleToggleChange: async (propertyName: string): Promise<void> => {
       await moduleToggleChangeHandlers.get(propertyName)?.(false, true);
     }
   };
+}
+
+function createPluginDataSync(isSyncEnabled = false): PluginDataSync {
+  return strictProxy<PluginDataSync>({
+    isSyncEnabled,
+    relocate: vi.fn().mockResolvedValue(undefined),
+    setSyncEnabled: vi.fn().mockResolvedValue(undefined)
+  });
 }
 
 describe('PluginSettingsTab', () => {
@@ -165,7 +186,9 @@ describe('PluginSettingsTab', () => {
       'Should automatically refresh backlink panels',
       'Should show progress bar on load',
       'Non-Markdown module',
-      'Markdown file extensions'
+      'Markdown file extensions',
+      'Sync between devices',
+      'Plugin data folder'
     ]);
     expect(harness.propertyNames).toStrictEqual([
       'isBacklinksModuleEnabled',
@@ -188,20 +211,21 @@ describe('PluginSettingsTab', () => {
       'shouldAutomaticallyRefreshBacklinkPanels',
       'shouldShowProgressBarOnLoad',
       'isNonMarkdownModuleEnabled',
-      'markdownFileExtensions'
+      'markdownFileExtensions',
+      'pluginDataFolder'
     ]);
   });
 
   it('should show the options belonging to a module that is on', () => {
     const harness = createHarness(true, true, true);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true]);
   });
 
   it('should hide the options belonging to a module that is off, leaving every module toggle visible', () => {
     const harness = createHarness(false);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, false, true, true, true, true, true, true, false, false, true, true, false, false, false, true, false, false, true, false]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, false, true, true, true, true, true, true, false, false, true, true, false, false, false, true, false, false, true, false, true, true]);
   });
 
   it('should hide the titles-in-autocomplete toggle until BOTH modules it needs are on', () => {
@@ -274,4 +298,68 @@ describe('PluginSettingsTab', () => {
     expect(converters.pluginSettingsToComponentValueConverter([['lastName', 'firstName'], ['firstName']])).toEqual(['lastName, firstName', 'firstName']);
     expect(converters.componentToPluginSettingsValueConverter([' lastName ,firstName', '', 'firstName'])).toEqual([['lastName', 'firstName'], ['firstName']]);
   });
+
+  it('should keep the Move button disabled while this device does not sync', () => {
+    const harness = createHarness(true);
+
+    expect(findMoveButton(harness).disabled).toBe(true);
+    expect(findMoveButton(createHarness(true, false, false, createPluginDataSync(true))).disabled).toBe(false);
+  });
+
+  it('should move the store to the folder the setting names, and re-render', async () => {
+    const harness = createHarness(true, false, false, createPluginDataSync(true));
+    const refresh = vi.spyOn(harness.tab, 'refresh').mockImplementation(() => undefined);
+
+    findMoveButton(harness).click();
+
+    await vi.waitFor(() => {
+      expect(refresh).toHaveBeenCalledOnce();
+    });
+    expect(harness.pluginDataSync.relocate).toHaveBeenCalledWith('Sync/Data');
+  });
+
+  it('should turn sync on through the toggle, and re-render', async () => {
+    const onChange = vi.spyOn(ToggleComponent.prototype, 'onChange');
+    const harness = createHarness(true);
+    const refresh = vi.spyOn(harness.tab, 'refresh').mockImplementation(() => undefined);
+
+    // The sync toggle is the last toggle the tab renders.
+    const handler = onChange.mock.calls.at(-1)?.[0];
+    await handler?.(true);
+
+    await vi.waitFor(() => {
+      expect(refresh).toHaveBeenCalledOnce();
+    });
+    expect(harness.pluginDataSync.setSyncEnabled).toHaveBeenCalledWith(true);
+  });
 });
+
+describe('PluginSettingsTab sync errors', () => {
+  it('should report a failed switch or move in a notice, and still re-render', async () => {
+    const onChange = vi.spyOn(ToggleComponent.prototype, 'onChange');
+    const notice = vi.spyOn(Notice.prototype, 'constructor__');
+    const pluginDataSync = strictProxy<PluginDataSync>({
+      isSyncEnabled: true,
+      relocate: vi.fn().mockRejectedValue('not a folder'),
+      setSyncEnabled: vi.fn().mockRejectedValue(new Error('offline'))
+    });
+    const harness = createHarness(true, false, false, pluginDataSync);
+    const refresh = vi.spyOn(harness.tab, 'refresh').mockImplementation(() => undefined);
+
+    await onChange.mock.calls.at(-1)?.[0]?.(false);
+    findMoveButton(harness).click();
+
+    await vi.waitFor(() => {
+      expect(refresh).toHaveBeenCalledTimes(2);
+    });
+    expect(notice.mock.calls.map(([message]) => message)).toEqual(['Sync between devices: offline', 'Plugin data folder: not a folder']);
+  });
+});
+
+function findMoveButton(harness: Harness): HTMLButtonElement {
+  const button = [...harness.containerEl.querySelectorAll('button')].find((element) => element.textContent === 'Move');
+  if (!button) {
+    throw new Error('No Move button rendered');
+  }
+  return button;
+}

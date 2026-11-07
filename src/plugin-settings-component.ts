@@ -3,6 +3,7 @@ import type { PluginEventSource } from '@mnaoumov/obsidian-lib/plugin/plugin-eve
 
 import { PluginSettingsComponentBase } from '@mnaoumov/obsidian-lib/components/plugin-settings-component';
 
+import { validatePluginDataFolder } from './persistence/storage-paths.ts';
 import { PluginSettings } from './plugin-settings.ts';
 
 interface PluginSettingsComponentConstructorParams {
@@ -16,5 +17,10 @@ export class PluginSettingsComponent extends PluginSettingsComponentBase<PluginS
       ...params,
       pluginSettingsClass: PluginSettings
     });
+  }
+
+  protected override registerValidators(): void {
+    super.registerValidators();
+    this.registerValidator('pluginDataFolder', (value) => validatePluginDataFolder(value) ?? undefined);
   }
 }

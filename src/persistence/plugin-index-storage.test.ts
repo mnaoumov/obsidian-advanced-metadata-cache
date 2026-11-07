@@ -5,6 +5,7 @@ import type {
 } from 'obsidian';
 
 import { LocalDataStore } from '@mnaoumov/obsidian-lib/data-stores/local-data-store';
+import { SharedDataStore } from '@mnaoumov/obsidian-lib/data-stores/shared-data-store';
 import { noopAsync } from '@mnaoumov/typescript-lib/function';
 import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { IDBFactory } from 'fake-indexeddb';
@@ -17,6 +18,8 @@ import {
   it,
   vi
 } from 'vitest';
+
+import type { PluginDataSync } from './plugin-data-sync.ts';
 
 import { PluginIndexStorage } from './plugin-index-storage.ts';
 
@@ -60,9 +63,23 @@ function createAdapter(files: Map<string, string>): DataAdapter {
 
 function createStorage(params: CreateStorageParams): PluginIndexStorage {
   const app = strictProxy<App>({ appId: params.device, vault: strictProxy<Vault>({ adapter: createAdapter(params.files) }) });
-  const storage = new PluginIndexStorage({ app, getLegacyPath: (): string => `${params.kind}.json`, kind: params.kind, pluginId: 'test' });
+  const storage = new PluginIndexStorage({ app, getLegacyPath: (): string => `${params.kind}.json`, kind: params.kind, pluginDataSync: createSyncingPluginDataSync(app), pluginId: 'test' });
   storages.push(storage);
   return storage;
+}
+
+/**
+ * A device that has turned sync on: every shared store is opened with vault transport, so the devices of one test
+ * converge through the shared `files`.
+ *
+ * @param app - The device's app.
+ * @returns The sync owner the storage opens its shared stores through.
+ */
+function createSyncingPluginDataSync(app: App): PluginDataSync {
+  return strictProxy<PluginDataSync>({
+    openShared: async (params) => await SharedDataStore.open({ ...params, adapter: app.vault.adapter, isSyncEnabled: true, pluginId: 'test' }),
+    release: vi.fn()
+  });
 }
 
 function headingDocument(created: number, modified: number, seen: null | number): string {
@@ -81,6 +98,11 @@ describe('PluginIndexStorage', () => {
     expect(JSON.parse(await restored.read() ?? 'null')).toEqual(JSON.parse(json));
     expect(files.size).toBe(0);
     expect(await createStorage({ device: 'bravo', files, kind: 'html' }).read()).toBeNull();
+  });
+  it('should refuse to open a shared store without the owner of this device\'s sync consent', async () => {
+    const storage = new PluginIndexStorage({ app: strictProxy<App>({ appId: 'alpha' }), kind: 'headings', pluginId: 'test' });
+    storages.push(storage);
+    await expect(storage.read()).rejects.toThrow('needs the plugin data sync');
   });
   it('should open a local cache without requiring a legacy file migration', async () => {
     const storage = new PluginIndexStorage({ app: strictProxy<App>({ appId: 'alpha' }), kind: 'mentions', pluginId: 'test' });
@@ -173,7 +195,7 @@ describe('PluginIndexStorage', () => {
     const adapter = createAdapter(files);
     const write = vi.spyOn(adapter, 'write').mockRejectedValueOnce(new Error('quota'));
     const app = strictProxy<App>({ appId: 'one', vault: strictProxy<Vault>({ adapter }) });
-    const storage = new PluginIndexStorage({ app, getLegacyPath: (): string => 'headings.json', kind: 'headings', pluginId: 'test' });
+    const storage = new PluginIndexStorage({ app, getLegacyPath: (): string => 'headings.json', kind: 'headings', pluginDataSync: createSyncingPluginDataSync(app), pluginId: 'test' });
     storages.push(storage);
     await expect(storage.read()).rejects.toThrow('quota');
     expect(files.has('headings.json')).toBe(true);
@@ -230,7 +252,7 @@ describe('PluginIndexStorage', () => {
     const adapter = createAdapter(files);
     const remove = vi.spyOn(adapter, 'remove').mockRejectedValueOnce(new Error('locked'));
     const app = strictProxy<App>({ appId: 'one', vault: strictProxy<Vault>({ adapter }) });
-    const storage = new PluginIndexStorage({ app, getLegacyPath: (): string => 'headings.json', kind: 'headings', pluginId: 'test' });
+    const storage = new PluginIndexStorage({ app, getLegacyPath: (): string => 'headings.json', kind: 'headings', pluginDataSync: createSyncingPluginDataSync(app), pluginId: 'test' });
     storages.push(storage);
     await expect(storage.read()).rejects.toThrow('locked');
     remove.mockRestore();
@@ -244,7 +266,7 @@ describe('PluginIndexStorage', () => {
     const files = new Map<string, string>();
     const adapter = createAdapter(files);
     const app = strictProxy<App>({ appId: 'one', vault: strictProxy<Vault>({ adapter }) });
-    const storage = new PluginIndexStorage({ app, getLegacyPath: (): string => 'headings.json', kind: 'headings', pluginId: 'test' });
+    const storage = new PluginIndexStorage({ app, getLegacyPath: (): string => 'headings.json', kind: 'headings', pluginDataSync: createSyncingPluginDataSync(app), pluginId: 'test' });
     storages.push(storage);
     await storage.read();
     await storage.write(headingDocument(10, 20, null));

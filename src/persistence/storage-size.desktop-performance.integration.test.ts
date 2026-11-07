@@ -10,6 +10,7 @@ import {
 
 import type { PluginSettingsEditor } from '../../scripts/helpers/names-module.ts';
 import type { IndexStorage } from './index-storage.ts';
+import type { PluginDataSync } from './plugin-data-sync.ts';
 
 interface MeasuredStorage extends IndexStorage {
   readonly opened: null | OpenStores;
@@ -27,6 +28,7 @@ interface PersistenceApi {
 
 interface PersistencePlugin {
   readonly pluginApi: PersistenceApi;
+  readonly pluginDataSync: PluginDataSync;
   readonly pluginSettingsComponent: PluginSettingsEditor;
 }
 
@@ -57,6 +59,8 @@ describe('record storage at large-vault scale', () => {
         });
         const headings = plugin.pluginApi.headingTimesIndex.storage;
         const properties = plugin.pluginApi.propertyValueIndex.storage;
+        // The journals are written only on a device that syncs.
+        await plugin.pluginDataSync.setSyncEnabled(true);
         try {
           const paths = Array.from({ length: count }, (_, index) => `Scale/${String(index)}.md`);
           const headingNotes = Object.fromEntries(paths.map((path, index) => [path, {
@@ -71,7 +75,7 @@ describe('record storage at large-vault scale', () => {
           const mentionsRecords = await mentions.opened?.connections[0]?.entries();
           const propertyRecords = await properties.opened?.connections[0]?.entries();
           const encoder = new TextEncoder();
-          const folders = ['Plugin data/advanced-metadata-cache'];
+          const folders = [`${plugin.pluginDataSync.anchorFolder}/advanced-metadata-cache`];
           let journalBytes = 0;
           let largestFileBytes = 0;
           let fileCount = 0;
@@ -105,6 +109,7 @@ describe('record storage at large-vault scale', () => {
           await mentions.close?.();
           await properties.close?.();
           await headings.close?.();
+          await plugin.pluginDataSync.setSyncEnabled(false);
           await plugin.pluginSettingsComponent.editAndSave((settings) => {
             Object.assign(settings, { isPropertiesModuleEnabled: true });
           });
