@@ -2,9 +2,15 @@
 
 ## 2.6.0
 
-- fix(deps): load on startup again with @mnaoumov/obsidian-lib 10.11.0
-- test(html): keep the HTML validation tests within their limits under load
-- feat: create the plugin data folder only on a device that turns sync on, make it configurable, and add it to Excluded files (#2)
+This release has 1 new feature and 1 fix. 1 maintenance commit (tests, build, CI, refactoring, dependencies) is not listed.
+
+### New
+
+- create the plugin data folder only on a device that turns sync on, make it configurable, and add it to Excluded files (#2)
+
+### Fixed
+
+- **deps:** load on startup again with @mnaoumov/obsidian-lib 10.11.0
 
 ## 2.5.0
 
@@ -34,78 +40,92 @@ Fixes #1
 
 ## 2.4.0
 
-- docs(readme): point bug reports at the Report a bug command
-- docs: add issue-filing instructions for AI agents
-- feat: add a Report a bug command
-- chore(github): give the bug form the field ids bug-report links prefill
-- build(deps): override re2js to ^2.9.1 for GHSA-gg6h-894w-4m9c
-- docs(agents): measure startup with the Obsidian window visible
-- test(properties): pin list-valued date properties and document name qualifiers
-- feat(code-block-links): count the links inside code blocks of listed languages
-- fix(titles): use a fictional name in the name-pattern examples
-- style: format the name-pattern settings and title index test
-- feat(titles): build extra titles from name patterns over name parts
-- feat(link-texts): index the display texts links use for a file
-- refactor(unlinked-mentions): use the obsidian-lib position containment helpers
-- refactor(unlinked-mentions): adopt the shared incremental file index
-- test(persistence): verify the persistence migration on Android
-- test(unlinked-mentions): measure the build and restore on Android with a real vault
-- build(deps): bump @mnaoumov/typescript-dev-toolkit to ^5.1.0
-- refactor: consume shared word helpers and performance vault harness
-- feat(storage): keep caches local and synchronize heading history
-- chore: adopt readonly interface members
+This release has 5 new features, 1 fix and 3 documentation changes. 11 maintenance commits (tests, build, CI, refactoring, dependencies) are not listed.
+
+### New
+
+- add a Report a bug command
+- **code-block-links:** count the links inside code blocks of listed languages
+- **titles:** build extra titles from name patterns over name parts
+- **link-texts:** index the display texts links use for a file
+- **storage:** keep caches local and synchronize heading history
+
+### Fixed
+
+- **titles:** use a fictional name in the name-pattern examples
+
+### Documentation
+
+- **readme:** point bug reports at the Report a bug command
+- add issue-filing instructions for AI agents
+- **agents:** measure startup with the Obsidian window visible
 
 ## 2.3.0
 
-- refactor(properties): name date-query and zone-conversion options
-- fix(properties): preserve UTC ordering across calendar boundaries
-- feat(properties): query dates by UTC instant with per-query zone policies
-- docs(readme): combine related resources and plugin comparisons
-- docs(readme): cut the README to a landing page, detail moved to docs/api.md and the demo vault
-- feat(unlinked-mentions): persist the index across restarts, and measure the build on a real vault
-- docs(readme): add a See also section comparing similar plugins
-- feat(unlinked-mentions): fill the Backlinks pane's Unlinked mentions section from an index
-- feat(properties): index a year or a month alone as a date standing for its whole period
-- feat(properties): pick date properties by name, and order zoned dates by the time as written
+This release has 5 new features, 1 fix and 3 documentation changes. 1 maintenance commit (tests, build, CI, refactoring, dependencies) is not listed.
+
+### New
+
+- **properties:** query dates by UTC instant with per-query zone policies
+- **unlinked-mentions:** persist the index across restarts, and measure the build on a real vault
+- **unlinked-mentions:** fill the Backlinks pane's Unlinked mentions section from an index
+- **properties:** index a year or a month alone as a date standing for its whole period
+- **properties:** pick date properties by name, and order zoned dates by the time as written
+
+### Fixed
+
+- **properties:** preserve UTC ordering across calendar boundaries
+
+### Documentation
+
+- **readme:** combine related resources and plugin comparisons
+- **readme:** cut the README to a landing page, detail moved to docs/api.md and the demo vault
+- **readme:** add a See also section comparing similar plugins
 
 ## 2.2.0
 
-- feat(properties): find notes by date range and by recurring date for other plugins
+This release has 1 new feature.
+
+### New
+
+- **properties:** find notes by date range and by recurring date for other plugins
 
 ## 2.1.0
 
-- feat(properties): merge indexing notes by frontmatter property value for other plugins
+This release has 1 new feature.
+
+### New
+
+- **properties:** merge indexing notes by frontmatter property value for other plugins
 
 ## 2.0.3
 
-- test(demo-vault): require `CodeScript Toolkit` 15.0.0, its first release on obsidian-lib 6
-- build(deps): move to obsidian-lib 6 and obsidian-dev-toolkit 5
-- fix: drop the plugin name from notice text
-- docs: shorten the debugging section
-- chore: replace leftover obsidian-dev-utils references with @mnaoumov/obsidian-lib
-- docs(readme): lead the Debugging section with `Advanced Debug Mode`
-- build(deps): float brace-expansion, sharp and fast-uri past their advisories
-- fix(backlinks): drain pending actions until the queue stays empty
-- docs: mark plugin names as code
-- chore(github): link Discussions from the issue chooser
-- build(deps): merge taking obsidian-lib 4.3.0 and its validation debug switch
-- test(api-contract): verify the contract with verifyApiContract from typescript-lib 1.5.0
-- fix(api-contract): merge reporting the plugin id as the schemas' vendor
-- docs(demo-vault): merge driving the name index's autocomplete demo from a button
-- refactor(api-contract): merge building the contract guards from typescript-lib and obsidian-lib
+This release has 3 fixes and 4 documentation changes. 8 maintenance commits (tests, build, CI, refactoring, dependencies) are not listed.
+
+### Fixed
+
+- drop the plugin name from notice text
+- **backlinks:** drain pending actions until the queue stays empty
+- **api-contract:** merge reporting the plugin id as the schemas' vendor
+
+### Documentation
+
+- shorten the debugging section
+- **readme:** lead the Debugging section with `Advanced Debug Mode`
+- mark plugin names as code
+- **demo-vault:** merge driving the name index's autocomplete demo from a button
 
 ## 2.0.2
 
-- fix(canvas): merge keeping the canvas metadata entry out of Obsidian's persisted cache
-- ci: merge attesting release assets through the toolkit's reusable workflow
-- build(demo-vault): require `CodeScript Toolkit` 13.8.0 for the obsidian-lib demo script
+This release has 1 fix. 2 maintenance commits (tests, build, CI, refactoring, dependencies) are not listed.
+
+### Fixed
+
+- **canvas:** merge keeping the canvas metadata entry out of Obsidian's persisted cache
 
 ## 2.0.1
 
-- chore(demo-vault): import demoSetup helpers from @mnaoumov/obsidian-lib
-- refactor: merge the move off obsidian-dev-utils onto the @mnaoumov packages
-- refactor(backlinks): merge dropping the subkey cast on obsidian-typings 6.48.0
-- refactor(api): merge building the API contract on @mnaoumov/typescript-lib/api-contract
+This release has maintenance changes only. 4 maintenance commits (tests, build, CI, refactoring, dependencies) are not listed.
 
 ## 2.0.0
 
@@ -122,49 +142,69 @@ Fixes #1
 
 ## 1.3.0
 
-- feat(api): publish the backlinks and names extras through the plugin API (contract 1.3.0)
+This release has 1 new feature and 1 other change.
+
+### New
+
+- **api:** publish the backlinks and names extras through the plugin API (contract 1.3.0)
+
+### Other changes
+
 - deprecate the members grafted onto the patched getBacklinksForFile and getLinkSuggestions (safe, originalFn, getPathsByName, getPathsByNameSafe, and getBacklinksForFile called with a path); 2.0.0 removes them, and the README names the API method that replaces each
 
 ## 1.2.0
 
-- feat(headings): merge tracking when each heading was created, modified and seen
-- docs(readme): merge linking the Community directory listing
+This release has 1 new feature and 1 documentation change.
+
+### New
+
+- **headings:** merge tracking when each heading was created, modified and seen
+
+### Documentation
+
+- **readme:** merge linking the Community directory listing
 
 ## 1.1.1
 
-- test(screenshots): merge setting the desktop capture theme with applyObsidianTheme
-- refactor: merge watching core-plugin toggles through CorePluginToggleComponent
-- chore(test): merge dropping the perf transport raise obsidian-dev-utils now provides
-- refactor(names): use obsidian-dev-utils' normalizeLinkName
-- chore(lint): merge the shared-config MD025 cleanup
-- test(screenshots): drop the local caret blur now that the capture hides the caret
-- docs(screenshots): merge the re-shot store frames
-- test(screenshots): make desktop frame 4 deterministic
-- test(screenshots): reconcile the staged vault so frame 2 always reports every note
-- fix(screenshots): merge the shortened screenshot captions
-- chore(deps): float obsidian-integration-testing to ^17.0.1 with obsidian-dev-utils ^107.0.0
+This release has 1 fix and 1 documentation change. 9 maintenance commits (tests, build, CI, refactoring, dependencies) are not listed.
+
+### Fixed
+
+- **screenshots:** merge the shortened screenshot captions
+
+### Documentation
+
+- **screenshots:** merge the re-shot store frames
 
 ## 1.1.0
 
-- feat(api): accept a title property handover through migrateSettings
-- chore(deps): float obsidian-test-mocks to ^7.0.0
+This release has 1 new feature. 1 maintenance commit (tests, build, CI, refactoring, dependencies) is not listed.
+
+### New
+
+- **api:** accept a title property handover through migrateSettings
 
 ## 1.0.0
 
-- fix(canvas): merge loading the canvas index after a Canvas toggle
-- docs(readme): point the library-free route at the plugin API protocol guide
-- fix(backlinks): merge patching the pane when it opens after load
-- refactor(backlinks): merge the core-plugin change subscription
-- fix(backlinks): merge installing the pane patch once per session
-- fix(backlinks): merge the refresh that no longer saves the editor
-- chore: merge the restored lockfile resolved and integrity fields
-- fix(test): refuse an Android capture on a contended machine, and bound its index wait by wall clock
-- feat: offer titles in the [[ autocomplete behind a default-off setting
-- docs(test): correct the Android AVD provisioning recipe
-- docs: capture the screenshot set and add the README gallery
-- test: run every integration project green, and unblock the demo-vault one
-- refactor: give the ported backlinks surface the shared API convention
-- feat: add the titles module, a name-bearing frontmatter property
-- feat: add the names module, and fix the performance project it was measured on
-- feat: scaffold the plugin with the ported backlinks module
-- chore: initial commit
+This release has 4 new features, 5 fixes and 3 documentation changes. 5 maintenance commits (tests, build, CI, refactoring, dependencies) are not listed.
+
+### New
+
+- offer titles in the [[ autocomplete behind a default-off setting
+- add the titles module, a name-bearing frontmatter property
+- add the names module, and fix the performance project it was measured on
+- scaffold the plugin with the ported backlinks module
+
+### Fixed
+
+- **canvas:** merge loading the canvas index after a Canvas toggle
+- **backlinks:** merge patching the pane when it opens after load
+- **backlinks:** merge installing the pane patch once per session
+- **backlinks:** merge the refresh that no longer saves the editor
+- **test:** refuse an Android capture on a contended machine, and bound its index wait by wall clock
+
+### Documentation
+
+- **readme:** point the library-free route at the plugin API protocol guide
+- **test:** correct the Android AVD provisioning recipe
+- capture the screenshot set and add the README gallery
