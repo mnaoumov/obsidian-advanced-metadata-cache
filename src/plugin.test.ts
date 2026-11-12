@@ -208,6 +208,8 @@ async function createLoadedPlugin(app: AppOriginal, manifest = createManifest())
 
 function createManifest(extra: Partial<PluginManifest> = {}): PluginManifest {
   return strictProxy<PluginManifest>({
+    // eslint-disable-next-line unicorn/name-replacements -- Obsidian's own `PluginManifest` member.
+    dir: 'plugins-root/advanced-metadata-cache',
     ...extra,
     id: 'advanced-metadata-cache',
     name: 'Advanced Metadata Cache',
