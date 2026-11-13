@@ -40,6 +40,19 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         }
       }),
       this.settingEx({
+        desc: 'Whether to index `advanced-metadata-cache` code blocks, whose YAML describes the heading or block right above them the way frontmatter describes the note, so other plugins can read and search per-block properties. Reads only notes that contain code blocks. When off, nothing is indexed.',
+        name: 'Block metadata module',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            // No `onChanged` refresh: no other row depends on this module.
+            this.bind({
+              propertyName: 'isBlockMetadataModuleEnabled',
+              valueComponent: toggle
+            });
+          });
+        }
+      }),
+      this.settingEx({
         desc: 'Whether links and embeds written inside code blocks of the languages listed below count like any other link: in backlinks, outgoing links, the graph, and the updates a rename makes. Obsidian skips everything inside a code block, which is wrong for a block a plugin renders as a note, such as an `ad-note` admonition. Only notes with such a block are read. When off, those links are ignored as before.',
         name: 'Code block links module',
         render: (setting) => {

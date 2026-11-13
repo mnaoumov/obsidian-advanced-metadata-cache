@@ -12,7 +12,7 @@
  *   plugin's own belongs on an Obsidian function, and each has a replacement on the published API below.
  * - **A published API.** {@link AdvancedMetadataCacheApi} is published through the plugin registry
  *   under the plugin id `advanced-metadata-cache` and carries a contract version of its own. It
- *   answers what the `Titles`, `Headings`, `Properties`, `Unlinked mentions`, `Link texts`, `Code block links`, `Tags`, `External links` and `HTML` modules know, which core has no
+ *   answers what the `Titles`, `Headings`, `Properties`, `Unlinked mentions`, `Link texts`, `Code block links`, `Tags`, `External links`, `HTML` and `Block metadata` modules know, which core has no
  *   method for, and
  *   since contract `1.3.0` every extra the `Backlinks` and `Names` modules offer beyond the core call.
  *
@@ -124,6 +124,62 @@ export interface AdvancedMetadataCacheApi {
    */
   getBacklinksForFileSafe(pathOrFile: string | TFile): Promise<CustomArrayDict<Reference> | null>;
 
+  /**
+   * Lists the metadata fences of a note: fenced code blocks of the language `advanced-metadata-cache`, whose YAML
+   * describes one block of the note the way frontmatter describes the whole note.
+   *
+   * A fence describes the nearest section BEFORE it that is not itself a metadata fence, given as
+   * {@link BlockMetadata.target}. Placed right under a heading it describes that heading and its section, with no block
+   * id needed; consecutive fences describe the same section. Only top-level fences are read: Obsidian lists a fence
+   * inside a list item or a quote as part of that block.
+   *
+   * Answers as things stand: at startup, before the module has read the notes, it may answer with too little; use
+   * {@link AdvancedMetadataCacheApi.getBlockMetadataSafe} when that matters.
+   *
+   * Added in contract `1.16.0`.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The fences, in the order they appear in the note; empty for a note with none and for a path no note
+   *   answers to. `null` while the `Block metadata` module is off.
+   */
+  getBlockMetadata(pathOrFile: string | TFile): BlockMetadata[] | null;
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getBlockMetadata}, once the module has read every note at startup.
+   *
+   * Added in contract `1.16.0`.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The fences; `null` while the `Block metadata` module is off.
+   */
+  getBlockMetadataSafe(pathOrFile: string | TFile): Promise<BlockMetadata[] | null>;
+
+  /**
+   * Finds every metadata fence in the vault that names a property, and holds a value when one is asked for: "which
+   * headings are `status: done`", without reading every note.
+   *
+   * The name is matched exactly. A value is matched exactly against a scalar's string form (`3`, `true`) or against
+   * each scalar member of a list, as the `Properties` module matches frontmatter; `null` and a mapping match no value.
+   *
+   * Added in contract `1.16.0`.
+   *
+   * @param propertyName - The property name.
+   * @param value - The value. Omitted, any value matches, `null` included.
+   * @returns The matching fences with their notes' paths, by path in code-unit order, then in note order. `null` while
+   *   the `Block metadata` module is off.
+   */
+  getBlockMetadataWithProperty(propertyName: string, value?: string): BlockMetadataMatch[] | null;
+
+  /**
+   * {@link AdvancedMetadataCacheApi.getBlockMetadataWithProperty}, once the module has read every note at startup.
+   *
+   * Added in contract `1.16.0`.
+   *
+   * @param propertyName - The property name.
+   * @param value - The value. Omitted, any value matches.
+   * @returns The matching fences; `null` while the `Block metadata` module is off.
+   */
+  getBlockMetadataWithPropertySafe(propertyName: string, value?: string): Promise<BlockMetadataMatch[] | null>;
   /**
    * Lists the links and embeds the `Code block links` module found inside a note's code blocks.
    *
@@ -706,6 +762,21 @@ export interface AdvancedMetadataCacheApi {
   migrateSettings(params: MigrateSettingsParams): Promise<MigrateSettingsResult>;
 
   /**
+   * Subscribes to changes of the `Block metadata` module's answers.
+   *
+   * The callback is called synchronously after each change, with the paths of the notes whose metadata fences changed,
+   * or with `null` when any of them may have: when the index has just been built, and when it is cleared because the
+   * module was switched off or on. The subscription lasts until the returned function is called, whatever happens to the
+   * module meanwhile, so a caller subscribes once on load and unsubscribes on unload.
+   *
+   * Added in contract `1.16.0`.
+   *
+   * @param callback - Called with the changed paths, or `null` for any of them.
+   * @returns A function that ends the subscription.
+   */
+  onBlockMetadataChanged(callback: BlockMetadataChangedCallback): () => void;
+
+  /**
    * Subscribes to changes of {@link AdvancedMetadataCacheApi.getLinkTexts}'s answers.
    *
    * The callback is called synchronously after each change, with the paths of the files whose link texts changed,
@@ -815,6 +886,86 @@ export interface AdvancedMetadataCacheMigratableSettings {
    * Frontmatter properties to add to the title properties, e.g. `['subtitle']`.
    */
   readonly titlePropertyNames?: readonly string[];
+}
+
+/**
+ * One metadata fence, as {@link AdvancedMetadataCacheApi.getBlockMetadata} lists it.
+ */
+export interface BlockMetadata {
+  /**
+   * Why the fence's YAML gave no properties: the parser's message, or a note that it is not a mapping. `null` when it
+   * parsed.
+   */
+  readonly error: null | string;
+
+  /**
+   * Where the fence is in the note, from its opening line to its closing one.
+   */
+  readonly position: Pos;
+
+  /**
+   * The properties, as YAML read them; an empty fence has none. A date is its string, as in frontmatter. `null` when
+   * the YAML did not parse to a mapping, with {@link BlockMetadata.error} saying why.
+   */
+  readonly properties: null | Readonly<Record<string, unknown>>;
+
+  /**
+   * The section the fence describes, or `null` for a fence with nothing but the frontmatter before it.
+   */
+  readonly target: BlockMetadataTarget | null;
+}
+
+/**
+ * The callback of {@link AdvancedMetadataCacheApi.onBlockMetadataChanged}.
+ *
+ * @param paths - The paths of the notes whose metadata fences changed, or `null` when any of them may have.
+ */
+export type BlockMetadataChangedCallback = (paths: null | readonly string[]) => void;
+
+/**
+ * A metadata fence and its note, as {@link AdvancedMetadataCacheApi.getBlockMetadataWithProperty} lists it.
+ */
+export interface BlockMetadataMatch {
+  /**
+   * The fence.
+   */
+  readonly blockMetadata: BlockMetadata;
+
+  /**
+   * The vault-relative path of the note holding it.
+   */
+  readonly path: string;
+}
+
+/**
+ * The section a metadata fence describes: the nearest one before it that is not itself a metadata fence.
+ */
+export interface BlockMetadataTarget {
+  /**
+   * The section's block id (`^block-id`), without its `^`, or `null` when it has none.
+   */
+  readonly blockId: null | string;
+
+  /**
+   * The heading's text, for a heading; `null` otherwise.
+   */
+  readonly heading: null | string;
+
+  /**
+   * The heading's level, 1 to 6, for a heading; `null` otherwise.
+   */
+  readonly level: null | number;
+
+  /**
+   * Where the section is in the note. For a heading, the heading's line alone, not the section under it.
+   */
+  readonly position: Pos;
+
+  /**
+   * The section's type, as Obsidian names it in `CachedMetadata.sections`: `heading`, `paragraph`, `list`, `table`,
+   * `blockquote`, `code`, `callout` and so on.
+   */
+  readonly type: string;
 }
 
 /**

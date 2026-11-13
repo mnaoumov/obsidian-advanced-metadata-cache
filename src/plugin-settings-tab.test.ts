@@ -167,6 +167,7 @@ describe('PluginSettingsTab', () => {
 
     expect(harness.definitions.map((definition) => 'name' in definition ? definition.name : '')).toStrictEqual([
       'Backlinks module',
+      'Block metadata module',
       'Code block links module',
       'Code block languages',
       'External links module',
@@ -192,6 +193,7 @@ describe('PluginSettingsTab', () => {
     ]);
     expect(harness.propertyNames).toStrictEqual([
       'isBacklinksModuleEnabled',
+      'isBlockMetadataModuleEnabled',
       'isCodeBlockLinksModuleEnabled',
       'codeBlockLinkLanguages',
       'isExternalLinksModuleEnabled',
@@ -219,13 +221,13 @@ describe('PluginSettingsTab', () => {
   it('should show the options belonging to a module that is on', () => {
     const harness = createHarness(true, true, true);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true]);
   });
 
   it('should hide the options belonging to a module that is off, leaving every module toggle visible', () => {
     const harness = createHarness(false);
 
-    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, false, true, true, true, true, true, true, false, false, true, true, false, false, false, true, false, false, true, false, true, true]);
+    expect(harness.definitions.map((definition) => checkIsVisible(definition))).toStrictEqual([true, true, true, false, true, true, true, true, true, true, false, false, true, true, false, false, false, true, false, false, true, false, true, true]);
   });
 
   it('should hide the titles-in-autocomplete toggle until BOTH modules it needs are on', () => {
@@ -234,9 +236,9 @@ describe('PluginSettingsTab', () => {
 
     // It reads a title through the `Titles` module and puts it in the `Names` module's array, so
     // either one being off leaves it inert - and an inert toggle is worse than an absent one.
-    expect(checkIsVisible(titlesOnly.definitions[15])).toBe(false);
-    expect(checkIsVisible(namesOnly.definitions[15])).toBe(false);
-    expect(checkIsVisible(createHarness(true, true, true).definitions[15])).toBe(true);
+    expect(checkIsVisible(titlesOnly.definitions[16])).toBe(false);
+    expect(checkIsVisible(namesOnly.definitions[16])).toBe(false);
+    expect(checkIsVisible(createHarness(true, true, true).definitions[16])).toBe(true);
   });
 
   it('should re-render the tab when the backlinks module toggle changes, so the hidden rows follow it', async () => {

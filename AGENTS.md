@@ -417,6 +417,32 @@ folder is dropped, and a file renamed TO `.md` is picked up by the `changed` Obs
 persisted. `tags.cross-platform.integration.test.ts` compares every answer with a full scan of the metadata cache after
 an edit, a rename and a delete. Off by default, like the other opt-in modules.
 
+## The `block-metadata` module: a fence describes the section above it, read from text, never written back
+
+`block-metadata-parser.ts` reads fenced code blocks of the fixed language `advanced-metadata-cache` from the `code`
+SECTIONS of a note's cache, so only top-level fences count, as for `code-block-links` (whose `findFencedCodeBlocks` it
+reuses). The content goes through Obsidian's own `parseYaml`, then a JSON copy, so a date is a string as in frontmatter
+and nothing handed out shares an object with the index. A fence whose YAML throws or is not a mapping is LISTED, with
+`properties: null` and the reason, never dropped.
+
+**The target is the nearest preceding section that is not itself a metadata fence.** That makes a fence right under a
+heading describe that heading with no block id, and it is the one rule that survives a heading sort, a section move and
+`Advanced Note Composer`'s merge and split, which all carry a heading's lines along. Two fences in a row share a target;
+a fence after nothing but the frontmatter has `target: null`. The target's `^block-id` is reported, never required.
+The alternatives were weighed and rejected: the block after the fence detaches on every insert above it, the enclosing
+section cannot describe a paragraph, an id inside the YAML makes the common case need an id, and a short alias language
+risks claiming a language another plugin renders.
+
+`BlockMetadataIndex` is owned by the plugin, like `LinkTextIndex`, because `onBlockMetadataChanged` subscriptions must
+outlive the module; `BlockMetadataComponent` builds it (only notes whose cache lists a `code` section are read) and
+clears it at both edges, notifying `null`. `changed` hands over the text, so an edit reads nothing; `setPath` notifies
+only when the note's fences really changed. Nothing is persisted. Off by default.
+
+**Nothing renders the fence yet, on purpose.** A code block processor is a core-global registration keyed by language,
+and a second instance registering it again throws on install, update and Hot Reload, which would leave this plugin,
+which other plugins depend on, unloaded. Rendering waits for the library fix for that, and must then be tied to the
+module's lifetime, not the plugin's.
+
 ## The `external-links` module: text extraction through the shared reader
 
 Obsidian's metadata cache lists no external link at all: the worker leaves `[x](https://...)` out of `links`, and a

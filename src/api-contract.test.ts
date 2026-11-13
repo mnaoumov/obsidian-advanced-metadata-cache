@@ -109,6 +109,16 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
     const similarHostQuery: PayloadCases = { invalid: [[], [1], ['a.com', '2'], ['a.com', 2, 'extra']], valid: [['a.com'], ['a.com', 1], ['a.com', undefined]] };
     const url: PayloadCases = { invalid: [[], [1], ['https://a.com', 'extra']], valid: [['https://a.com/x']] };
 
+    const BLOCK_METADATA = { error: null, position: LINK_POSITION, properties: { status: 'done' }, target: { blockId: null, heading: 'One', level: 1, position: LINK_POSITION, type: 'heading' } };
+    const nullableBlockMetadata: PayloadCases = {
+      invalid: [undefined, [null], [{ ...BLOCK_METADATA, error: 1 }], [{ ...BLOCK_METADATA, properties: [] }], [{ ...BLOCK_METADATA, properties: 'a' }], [{ ...BLOCK_METADATA, target: { ...BLOCK_METADATA.target, type: 1 } }], [{ ...BLOCK_METADATA, position: {} }]],
+      valid: [null, [], [BLOCK_METADATA], [{ ...BLOCK_METADATA, error: 'bad', properties: null, target: null }]]
+    };
+    const nullableBlockMetadataMatches: PayloadCases = {
+      invalid: [undefined, [null], [{ blockMetadata: BLOCK_METADATA }], [{ blockMetadata: null, path: 'Alpha.md' }]],
+      valid: [null, [], [{ blockMetadata: BLOCK_METADATA, path: 'Alpha.md' }]]
+    };
+    const blockProperty: PayloadCases = { invalid: [[], [1], ['status', 1], ['status', null], ['status', 'done', 'extra']], valid: [['status'], ['status', 'done'], ['status', undefined]] };
     const HTML_RANGE = { html: '<span>', isClosing: false, kind: 'tag', namespace: 'html', position: LINK_POSITION, tagName: 'span' };
     const nullableHtmlRanges: PayloadCases = {
       invalid: [undefined, [null], [{ ...HTML_RANGE, kind: 'other' }], [{ ...HTML_RANGE, namespace: 'other' }], [{ ...HTML_RANGE, namespace: 1 }], [{ ...HTML_RANGE, html: 1 }]],
@@ -125,6 +135,10 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
         output: { invalid: [null], valid: [BACKLINKS_DICT] }
       },
       getBacklinksForFileSafe: { input: pathOrFile, output: nullableBacklinks },
+      getBlockMetadata: { input: pathOrFile, output: nullableBlockMetadata },
+      getBlockMetadataSafe: { input: pathOrFile, output: nullableBlockMetadata },
+      getBlockMetadataWithProperty: { input: blockProperty, output: nullableBlockMetadataMatches },
+      getBlockMetadataWithPropertySafe: { input: blockProperty, output: nullableBlockMetadataMatches },
       getCodeBlockReferences: { input: pathOrFile, output: nullableCodeBlockReferences },
       getCodeBlockReferencesSafe: { input: pathOrFile, output: nullableCodeBlockReferences },
       getDatedValues: { input: datedValuesQuery, output: nullableDatedValues },
@@ -192,6 +206,10 @@ describe('ADVANCED_METADATA_CACHE_API_CONTRACT', () => {
           }]]
         },
         output: { invalid: [null, {}, { isApplied: 'yes' }], valid: [{ isApplied: true }, { isApplied: false, unknownKey: true }] }
+      },
+      onBlockMetadataChanged: {
+        input: { invalid: [[], [null], ['callback'], [noop, 'extra']], valid: [[noop]] },
+        output: { invalid: [undefined, null, {}], valid: [noop] }
       },
       onLinkTextsChanged: {
         input: { invalid: [[], [null], ['callback'], [noop, 'extra']], valid: [[noop]] },

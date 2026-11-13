@@ -19,6 +19,8 @@ import {
 } from '@mnaoumov/typescript-lib/function';
 
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
+import type { BlockMetadataComponent } from './modules/block-metadata/block-metadata-component.ts';
+import type { BlockMetadataIndex } from './modules/block-metadata/block-metadata-index.ts';
 import type { CodeBlockLanguages } from './modules/code-block-links/code-block-languages.ts';
 import type { CodeBlockLinksComponent } from './modules/code-block-links/code-block-links-component.ts';
 import type { ExternalLinkIndexComponent } from './modules/external-links/external-link-index-component.ts';
@@ -37,6 +39,9 @@ import type { UnlinkedMentionsComponent } from './modules/unlinked-mentions/unli
 import type {
   AdvancedMetadataCacheApi,
   AdvancedMetadataCacheMigratableSettings,
+  BlockMetadata,
+  BlockMetadataChangedCallback,
+  BlockMetadataMatch,
   CodeBlockReference,
   DatedValue,
   DatedValuesQuery,
@@ -67,12 +72,18 @@ import {
 
 interface PluginApiImplConstructorParams {
   readonly app: App;
+  readonly blockMetadataIndex: BlockMetadataIndex;
   readonly codeBlockLanguages: CodeBlockLanguages;
   /**
    * Finds the `Backlinks` module's cache, or `null` while the module is off. Asked per call, because a
    * module switched off and on again is a fresh component.
    */
   readonly getBacklinkCacheComponent: () => BacklinkCacheComponent | null;
+  /**
+   * Finds the `Block metadata` module's component, or `null` while the module is off. Asked per call, for the same
+   * reason.
+   */
+  readonly getBlockMetadataComponent: () => BlockMetadataComponent | null;
   /**
    * Finds the `Code block links` module's component, or `null` while the module is off. Asked per call, for the
    * same reason.
@@ -132,8 +143,10 @@ interface PluginApiImplConstructorParams {
  */
 export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigrationApi<AdvancedMetadataCacheMigratableSettings> {
   private readonly app: App;
+  private readonly blockMetadataIndex: BlockMetadataIndex;
   private readonly codeBlockLanguages: CodeBlockLanguages;
   private readonly getBacklinkCacheComponent: () => BacklinkCacheComponent | null;
+  private readonly getBlockMetadataComponent: () => BlockMetadataComponent | null;
   private readonly getCodeBlockLinksComponent: () => CodeBlockLinksComponent | null;
   private readonly getExternalLinkIndexComponent: () => ExternalLinkIndexComponent | null;
   private readonly getHtmlIndexComponent: () => HtmlIndexComponent | null;
@@ -159,8 +172,10 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
   public constructor(params: PluginApiImplConstructorParams) {
     this.metadataParsers = params.metadataParsers;
     this.app = params.app;
+    this.blockMetadataIndex = params.blockMetadataIndex;
     this.codeBlockLanguages = params.codeBlockLanguages;
     this.getBacklinkCacheComponent = params.getBacklinkCacheComponent;
+    this.getBlockMetadataComponent = params.getBlockMetadataComponent;
     this.getCodeBlockLinksComponent = params.getCodeBlockLinksComponent;
     this.getExternalLinkIndexComponent = params.getExternalLinkIndexComponent;
     this.getHtmlIndexComponent = params.getHtmlIndexComponent;
@@ -204,6 +219,50 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
    */
   public async getBacklinksForFileSafe(pathOrFile: string | TFile): Promise<CustomArrayDict<Reference> | null> {
     return await this.getBacklinkCacheComponent()?.getBacklinksForFileAsCoreSafe(pathOrFile) ?? null;
+  }
+
+  /**
+   * Lists the metadata fences of a note.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The fences, or `null` while the `Block metadata` module is off.
+   */
+  public getBlockMetadata(pathOrFile: string | TFile): BlockMetadata[] | null {
+    return this.getBlockMetadataComponent() ? this.blockMetadataIndex.getBlockMetadata(getPath(this.app, pathOrFile)) : null;
+  }
+
+  /**
+   * Lists the metadata fences of a note, once every note has been read at startup.
+   *
+   * @param pathOrFile - The vault-relative path of a note, or the note itself.
+   * @returns The fences, or `null` while the `Block metadata` module is off.
+   */
+  public async getBlockMetadataSafe(pathOrFile: string | TFile): Promise<BlockMetadata[] | null> {
+    await this.getBlockMetadataComponent()?.waitForBuild();
+    return this.getBlockMetadata(pathOrFile);
+  }
+
+  /**
+   * Finds every metadata fence naming a property, and holding a value when one is asked for.
+   *
+   * @param propertyName - The property name.
+   * @param value - The value; omitted, any value matches.
+   * @returns The matching fences, or `null` while the `Block metadata` module is off.
+   */
+  public getBlockMetadataWithProperty(propertyName: string, value?: string): BlockMetadataMatch[] | null {
+    return this.getBlockMetadataComponent() ? this.blockMetadataIndex.getBlockMetadataWithProperty(propertyName, value) : null;
+  }
+
+  /**
+   * Finds every metadata fence naming a property, once every note has been read at startup.
+   *
+   * @param propertyName - The property name.
+   * @param value - The value; omitted, any value matches.
+   * @returns The matching fences, or `null` while the `Block metadata` module is off.
+   */
+  public async getBlockMetadataWithPropertySafe(propertyName: string, value?: string): Promise<BlockMetadataMatch[] | null> {
+    await this.getBlockMetadataComponent()?.waitForBuild();
+    return this.getBlockMetadataWithProperty(propertyName, value);
   }
 
   /**
@@ -679,6 +738,16 @@ export class PluginApiImpl implements AdvancedMetadataCacheApi, SettingsMigratio
     } finally {
       releaseQueue();
     }
+  }
+
+  /**
+   * Subscribes to changes of the block metadata.
+   *
+   * @param callback - Called with the changed paths, or `null` for any of them.
+   * @returns A function that ends the subscription.
+   */
+  public onBlockMetadataChanged(callback: BlockMetadataChangedCallback): () => void {
+    return this.blockMetadataIndex.onChange(callback);
   }
 
   /**

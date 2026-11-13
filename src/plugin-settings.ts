@@ -29,6 +29,11 @@ export class PluginSettings {
   public isBacklinksModuleEnabled = true;
 
   /**
+   * Off by default, like every module added after the one this plugin was created for.
+   */
+  public isBlockMetadataModuleEnabled = false;
+
+  /**
    * ON by default, unlike most modules added after the one this plugin was created for, because it does nothing
    * until a language is listed in {@link PluginSettings.codeBlockLinkLanguages} or registered by another plugin:
    * off, every such plugin would first have to ask its user to come here and switch it on.
