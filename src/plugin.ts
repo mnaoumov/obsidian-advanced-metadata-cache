@@ -225,7 +225,7 @@ export class Plugin extends PluginBase {
           moduleId: 'non-markdown'
         },
         {
-          createComponent: (): BlockMetadataComponent => new BlockMetadataComponent({ app: this.app, blockMetadataIndex }),
+          createComponent: (): BlockMetadataComponent => new BlockMetadataComponent({ app: this.app, blockMetadataIndex, codeBlockLanguages }),
           getIsEnabled: (settings): boolean => settings.isBlockMetadataModuleEnabled,
           moduleId: 'block-metadata'
         }

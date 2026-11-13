@@ -130,7 +130,8 @@ export interface AdvancedMetadataCacheApi {
    *
    * A fence describes the nearest section BEFORE it that is not itself a metadata fence, given as
    * {@link BlockMetadata.target}. Placed right under a heading it describes that heading and its section, with no block
-   * id needed; consecutive fences describe the same section. Only top-level fences are read: Obsidian lists a fence
+   * id needed; consecutive fences describe the same section. While the module is on, a quoted `[[link]]` value counts as a
+   * link through the `Code block links` module, as it does in frontmatter. Only top-level fences are read: Obsidian lists a fence
    * inside a list item or a quote as part of that block.
    *
    * Answers as things stand: at startup, before the module has read the notes, it may answer with too little; use

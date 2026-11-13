@@ -13,10 +13,12 @@ import {
 import { ensureMetadataCacheReady } from '@mnaoumov/obsidian-lib/metadata-cache';
 import { noop } from '@mnaoumov/typescript-lib/function';
 
+import type { CodeBlockLanguages } from '../code-block-links/code-block-languages.ts';
 import type { BlockMetadataIndex } from './block-metadata-index.ts';
 
 import { isPluginDataPath } from '../../persistence/storage-paths.ts';
 import {
+  BLOCK_METADATA_LANGUAGE,
   findBlockMetadata,
   hasCodeSection
 } from './block-metadata-parser.ts';
@@ -24,6 +26,7 @@ import {
 interface BlockMetadataComponentConstructorParams {
   readonly app: App;
   readonly blockMetadataIndex: BlockMetadataIndex;
+  readonly codeBlockLanguages: CodeBlockLanguages;
 }
 
 /**
@@ -33,6 +36,10 @@ interface BlockMetadataComponentConstructorParams {
  * fence is one; then kept current by `changed`, which hands over the note's text, so an edit reads nothing. A `delete`
  * or `rename` is handled at once, since Obsidian fires no `changed` for a note that only moved. Nothing is persisted:
  * the build reads the same notes `Code block links` reads.
+ *
+ * While it is on, it registers its language with `Code block links`, so a `[[link]]` written as a property value is a
+ * link like any other: in backlinks, the graph and rename updates, as it is in frontmatter. That module does the work,
+ * and does nothing while it is switched off.
  */
 export class BlockMetadataComponent extends LayoutReadyComponent {
   /**
@@ -44,6 +51,7 @@ export class BlockMetadataComponent extends LayoutReadyComponent {
 
   private readonly blockMetadataIndex: BlockMetadataIndex;
   private readonly builtPromise: Promise<void>;
+  private readonly codeBlockLanguages: CodeBlockLanguages;
   private isBuiltValue = false;
   private resolveBuiltPromise: () => void = noop;
 
@@ -51,9 +59,15 @@ export class BlockMetadataComponent extends LayoutReadyComponent {
     super(params.app);
 
     this.blockMetadataIndex = params.blockMetadataIndex;
+    this.codeBlockLanguages = params.codeBlockLanguages;
     this.builtPromise = new Promise<void>((resolve) => {
       this.resolveBuiltPromise = resolve;
     });
+  }
+
+  public override onload(): void {
+    super.onload();
+    this.register(this.codeBlockLanguages.register(BLOCK_METADATA_LANGUAGE));
   }
 
   public override onunload(): void {
