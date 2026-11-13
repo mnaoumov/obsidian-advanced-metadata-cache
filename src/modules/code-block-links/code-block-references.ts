@@ -27,18 +27,9 @@ import { ensureNonNullable } from '@mnaoumov/typescript-lib/type-guards';
 import type { CodeBlockReference } from '../../plugin-api.ts';
 
 /**
- * One line of a block's content: where it starts in the note once the fence's indentation is stripped, and how
- * much was stripped.
- */
-interface ContentLine {
-  readonly offset: number;
-  readonly removedPrefixLength: number;
-}
-
-/**
  * A fenced code block of the note: its language and the lines between its fences.
  */
-interface FencedCodeBlock {
+export interface FencedCodeBlock {
   /**
    * The index of the closing fence's line, or of the line after the last one when the block is never closed.
    */
@@ -46,6 +37,15 @@ interface FencedCodeBlock {
   readonly contentStartLine: number;
   readonly indent: number;
   readonly language: string;
+}
+
+/**
+ * One line of a block's content: where it starts in the note once the fence's indentation is stripped, and how
+ * much was stripped.
+ */
+interface ContentLine {
+  readonly offset: number;
+  readonly removedPrefixLength: number;
 }
 
 interface FindCodeBlockReferencesParams extends HasIncludedCodeBlockParams {
@@ -114,27 +114,14 @@ export async function findCodeBlockReferences(params: FindCodeBlockReferencesPar
 }
 
 /**
- * Whether Obsidian lists any code section for the note: the check that needs no text at all.
+ * Lists the note's fenced code blocks that Obsidian lists as `code` sections, with their languages; a block with no
+ * language is left out.
  *
- * @param cache - The note's cache.
- * @returns Whether the note has a code section.
+ * @param lines - The note's lines.
+ * @param sections - The note's sections, from its cache entry.
+ * @returns The blocks, in the order they appear in the note.
  */
-export function hasCodeSection(cache: CachedMetadata): boolean {
-  return cache.sections?.some((section) => section.type === 'code') ?? false;
-}
-
-/**
- * Whether any of the note's fenced code blocks is of a language the whitelist includes, parsing nothing: the
- * cheap check that decides whether a note is worth a parse at all.
- *
- * @param params - The note's text and cache, and the whitelist.
- * @returns Whether any block's language is included.
- */
-export function hasIncludedCodeBlock(params: HasIncludedCodeBlockParams): boolean {
-  return findFencedCodeBlocks(params.text.split('\n'), params.cache.sections).some((block) => params.isLanguageIncluded(block.language));
-}
-
-function findFencedCodeBlocks(lines: readonly string[], sections: readonly SectionCache[] | undefined): FencedCodeBlock[] {
+export function findFencedCodeBlocks(lines: readonly string[], sections: readonly SectionCache[] | undefined): FencedCodeBlock[] {
   const blocks: FencedCodeBlock[] = [];
 
   for (const section of sections ?? []) {
@@ -178,7 +165,7 @@ function findFencedCodeBlocks(lines: readonly string[], sections: readonly Secti
  * @param fenceIndent - How far the opening fence is indented.
  * @returns How many leading characters to remove.
  */
-function getIndentLength(lineText: string, fenceIndent: number): number {
+export function getIndentLength(lineText: string, fenceIndent: number): number {
   let length = 0;
   while (length < fenceIndent && lineText[length] === ' ') {
     length++;
@@ -186,7 +173,7 @@ function getIndentLength(lineText: string, fenceIndent: number): number {
   return length;
 }
 
-function getLineStarts(lines: readonly string[]): number[] {
+export function getLineStarts(lines: readonly string[]): number[] {
   const lineStarts: number[] = [];
   let offset = 0;
   for (const line of lines) {
@@ -194,6 +181,27 @@ function getLineStarts(lines: readonly string[]): number[] {
     offset += line.length + 1;
   }
   return lineStarts;
+}
+
+/**
+ * Whether Obsidian lists any code section for the note: the check that needs no text at all.
+ *
+ * @param cache - The note's cache.
+ * @returns Whether the note has a code section.
+ */
+export function hasCodeSection(cache: CachedMetadata): boolean {
+  return cache.sections?.some((section) => section.type === 'code') ?? false;
+}
+
+/**
+ * Whether any of the note's fenced code blocks is of a language the whitelist includes, parsing nothing: the
+ * cheap check that decides whether a note is worth a parse at all.
+ *
+ * @param params - The note's text and cache, and the whitelist.
+ * @returns Whether any block's language is included.
+ */
+export function hasIncludedCodeBlock(params: HasIncludedCodeBlockParams): boolean {
+  return findFencedCodeBlocks(params.text.split('\n'), params.cache.sections).some((block) => params.isLanguageIncluded(block.language));
 }
 
 /**

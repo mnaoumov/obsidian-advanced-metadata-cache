@@ -277,6 +277,33 @@ const exactOnly = api.getPathsWithTag('project', { shouldIncludeNestedTags: fals
 
 The index is built at startup from the tags Obsidian has already parsed, reading no note, and follows each note Obsidian parses again, renames and deletes after that. Nothing is kept on disk. `getPathsWithTag` answers from it as it stands, which is empty until it is built; `getPathsWithTagSafe` waits for the build. Both answer **`null` while the Tags module is off**, which it is by default: read `getAllTags` over the vault yourself then. Ask for the range `^1.11`. [12 Tags](<../demo-vault/12 Tags.md>) shows it.
 
+## Block metadata
+
+Added in contract `1.16.0`:
+
+````ts
+const blocks = await api.getBlockMetadataSafe('Projects/Release plan.md') ?? [];
+const openTasks = api.getBlockMetadataWithProperty('status', 'open') ?? [];
+const unsubscribe = api.onBlockMetadataChanged((paths) => { /* re-read paths, or everything when null */ });
+````
+
+A note gives one heading or block properties of its own with a fenced code block of the language `advanced-metadata-cache`, written right under it in YAML, the way frontmatter is written:
+
+````md
+## Cut the release
+
+```advanced-metadata-cache
+status: open
+due: 2026-12-01
+```
+````
+
+`getBlockMetadata(pathOrFile)` lists a note's blocks in order. Each has its `properties` as YAML read them (a date is its string, as in frontmatter), its `position`, and the `target` it describes: the nearest section before it that is not itself such a block, with its `type` as `CachedMetadata.sections` names it, its `position`, its `^block-id` when it has one, and its `heading` and `level` for a heading. Two blocks in a row describe the same target. A block with nothing but the frontmatter before it has `target: null`. A block whose YAML does not parse, or is not a mapping, is listed with `properties: null` and the reason in `error`. Only top-level blocks are read: Obsidian lists a fence inside a list item or a quote as part of that block.
+
+`getBlockMetadataWithProperty(propertyName, value)` finds the blocks across the vault that name a property, by path in code-unit order, then in note order. The name is matched exactly. A value is matched against a scalar's string form or against each scalar member of a list, as the Properties module matches frontmatter; leave it out to match any value. `onBlockMetadataChanged(callback)` calls back with the paths whose blocks changed, or `null` after a build or a clear; subscribe once on load.
+
+The index is built at startup from the notes whose cache lists a code section, and follows each note Obsidian parses again, renames and deletes after that. Nothing is kept on disk. The `Safe` variants wait for the build. All answer **`null` while the Block metadata module is off**, which it is by default. The block is shown as a code block in every view for now. Ask for the range `^1.16`. [16 Block metadata](<../demo-vault/16 Block metadata.md>) shows it.
+
 ## External links
 
 Added in contract `1.13.0`:

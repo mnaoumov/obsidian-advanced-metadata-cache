@@ -41,6 +41,7 @@ import {
   functionTypeGuard,
   instanceOfTypeGuard,
   isBoolean,
+  isNull,
   isNumber,
   isString,
   isStringArray,
@@ -53,6 +54,10 @@ import {
 import type {
   AdvancedMetadataCacheApi,
   AdvancedMetadataCacheMigratableSettings,
+  BlockMetadata,
+  BlockMetadataChangedCallback,
+  BlockMetadataMatch,
+  BlockMetadataTarget,
   CodeBlockReference,
   CustomArrayDict,
   DatedValue,
@@ -143,6 +148,27 @@ const isLoc = objectTypeGuard<Loc>({
   offset: isNumber
 });
 
+const isPos = objectTypeGuard<Pos>({ end: isLoc, start: isLoc });
+
+const isBlockMetadataTarget = objectTypeGuard<BlockMetadataTarget>({
+  blockId: nullableTypeGuard(isString),
+  heading: nullableTypeGuard(isString),
+  level: nullableTypeGuard(isNumber),
+  position: isPos,
+  type: isString
+});
+
+const isBlockMetadata = objectTypeGuard<BlockMetadata>({
+  error: nullableTypeGuard(isString),
+  position: isPos,
+  properties: (value): value is BlockMetadata['properties'] => isNull(value) || (typeof value === 'object' && !Array.isArray(value)),
+  target: nullableTypeGuard(isBlockMetadataTarget)
+});
+
+const isBlockMetadataMatch = objectTypeGuard<BlockMetadataMatch>({
+  blockMetadata: isBlockMetadata,
+  path: isString
+});
 const isExternalLink = objectTypeGuard<ExternalLink>({
   host: isString,
   isInFrontmatter: isBoolean,
@@ -235,6 +261,8 @@ const isUnlinkedMention = objectTypeGuard<UnlinkedMention>({
   ranges: arrayTypeGuard(isUnlinkedMentionRange)
 });
 
+const BLOCK_METADATA_ARRAY_GUARD = createExpectedTypeGuard('an array of block metadata', arrayTypeGuard(isBlockMetadata));
+const BLOCK_METADATA_MATCH_ARRAY_GUARD = createExpectedTypeGuard('an array of block metadata matches', arrayTypeGuard(isBlockMetadataMatch));
 const BACKLINKS_DICT_GUARD = createExpectedTypeGuard('a backlinks dictionary', isBacklinksDict);
 const CODE_BLOCK_REFERENCE_ARRAY_GUARD = createExpectedTypeGuard('an array of code block references', arrayTypeGuard(isCodeBlockReference));
 const DATED_VALUE_ARRAY_GUARD = createExpectedTypeGuard('an array of dated values', arrayTypeGuard(isDatedValue));
@@ -256,6 +284,7 @@ const PATHS_GUARD = createExpectedTypeGuard('an array of paths', isStringArray);
 const SIMILAR_HOST_ARRAY_GUARD = createExpectedTypeGuard('an array of similar hosts', arrayTypeGuard(isSimilarHost));
 const PROPERTY_NAME_GUARD = createExpectedTypeGuard('a property name', isString);
 const PROPERTY_VALUE_GUARD = createExpectedTypeGuard('a property value', isString);
+const OPTIONAL_PROPERTY_VALUE_GUARD = optionalGuard(PROPERTY_VALUE_GUARD);
 const URL_GUARD = createExpectedTypeGuard('a URL', isString);
 const TAG_GUARD = createExpectedTypeGuard('a tag', isString);
 const TAG_QUERY_OPTIONS_GUARD = optionalGuard(createExpectedTypeGuard('tag query options', isTagQueryOptions));
@@ -277,6 +306,22 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
   getBacklinksForFileSafe: {
     input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
     output: createTypeGuardSchema(nullableGuard(BACKLINKS_DICT_GUARD))
+  },
+  getBlockMetadata: {
+    input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(BLOCK_METADATA_ARRAY_GUARD))
+  },
+  getBlockMetadataSafe: {
+    input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(BLOCK_METADATA_ARRAY_GUARD))
+  },
+  getBlockMetadataWithProperty: {
+    input: createArgumentsSchema([PROPERTY_NAME_GUARD, OPTIONAL_PROPERTY_VALUE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(BLOCK_METADATA_MATCH_ARRAY_GUARD))
+  },
+  getBlockMetadataWithPropertySafe: {
+    input: createArgumentsSchema([PROPERTY_NAME_GUARD, OPTIONAL_PROPERTY_VALUE_GUARD]),
+    output: createTypeGuardSchema(nullableGuard(BLOCK_METADATA_MATCH_ARRAY_GUARD))
   },
   getCodeBlockReferences: {
     input: createArgumentsSchema([PATH_OR_FILE_GUARD]),
@@ -445,6 +490,10 @@ export const ADVANCED_METADATA_CACHE_API_CONTRACT: AdvancedMetadataCacheApiContr
   migrateSettings: {
     input: createArgumentsSchema([createExpectedTypeGuard('migrate settings params', isMigrateSettingsParams)]),
     output: createTypeGuardSchema(createExpectedTypeGuard('a migrate settings result', isMigrateSettingsResult))
+  },
+  onBlockMetadataChanged: {
+    input: createArgumentsSchema([createExpectedTypeGuard('a callback', functionTypeGuard<BlockMetadataChangedCallback>())]),
+    output: createTypeGuardSchema(createExpectedTypeGuard('an unsubscribe function', functionTypeGuard<() => void>()))
   },
   onLinkTextsChanged: {
     input: createArgumentsSchema([createExpectedTypeGuard('a callback', functionTypeGuard<LinkTextsChangedCallback>())]),

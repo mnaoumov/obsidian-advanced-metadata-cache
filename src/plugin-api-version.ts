@@ -30,5 +30,8 @@
  * its `Safe` variant, as additively: the `External links` module's answer to which notes link to a URL or a site.
  * `1.15.0` adds shared HTML ranges and fragment diagnostics, with Safe variants.
  * `1.14.0` adds `registerMetadataParser`, supplying core metadata for non-native file extensions.
+ * `1.16.0` adds `getBlockMetadata`, `getBlockMetadataWithProperty`, each with its `Safe` variant, and
+ * `onBlockMetadataChanged`, as additively: the `Block metadata` module's answer to which metadata fences describe
+ * which block of a note.
  */
-export const PLUGIN_API_VERSION = '1.15.0';
+export const PLUGIN_API_VERSION = '1.16.0';

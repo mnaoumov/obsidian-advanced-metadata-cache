@@ -4,6 +4,8 @@ Open **Settings -> Community plugins -> `Advanced Metadata Cache`** to configure
 
 - `isBacklinksModuleEnabled`
   - when on, the **Backlinks** module maintains the backlink index and answers `app.metadataCache.getBacklinksForFile()` from it. When off, the module is unloaded outright - its index, its listeners and its **Refresh backlink panels** command all go with it, and Obsidian's own implementation answers again. Every index this plugin maintains is a module of its own, so switching one off leaves the others running.
+- `isBlockMetadataModuleEnabled`
+  - when on, the **Block metadata** module reads every `advanced-metadata-cache` code block, whose YAML gives the heading or block right above it properties of its own, so other plugins can read them and find every block marked, say, `status: open`. It reads only notes that contain code blocks, and keeps nothing on disk. Off by default, like every module added after the one this plugin was created for. [16 Block metadata](<./16 Block metadata.md>) demonstrates it.
 - `isCodeBlockLinksModuleEnabled`
   - when on, the **Code block links** module counts the links and embeds written inside code blocks of the languages listed below, so they reach backlinks, outgoing links, the graph and rename updates like any other link. It does nothing until a language is listed here or registered by another plugin, which is why it is **on** by default. [11 Code block links](<./11 Code block links.md>) demonstrates it.
 - `codeBlockLinkLanguages`

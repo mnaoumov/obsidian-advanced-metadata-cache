@@ -25,6 +25,7 @@ import {
 } from 'vitest';
 
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
+import type { BlockMetadataComponent } from './modules/block-metadata/block-metadata-component.ts';
 import type { CodeBlockLinksComponent } from './modules/code-block-links/code-block-links-component.ts';
 import type { ExternalLinkIndexComponent } from './modules/external-links/external-link-index-component.ts';
 import type { HtmlIndexComponent } from './modules/html/html-index-component.ts';
@@ -43,6 +44,7 @@ import type {
   ShowSettingsMigrationModalParams
 } from './settings-migration-modal.ts';
 
+import { BlockMetadataIndex } from './modules/block-metadata/block-metadata-index.ts';
 import { CodeBlockLanguages } from './modules/code-block-links/code-block-languages.ts';
 import { ExternalLinkIndex } from './modules/external-links/external-link-index.ts';
 import { findExternalLinks } from './modules/external-links/external-links.ts';
@@ -83,6 +85,8 @@ describe('PluginApiImpl', () => {
   let htmlIndexComponent: HtmlIndexComponent | null = null;
   let app: App;
   let backlinkCacheComponent: BacklinkCacheComponent | null;
+  let blockMetadataComponent: BlockMetadataComponent | null;
+  let blockMetadataIndex: BlockMetadataIndex;
   let codeBlockLanguages: CodeBlockLanguages;
   let metadataParsers: MetadataParsers;
   let codeBlockLinksComponent: CodeBlockLinksComponent | null;
@@ -106,6 +110,8 @@ describe('PluginApiImpl', () => {
     settings.isTitlesModuleEnabled = true;
     editAndSaveCallCount = 0;
     backlinkCacheComponent = null;
+    blockMetadataComponent = null;
+    blockMetadataIndex = new BlockMetadataIndex();
     codeBlockLanguages = new CodeBlockLanguages();
     codeBlockLinksComponent = null;
     linkTextIndex = new LinkTextIndex();
@@ -144,8 +150,10 @@ describe('PluginApiImpl', () => {
     metadataParsers = new MetadataParsers();
     pluginApi = new PluginApiImpl({
       app: castTo<AppOriginal>(app),
+      blockMetadataIndex,
       codeBlockLanguages,
       getBacklinkCacheComponent: (): BacklinkCacheComponent | null => backlinkCacheComponent,
+      getBlockMetadataComponent: (): BlockMetadataComponent | null => blockMetadataComponent,
       getCodeBlockLinksComponent: (): CodeBlockLinksComponent | null => codeBlockLinksComponent,
       getExternalLinkIndexComponent: (): ExternalLinkIndexComponent | null => externalLinkIndexComponent,
       getHtmlIndexComponent: (): HtmlIndexComponent | null => htmlIndexComponent,
@@ -259,6 +267,41 @@ describe('PluginApiImpl', () => {
       expect(pluginApi.getPathsWithTag('project', { shouldIncludeNestedTags: false })).toEqual(['Bravo.md']);
       expect(await pluginApi.getPathsWithTagSafe('project', { source: 'body' })).toEqual(['Alpha.md']);
       expect(waitForBuild).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('block metadata', () => {
+    const POSITION = { end: { col: 3, line: 3, offset: 30 }, start: { col: 0, line: 1, offset: 10 } };
+    const BLOCK_METADATA = { error: null, position: POSITION, properties: { status: 'done' }, target: null };
+
+    it('should answer null while the module is off', async () => {
+      expect(pluginApi.getBlockMetadata('Alpha.md')).toBeNull();
+      expect(await pluginApi.getBlockMetadataSafe('Alpha.md')).toBeNull();
+      expect(pluginApi.getBlockMetadataWithProperty('status')).toBeNull();
+      expect(await pluginApi.getBlockMetadataWithPropertySafe('status', 'done')).toBeNull();
+    });
+
+    it('should answer from the index, by path or by file, waiting for its build in the Safe variants', async () => {
+      const waitForBuild = vi.fn(noopAsync);
+      blockMetadataComponent = strictProxy<BlockMetadataComponent>({ waitForBuild });
+      blockMetadataIndex.setPath('Alpha.md', [BLOCK_METADATA]);
+
+      expect(pluginApi.getBlockMetadata('Alpha.md')).toEqual([BLOCK_METADATA]);
+      await expect(pluginApi.getBlockMetadataSafe(castTo<TFile>(app.vault.createSync__('Alpha.md', '')))).resolves.toEqual([BLOCK_METADATA]);
+      expect(pluginApi.getBlockMetadataWithProperty('status', 'other')).toEqual([]);
+      await expect(pluginApi.getBlockMetadataWithPropertySafe('status', 'done')).resolves.toEqual([{ blockMetadata: BLOCK_METADATA, path: 'Alpha.md' }]);
+      expect(waitForBuild).toHaveBeenCalledTimes(2);
+    });
+
+    it('should tell a subscriber which notes changed until it unsubscribes', () => {
+      const callback = vi.fn();
+      const unsubscribe = pluginApi.onBlockMetadataChanged(callback);
+
+      blockMetadataIndex.notify(['Alpha.md']);
+      unsubscribe();
+      blockMetadataIndex.notify(null);
+
+      expect(callback.mock.calls).toEqual([[['Alpha.md']]]);
     });
   });
 

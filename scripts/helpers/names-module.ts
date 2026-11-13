@@ -33,6 +33,7 @@ export interface SettingsEditorPlugin extends Plugin {
 export interface SwitchablePluginSettings {
   readonly codeBlockLinkLanguages: string[];
   readonly defaultTimeZone: string;
+  readonly isBlockMetadataModuleEnabled: boolean;
   readonly isCodeBlockLinksModuleEnabled: boolean;
   readonly isExternalLinksModuleEnabled: boolean;
   readonly isHeadingsModuleEnabled: boolean;

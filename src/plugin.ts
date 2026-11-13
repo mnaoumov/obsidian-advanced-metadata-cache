@@ -12,6 +12,8 @@ import { normalizePath } from 'obsidian';
 import type { BacklinkCacheComponent } from './modules/backlinks/backlink-cache-component.ts';
 
 import { BacklinksModuleComponent } from './modules/backlinks/backlinks-module-component.ts';
+import { BlockMetadataComponent } from './modules/block-metadata/block-metadata-component.ts';
+import { BlockMetadataIndex } from './modules/block-metadata/block-metadata-index.ts';
 import { CodeBlockLanguages } from './modules/code-block-links/code-block-languages.ts';
 import { CodeBlockLinksComponent } from './modules/code-block-links/code-block-links-component.ts';
 import { ExternalLinkIndexComponent } from './modules/external-links/external-link-index-component.ts';
@@ -127,6 +129,8 @@ export class Plugin extends PluginBase {
     });
     // Owned here too: a consumer subscribes to its changes once, for the plugin's whole life.
     const linkTextIndex = new LinkTextIndex();
+    // Owned here too, for the same reason.
+    const blockMetadataIndex = new BlockMetadataIndex();
     // Owned here too: a plugin registers its languages once, for its whole life.
     const codeBlockLanguages = new CodeBlockLanguages();
     const metadataParsers = new MetadataParsers();
@@ -219,6 +223,11 @@ export class Plugin extends PluginBase {
           createComponent: (): NonMarkdownComponent => new NonMarkdownComponent({ app: this.app, metadataParsers, pluginSettingsComponent }),
           getIsEnabled: (settings): boolean => settings.isNonMarkdownModuleEnabled,
           moduleId: 'non-markdown'
+        },
+        {
+          createComponent: (): BlockMetadataComponent => new BlockMetadataComponent({ app: this.app, blockMetadataIndex }),
+          getIsEnabled: (settings): boolean => settings.isBlockMetadataModuleEnabled,
+          moduleId: 'block-metadata'
         }
       ],
       pluginSettingsComponent
@@ -226,10 +235,15 @@ export class Plugin extends PluginBase {
 
     this.pluginApi = new PluginApiImpl({
       app: this.app,
+      blockMetadataIndex,
       codeBlockLanguages,
       getBacklinkCacheComponent: (): BacklinkCacheComponent | null => {
         const moduleComponent = modulesComponent.getModuleComponent('backlinks');
         return moduleComponent instanceof BacklinksModuleComponent ? moduleComponent.backlinkCacheComponent : null;
+      },
+      getBlockMetadataComponent: (): BlockMetadataComponent | null => {
+        const moduleComponent = modulesComponent.getModuleComponent('block-metadata');
+        return moduleComponent instanceof BlockMetadataComponent ? moduleComponent : null;
       },
       getCodeBlockLinksComponent: (): CodeBlockLinksComponent | null => {
         const moduleComponent = modulesComponent.getModuleComponent('code-block-links');

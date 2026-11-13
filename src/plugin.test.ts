@@ -146,6 +146,7 @@ import { Plugin } from './plugin.ts';
 
 interface ApiModuleGetters {
   readonly getBacklinkCacheComponent: () => unknown;
+  readonly getBlockMetadataComponent: () => unknown;
   readonly getCodeBlockLinksComponent: () => unknown;
   readonly getExternalLinkIndexComponent: () => unknown;
   readonly getHtmlIndexComponent: () => unknown;
@@ -268,7 +269,16 @@ describe('Plugin', () => {
 
   it('should declare every module', async () => {
     await createLoadedPlugin(createApp());
-    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names', 'titles', 'headings', 'properties', 'unlinked-mentions', 'link-texts', 'code-block-links', 'tags', 'external-links', 'html', 'non-markdown']);
+    expect(getModuleDefinitions().map((moduleDefinition) => moduleDefinition.moduleId)).toStrictEqual(['backlinks', 'names', 'titles', 'headings', 'properties', 'unlinked-mentions', 'link-texts', 'code-block-links', 'tags', 'external-links', 'html', 'non-markdown', 'block-metadata']);
+  });
+
+  it('should gate the block metadata module on its own setting, and leave it off by default', async () => {
+    await createLoadedPlugin(createApp());
+    const definition = getModuleDefinitions().find((candidate) => candidate.moduleId === 'block-metadata');
+    const settings = new PluginSettings();
+    expect(definition?.getIsEnabled(settings)).toBe(false);
+    settings.isBlockMetadataModuleEnabled = true;
+    expect(definition?.getIsEnabled(settings)).toBe(true);
   });
 
   it('gates HTML indexing on its own opt-in setting and creates its component', async () => {
@@ -506,6 +516,7 @@ describe('Plugin', () => {
     const moduleGetters = castTo<ApiModuleGetters>(castTo<PluginApisReader>(plugin).getPluginApis()[0]?.api);
 
     expect(moduleGetters.getBacklinkCacheComponent()).toBeNull();
+    expect(moduleGetters.getBlockMetadataComponent()).toBeNull();
     expect(moduleGetters.getCodeBlockLinksComponent()).toBeNull();
     expect(moduleGetters.getLinkTextIndexComponent()).toBeNull();
     expect(moduleGetters.getNameIndexComponent()).toBeNull();
@@ -532,6 +543,8 @@ describe('Plugin', () => {
     hoisted.loadedModules.set('external-links', externalLinkIndexComponent);
     const htmlIndexComponent = getModuleDefinitions().find((definition) => definition.moduleId === 'html')?.createComponent();
     hoisted.loadedModules.set('html', htmlIndexComponent);
+    const blockMetadataComponent = getModuleDefinitions().find((definition) => definition.moduleId === 'block-metadata')?.createComponent();
+    hoisted.loadedModules.set('block-metadata', blockMetadataComponent);
 
     expect(moduleGetters.getBacklinkCacheComponent()).toBe(hoisted.backlinkCacheComponent);
     expect(moduleGetters.getNameIndexComponent()).toBe(nameIndexComponent);
@@ -542,6 +555,7 @@ describe('Plugin', () => {
     expect(moduleGetters.getTagIndexComponent()).toBe(tagIndexComponent);
     expect(moduleGetters.getExternalLinkIndexComponent()).toBe(externalLinkIndexComponent);
     expect(moduleGetters.getHtmlIndexComponent()).toBe(htmlIndexComponent);
+    expect(moduleGetters.getBlockMetadataComponent()).toBe(blockMetadataComponent);
   });
 
   it('should register the open demo vault command via its command handler', async () => {

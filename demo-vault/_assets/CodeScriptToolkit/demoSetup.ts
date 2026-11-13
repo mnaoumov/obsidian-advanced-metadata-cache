@@ -968,6 +968,52 @@ export async function showCodeBlockLinks(app: App, params: { readonly languages:
 }
 
 /**
+ * Reports a note's metadata fences, each with the heading or block it describes, then which fences in the vault name a
+ * property with a value, as the `Block metadata` module answers through the API.
+ *
+ * Manual equivalent: read the `advanced-metadata-cache` code blocks in the note in Source mode; there is no built-in
+ * lookup across the vault.
+ *
+ * @param app - The Obsidian app.
+ * @param params - The note to read, and the property and value to look for across the vault.
+ */
+export async function showBlockMetadata(app: App, params: { readonly path: string; readonly propertyName: string; readonly value: string }): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isBlockMetadataModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.16',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    const blockMetadataList = await api.getBlockMetadataSafe(params.path) ?? [];
+    const matches = await api.getBlockMetadataWithPropertySafe(params.propertyName, params.value) ?? [];
+    const describeTarget = (blockMetadata: (typeof blockMetadataList)[number]): string => {
+      const target = blockMetadata.target;
+      if (!target) {
+        return 'no block';
+      }
+      return target.heading === null ? `the ${target.type} on line ${String(target.position.start.line + 1)}` : `heading "${target.heading}"`;
+    };
+
+    new Notice([
+      `Metadata in ${params.path}:`,
+      ...blockMetadataList.length === 0
+        ? ['none']
+        : blockMetadataList.map((blockMetadata) => `  ${describeTarget(blockMetadata)}: ${blockMetadata.properties ? JSON.stringify(blockMetadata.properties) : `error: ${String(blockMetadata.error)}`}`),
+      `Blocks with ${params.propertyName}: ${params.value}:`,
+      ...matches.length === 0 ? ['none'] : matches.map((match) => `  ${match.path}, ${describeTarget(match.blockMetadata)}`)
+    ].join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+/**
  * Shows shared HTML diagnostics for the prepared example.
  * @param app - The Obsidian app.
  */
