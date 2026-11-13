@@ -436,7 +436,7 @@ risks claiming a language another plugin renders.
 `BlockMetadataIndex` is owned by the plugin, like `LinkTextIndex`, because `onBlockMetadataChanged` subscriptions must
 outlive the module; `BlockMetadataComponent` builds it (only notes whose cache lists a `code` section are read) and
 clears it at both edges, notifying `null`. `changed` hands over the text, so an edit reads nothing; `setPath` notifies
-only when the note's fences really changed. Nothing is persisted. Off by default.
+only when the note's fences really changed. Nothing is persisted. Off by default. While on, the component registers its language with `CodeBlockLanguages`, so a `[[link]]` value is a real link through `code-block-links` (backlinks, graph, rename updates), which is what a heading's `related` and `links` fields need; with `code-block-links` off it is text, as in any code block.
 
 **Nothing renders the fence yet, on purpose.** A code block processor is a core-global registration keyed by language,
 and a second instance registering it again throws on install, update and Hot Reload, which would leave this plugin,

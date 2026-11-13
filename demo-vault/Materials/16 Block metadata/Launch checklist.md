@@ -7,6 +7,7 @@ What is left once the release is out.
 ```advanced-metadata-cache
 status: open
 channel: [forum, discord]
+related: "[[Release plan]]"
 ```
 
 Post the announcement once the release is out.

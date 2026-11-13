@@ -7,6 +7,7 @@
  *   `heading` section, and a fence inside a list item is not a section at all, so it is not read.
  * - A fence describes the heading or block above it, two fences in a row share it, and a fence whose YAML fails is
  *   listed with the reason.
+ * - A `[[link]]` written as a property value is a link Obsidian counts, through `Code block links`.
  * - A lookup by property and value follows an edit, a rename and a delete.
  * - Switching the module off answers `null`.
  *
@@ -56,6 +57,7 @@ interface BlockMetadataResult {
   readonly beforeEdits: string[];
   readonly blocks: BlockMetadata[];
   readonly error: null | string;
+  readonly linkingPaths: string[];
   readonly sectionTypes: string[];
 }
 
@@ -91,6 +93,7 @@ const FOLDER_PATH = 'block-metadata';
 const PLAN_PATH = `${FOLDER_PATH}/plan.md`;
 const OTHER_PATH = `${FOLDER_PATH}/other.md`;
 const RENAMED_PATH = `${FOLDER_PATH}/renamed.md`;
+const TARGET_PATH = `${FOLDER_PATH}/target.md`;
 const PLAN_CONTENT = dedent`
   ---
   kind: plan
@@ -128,6 +131,7 @@ const OTHER_CONTENT = dedent`
 
   \`\`\`advanced-metadata-cache
   status: open
+  related: "[[target]]"
   \`\`\`\n
 `;
 
@@ -165,6 +169,7 @@ describe('Block metadata module', () => {
     expect(result.blocks[3]?.error).toEqual(expect.any(String));
     expect(result.beforeEdits).toEqual([OTHER_PATH, PLAN_PATH]);
     expect(result.afterEdits).toEqual([RENAMED_PATH]);
+    expect(result.linkingPaths).toEqual([OTHER_PATH]);
   }, SCENARIO_TIMEOUT_IN_MS);
 
   it('answers null while the module is off', async () => {
@@ -202,9 +207,10 @@ async function runScenario(): Promise<BlockMetadataResult> {
       PLAN_CONTENT: planContent,
       PLAN_PATH: planPath,
       POLL_IN_MS: pollMs,
-      RENAMED_PATH: renamedPath
+      RENAMED_PATH: renamedPath,
+      TARGET_PATH: targetPath
     }) {
-      const empty: BlockMetadataResult = { afterEdits: [], beforeEdits: [], blocks: [], error: null, sectionTypes: [] };
+      const empty: BlockMetadataResult = { afterEdits: [], beforeEdits: [], blocks: [], error: null, linkingPaths: [], sectionTypes: [] };
 
       const existingFolder = app.vault.getAbstractFileByPath(folderPath);
       if (existingFolder) {
@@ -238,18 +244,23 @@ async function runScenario(): Promise<BlockMetadataResult> {
 
         await app.vault.createFolder(folderPath);
         const planFile = await app.vault.create(planPath, planContent);
+        const targetFile = await app.vault.create(targetPath, 'Target');
         const otherFile = await app.vault.create(otherPath, otherContent);
+        function getLinkingPaths(): string[] {
+          return app.metadataCache.getBacklinksForFile(targetFile).keys();
+        }
 
         await waitUntil({
           intervalInMilliseconds: pollMs,
           message: 'the new notes to be indexed',
-          predicate: () => getOpenPaths(api).length === 2 && (api.getBlockMetadata(planPath) ?? []).length === 4,
+          predicate: () => getOpenPaths(api).length === 2 && (api.getBlockMetadata(planPath) ?? []).length === 4 && getLinkingPaths().length === 1,
           timeoutInMilliseconds: indexWaitMs
         });
 
         const sectionTypes = (app.metadataCache.getFileCache(planFile)?.sections ?? []).map((section) => section.type);
         const blocks = api.getBlockMetadata(planPath) ?? [];
         const beforeEdits = getOpenPaths(api);
+        const linkingPaths = getLinkingPaths();
 
         await app.vault.modify(planFile, planContent.replace('status: open', 'status: done'));
         await app.fileManager.renameFile(otherFile, renamedPath);
@@ -271,7 +282,7 @@ async function runScenario(): Promise<BlockMetadataResult> {
           timeoutInMilliseconds: indexWaitMs
         });
 
-        return { afterEdits, beforeEdits, blocks, error: null, sectionTypes };
+        return { afterEdits, beforeEdits, blocks, error: null, linkingPaths, sectionTypes };
       } catch (error) {
         return { ...empty, error: String(error) };
       }
@@ -285,7 +296,8 @@ async function runScenario(): Promise<BlockMetadataResult> {
       PLAN_CONTENT,
       PLAN_PATH,
       POLL_IN_MS,
-      RENAMED_PATH
+      RENAMED_PATH,
+      TARGET_PATH
     },
     vaultPath: getTemporaryVault().path
   });

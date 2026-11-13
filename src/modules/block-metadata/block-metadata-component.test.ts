@@ -14,6 +14,7 @@ import {
   vi
 } from 'vitest';
 
+import { CodeBlockLanguages } from '../code-block-links/code-block-languages.ts';
 import { BlockMetadataIndex } from './block-metadata-index.ts';
 
 const hoisted = vi.hoisted(() => ({
@@ -37,13 +38,15 @@ const OTHER_NOTE = '# Tasks\n\n```advanced-metadata-cache\nstatus: open\n```\n';
 describe('BlockMetadataComponent', () => {
   let app: App;
   let blockMetadataIndex: BlockMetadataIndex;
+  let codeBlockLanguages: CodeBlockLanguages;
   let component: BlockMetadataComponent;
 
   beforeEach(() => {
     vi.clearAllMocks();
     app = App.createConfigured__();
     blockMetadataIndex = new BlockMetadataIndex();
-    component = new BlockMetadataComponent({ app: castTo<AppOriginal>(app), blockMetadataIndex });
+    codeBlockLanguages = new CodeBlockLanguages();
+    component = new BlockMetadataComponent({ app: castTo<AppOriginal>(app), blockMetadataIndex, codeBlockLanguages });
   });
 
   it('should build from the notes holding code sections, and tell listeners once it is built', async () => {
@@ -165,6 +168,14 @@ describe('BlockMetadataComponent', () => {
 
     expect(component.isBuilt).toBe(false);
     expect(getStatusPaths()).toEqual([]);
+  });
+
+  it('should register its language for code block links while it is on', async () => {
+    await load();
+    expect(codeBlockLanguages.getRegisteredLanguages()).toEqual(['advanced-metadata-cache']);
+
+    component.unload();
+    expect(codeBlockLanguages.getRegisteredLanguages()).toEqual([]);
   });
 
   it('should clear the index and release waiters when switched off', async () => {
