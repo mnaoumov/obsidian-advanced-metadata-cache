@@ -12,13 +12,18 @@
  *   one language at a time, and those names join the name index.
  * - A note whose frontmatter does not parse (a key written twice) has no titles, as Obsidian reads it,
  *   and the module says so in the console rather than leaving it silent.
+ * - The core Quick switcher finds a note by a title that is not an alias, opens it when chosen, keeps one entry per
+ *   title across a core-plugin disable and enable, and finds a built name too.
  * - Switching the module off takes every one of those answers with it, whatever that setting says.
  *
  * Named `*.cross-platform.integration.test.ts` so the desktop AND android projects both collect it:
  * none of this is platform-specific, and the API is the one a consumer calls on either.
  */
 
-import type { LinkSuggestion } from '@obsidian-typings/obsidian-public-latest';
+import type {
+  LinkSuggestion,
+  QuickSwitcherModal
+} from '@obsidian-typings/obsidian-public-latest';
 
 import dedent from 'dedent';
 import { evalInObsidian } from 'obsidian-integration-testing';
@@ -69,6 +74,7 @@ interface PersonResult {
   readonly error: null | string;
   readonly pathsByBuiltName: string[];
   readonly pathsByMixedName: string[];
+  readonly switcherByBuiltName: SwitcherEntry[];
   readonly titles: string[];
 }
 
@@ -98,17 +104,44 @@ interface PluginApiRegistryWrapper {
 }
 
 /**
+ * A title or alias match the core Quick switcher offered.
+ */
+interface SwitcherEntry {
+  readonly alias: string;
+  readonly path: string;
+}
+
+/**
+ * A real Quick switcher modal and the title and alias matches it offered.
+ */
+interface SwitcherQuery {
+  readonly entries: SwitcherEntry[];
+  readonly modal: QuickSwitcherModal;
+}
+
+/**
  * What one run of the scenario answered.
  */
 interface TitlesResult {
   readonly error: null | string;
   readonly fastCount: number;
   readonly isTitleOfferedAsSuggestion: boolean;
+  readonly openedPathAfterChoosingTitle: null | string;
   readonly originalCount: number;
   readonly pathsByHeading: string[];
   readonly pathsByOwnName: string[];
   readonly pathsByTitle: string[];
   readonly propertyNames: string[];
+
+  /**
+   * The Quick switcher's title matches for the second title, after the core plugin was disabled and enabled again.
+   */
+  readonly switcherAfterCoreToggle: SwitcherEntry[];
+
+  /**
+   * The Quick switcher's title matches for the second title.
+   */
+  readonly switcherByHeading: SwitcherEntry[];
   readonly titles: string[];
 
   /**
@@ -145,13 +178,14 @@ const PERSON_CONTENT = dedent`
 
 /*
  * Every wait is for work already in flight - the plugin loaded before this suite ran, and the note
- * is created a few lines above - so they are generous, not budgets. Their SUM (25 s) has to stay
+ * is created a few lines above - so they are generous, not budgets. Their SUM (29 s) has to stay
  * under the transport's per-command cap, since this closure holds one `Runtime.evaluate` open for
  * the whole scenario.
  */
 const API_WAIT_IN_MS = 5000;
 const FRONTMATTER_WAIT_IN_MS = 10_000;
 const INDEX_WAIT_IN_MS = 10_000;
+const OPEN_WAIT_IN_MS = 4000;
 const POLL_IN_MS = 100;
 const SCENARIO_TIMEOUT_IN_MS = 120_000;
 
@@ -195,6 +229,14 @@ describe('Titles module', () => {
     // for entry, which is the parity claim the README and the demo vault both make.
     expect(result.isTitleOfferedAsSuggestion).toBe(false);
     expect(result.fastCount).toBe(result.originalCount);
+
+    /*
+     * The Quick switcher reads aliases itself and never asks the name index, so the title reaches it only through the
+     * module's own patch. Not gated by the autocomplete setting, which is still off here.
+     */
+    expect(result.switcherByHeading).toEqual([{ alias: NOTE_HEADING, path: NOTE_PATH }]);
+    expect(result.openedPathAfterChoosingTitle).toBe(NOTE_PATH);
+    expect(result.switcherAfterCoreToggle).toEqual([{ alias: NOTE_HEADING, path: NOTE_PATH }]);
   }, SCENARIO_TIMEOUT_IN_MS);
 
   it('offers the title to the autocomplete once asked to, appended after everything Obsidian would offer', async () => {
@@ -228,6 +270,7 @@ describe('Titles module', () => {
     expect(result.titles).toEqual(['Олена Коваленко', 'Елена Коваленко', 'Olena Kovalenko', 'Helen Kovalenko']);
     expect(result.pathsByBuiltName).toEqual([PERSON_PATH]);
     expect(result.pathsByMixedName).toEqual([]);
+    expect(result.switcherByBuiltName).toEqual([{ alias: 'Helen Kovalenko', path: PERSON_PATH }]);
   }, SCENARIO_TIMEOUT_IN_MS);
 
   it('reports a note whose frontmatter does not parse, which Obsidian leaves without titles', async () => {
@@ -256,6 +299,7 @@ describe('Titles module', () => {
     expect(result.pathsByTitle).toEqual([]);
     expect(result.isTitleOfferedAsSuggestion).toBe(false);
     expect(result.fastCount).toBe(result.originalCount);
+    expect(result.switcherByHeading).toEqual([]);
 
     // The note's own name is not the module's to take away.
     expect(result.pathsByOwnName).toEqual([NOTE_PATH]);
@@ -352,12 +396,32 @@ async function runPersonScenario(): Promise<PersonResult> {
       PERSON_PATH: personPath,
       POLL_IN_MS: pollMs
     }) {
-      const empty: PersonResult = { error: null, pathsByBuiltName: [], pathsByMixedName: [], titles: [] };
+      const empty: PersonResult = { error: null, pathsByBuiltName: [], pathsByMixedName: [], switcherByBuiltName: [], titles: [] };
       const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
       const api = (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked)?.api;
 
       if (!api) {
         return { ...empty, error: 'No live API record' };
+      }
+
+      /**
+       * Asks a real Quick switcher modal for its title and alias matches.
+       *
+       * @param query - What the user typed.
+       * @returns The alias-shaped matches.
+       */
+      function readSwitcherEntries(query: string): SwitcherEntry[] {
+        const switcher = app.internalPlugins.getPluginById('switcher')?.instance;
+        if (!switcher) {
+          return [];
+        }
+        const entries: SwitcherEntry[] = [];
+        for (const suggestion of new switcher.QuickSwitcherModal(app, switcher.options).getSuggestions(query)) {
+          if (suggestion.type === 'alias') {
+            entries.push({ alias: suggestion.alias, path: suggestion.file.path });
+          }
+        }
+        return entries;
       }
 
       try {
@@ -387,6 +451,7 @@ async function runPersonScenario(): Promise<PersonResult> {
           error: null,
           pathsByBuiltName: api.getPathsByName('олена коваленко') ?? [],
           pathsByMixedName: api.getPathsByName('Helen Коваленко') ?? [],
+          switcherByBuiltName: readSwitcherEntries('Helen Kovalenko'),
           titles: api.getTitles(personPath)
         };
       } catch (error) {
@@ -422,17 +487,21 @@ async function runScenario(): Promise<TitlesResult> {
       NOTE_HEADING: noteHeading,
       NOTE_PATH: notePath,
       NOTE_TITLE: noteTitle,
+      OPEN_WAIT_IN_MS: openWaitMs,
       POLL_IN_MS: pollMs
     }) {
       const empty: TitlesResult = {
         error: null,
         fastCount: 0,
         isTitleOfferedAsSuggestion: false,
+        openedPathAfterChoosingTitle: null,
         originalCount: 0,
         pathsByHeading: [],
         pathsByOwnName: [],
         pathsByTitle: [],
         propertyNames: [],
+        switcherAfterCoreToggle: [],
+        switcherByHeading: [],
         titles: [],
         titleSuggestionIndex: -1
       };
@@ -512,15 +581,62 @@ async function runScenario(): Promise<TitlesResult> {
         const fast = app.metadataCache.getLinkSuggestions();
         const titleSuggestionIndex = fast.findIndex((suggestion) => suggestion.alias === noteTitle);
 
+        const switcherPlugin = app.internalPlugins.getPluginById('switcher');
+        if (!switcherPlugin) {
+          return { ...empty, error: 'The core Quick switcher plugin is missing.' };
+        }
+
+        /**
+         * Asks a real Quick switcher modal, as the core command builds it, for its title and alias matches.
+         *
+         * @param query - What the user typed.
+         * @returns The modal itself and its alias-shaped matches.
+         */
+        function querySwitcher(query: string): SwitcherQuery {
+          const switcher = switcherPlugin?.instance;
+          if (!switcher) {
+            throw new Error('The core Quick switcher has no instance.');
+          }
+          const modal = new switcher.QuickSwitcherModal(app, switcher.options);
+          const entries: SwitcherEntry[] = [];
+          for (const suggestion of modal.getSuggestions(query)) {
+            if (suggestion.type === 'alias') {
+              entries.push({ alias: suggestion.alias, path: suggestion.file.path });
+            }
+          }
+          return { entries, modal };
+        }
+
+        const byHeading = querySwitcher(noteHeading);
+        let openedPathAfterChoosingTitle: null | string = null;
+        const chosen = byHeading.modal.getSuggestions(noteHeading).find((suggestion) => suggestion.type === 'alias');
+        if (chosen) {
+          byHeading.modal.onChooseSuggestion(chosen, new KeyboardEvent('keydown'));
+          await waitUntil({
+            intervalInMilliseconds: pollMs,
+            message: 'the chosen title to open its note',
+            predicate: () => app.workspace.getActiveFile()?.path === notePath,
+            timeoutInMilliseconds: openWaitMs
+          });
+          openedPathAfterChoosingTitle = app.workspace.getActiveFile()?.path ?? null;
+        }
+
+        // `true` is the `isEnabledByUser` argument the Core plugins settings toggle passes.
+        switcherPlugin.disable(true);
+        await switcherPlugin.enable(true);
+
         return {
           ...empty,
           fastCount: fast.length,
           isTitleOfferedAsSuggestion: titleSuggestionIndex !== -1,
+          openedPathAfterChoosingTitle,
           originalCount: api.getLinkSuggestionsOriginal().length,
           pathsByHeading: getPathsByName(noteHeading),
           pathsByOwnName: getPathsByName(noteBasename),
           pathsByTitle: getPathsByName(noteTitle),
           propertyNames: api.getTitlePropertyNames(),
+          switcherAfterCoreToggle: querySwitcher(noteHeading).entries,
+          switcherByHeading: byHeading.entries,
           titles: api.getTitles(notePath),
           titleSuggestionIndex
         };
@@ -537,6 +653,7 @@ async function runScenario(): Promise<TitlesResult> {
       NOTE_HEADING,
       NOTE_PATH,
       NOTE_TITLE,
+      OPEN_WAIT_IN_MS,
       POLL_IN_MS
     },
     vaultPath: getTemporaryVault().path

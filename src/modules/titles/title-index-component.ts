@@ -8,6 +8,7 @@ import { isFolder } from '@mnaoumov/obsidian-lib/file-system';
 
 import type { TitleIndex } from './title-index.ts';
 
+import { QuickSwitcherGetSuggestionsPatchComponent } from './quick-switcher-get-suggestions-patch-component.ts';
 import { UnparsedFrontmatterReporterComponent } from './unparsed-frontmatter-reporter-component.ts';
 
 interface TitleIndexComponentConstructorParams {
@@ -28,6 +29,10 @@ interface TitleIndexComponentConstructorParams {
  *
  * It also owns the {@link UnparsedFrontmatterReporterComponent}: a note whose frontmatter does not parse has no
  * titles, and while this module is on that is reported rather than left silent.
+ *
+ * And it owns the {@link QuickSwitcherGetSuggestionsPatchComponent}, because the core Quick switcher matches
+ * aliases on its own and never reads the name index: without it a title is found there only when it is also an
+ * alias.
  */
 export class TitleIndexComponent extends ComponentEx {
   private readonly app: App;
@@ -47,6 +52,7 @@ export class TitleIndexComponent extends ComponentEx {
     });
 
     this.addChild(new UnparsedFrontmatterReporterComponent({ app: this.app }));
+    this.addChild(new QuickSwitcherGetSuggestionsPatchComponent({ app: this.app, titleIndex: this.titleIndex }));
 
     this.registerEvent(this.app.metadataCache.on('changed', (file) => {
       this.titleIndex.invalidate(file.path);
