@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2.7.0
+
+This release has 2 new features and 2 fixes. 4 maintenance commits (tests, build, CI, refactoring, dependencies, docs) are not listed.
+
+### New
+
+- **Block metadata** (new module, off by default): an `advanced-metadata-cache` fenced code block holds YAML properties for the section just above it, such as the heading it sits under. API contract 1.16.0 adds `getBlockMetadata`, `getBlockMetadataWithProperty` (each with a `Safe` variant) and `onBlockMetadataChanged`.
+- **Block metadata**: a `[[wikilink]]` written in a block's metadata counts as a real link (backlinks, graph and rename updates) while the Code block links module is on.
+
+### Fixed
+
+- **Titles**: the core Quick switcher finds notes by their title.
+- Load again after an update or Hot Reload instead of failing on an already published API.
+
 ## 2.6.0
 
 This release has 1 new feature and 1 fix. 1 maintenance commit (tests, build, CI, refactoring, dependencies) is not listed.
