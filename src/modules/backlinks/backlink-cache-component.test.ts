@@ -735,10 +735,10 @@ describe('BacklinkCacheComponent', () => {
 
       return {
         changed: metaCalls.find((c) => (c[0] as string) === 'changed')?.[1] as (file: TFile) => void,
-        create: vaultCalls.find((c) => (c[0] as string) === 'create')?.[1] as (file: TAbstractFile) => void,
-        delete: vaultCalls.find((c) => (c[0] as string) === 'delete')?.[1] as (file: TAbstractFile) => void,
-        modify: vaultCalls.find((c) => (c[0] as string) === 'modify')?.[1] as (file: TAbstractFile) => void,
-        rename: vaultCalls.find((c) => (c[0] as string) === 'rename')?.[1] as (file: TAbstractFile, oldPath: string) => void
+        create: castTo<(file: TAbstractFile) => void>(vaultCalls.find((c) => (c[0] as string) === 'create')?.[1]),
+        delete: castTo<(file: TAbstractFile) => void>(vaultCalls.find((c) => (c[0] as string) === 'delete')?.[1]),
+        modify: castTo<(file: TAbstractFile) => void>(vaultCalls.find((c) => (c[0] as string) === 'modify')?.[1]),
+        rename: castTo<(file: TAbstractFile, oldPath: string) => void>(vaultCalls.find((c) => (c[0] as string) === 'rename')?.[1])
       };
     }
 
