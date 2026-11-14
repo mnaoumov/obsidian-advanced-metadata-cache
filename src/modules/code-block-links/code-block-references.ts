@@ -173,16 +173,6 @@ export function getIndentLength(lineText: string, fenceIndent: number): number {
   return length;
 }
 
-export function getLineStarts(lines: readonly string[]): number[] {
-  const lineStarts: number[] = [];
-  let offset = 0;
-  for (const line of lines) {
-    lineStarts.push(offset);
-    offset += line.length + 1;
-  }
-  return lineStarts;
-}
-
 /**
  * Whether Obsidian lists any code section for the note: the check that needs no text at all.
  *
@@ -202,6 +192,16 @@ export function hasCodeSection(cache: CachedMetadata): boolean {
  */
 export function hasIncludedCodeBlock(params: HasIncludedCodeBlockParams): boolean {
   return findFencedCodeBlocks(params.text.split('\n'), params.cache.sections).some((block) => params.isLanguageIncluded(block.language));
+}
+
+function getLineStarts(lines: readonly string[]): number[] {
+  const lineStarts: number[] = [];
+  let offset = 0;
+  for (const line of lines) {
+    lineStarts.push(offset);
+    offset += line.length + 1;
+  }
+  return lineStarts;
 }
 
 /**
