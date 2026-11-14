@@ -101,6 +101,17 @@ default, so it has a setting of its own, `shouldOfferTitlesInLinkSuggestions`, a
 A title the file already answers to under its own name or an `alias` contributes no entry: that would
 be the same note offered twice under the same text.
 
+**The core Quick switcher is a SEPARATE source, patched by `titles` itself.** `FileSuggestModal.getSuggestions`
+walks the vault and matches `parseFrontMatterAliases` on its own; it never calls `getLinkSuggestions`, so neither
+the `names` patch nor `shouldOfferTitlesInLinkSuggestions` reaches it. `QuickSwitcherGetSuggestionsPatchComponent`,
+a child of `TitleIndexComponent`, patches `QuickSwitcherModal.prototype.getSuggestions` (not `FileSuggestModal`,
+so the other file choosers keep Obsidian's answer) and adds each title as an `alias`-typed suggestion, under the
+same rules as Obsidian's alias matching: nothing for an empty query, `shouldShowAlias` and the file-type filters
+honored, excluded files downranked by 10, then the merged list re-sorted. It is ungated by the autocomplete setting:
+a switcher only navigates, so offering titles there writes nothing a reader without this plugin would misread. The
+modal class is a module constant of Obsidian's, shared by every enable of the core plugin, so one patch survives a
+core disable and enable; the integration suite pins that.
+
 **A title has two sources, and every reader takes both as one `TitleSources`.** Title properties are read
 as they stand; `titleNamePatterns` (default empty) build names nobody wrote down from name parts
 (`[lastName, firstName]`), so a person note stores no derived `aliases`. A part is a plain value, a list

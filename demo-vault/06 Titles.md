@@ -32,6 +32,8 @@ await require('/demoSetup.ts').showNamesFor(app, 'Q3 planning meeting', { isTitl
 
 The same question, twice, with one toggle between them: with the module on, the title names [Meeting note](<./Topics/Meeting note.md>); with it off, it names nothing at all.
 
+With the module on, the Quick switcher (`Ctrl`/`Cmd` + `O`) finds the note by it as well: type `Q3 planning` and the title is listed as an alias of [Meeting note](<./Topics/Meeting note.md>), which it opens. Obsidian's own switcher matches only `aliases`.
+
 ```code-button
 ---
 caption: Read the titles of "Meeting note" directly

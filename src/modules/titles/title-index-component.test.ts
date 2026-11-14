@@ -24,6 +24,11 @@ import { PluginSettings } from '../../plugin-settings.ts';
 import { TitleIndexComponent } from './title-index-component.ts';
 import { TitleIndex } from './title-index.ts';
 
+interface InternalPluginsHolder {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The test assigns the mock member.
+  internalPlugins: unknown;
+}
+
 describe('TitleIndexComponent', () => {
   let app: App;
   let component: TitleIndexComponent;
@@ -32,6 +37,8 @@ describe('TitleIndexComponent', () => {
 
   beforeEach(() => {
     app = App.createConfigured__();
+    // No core Quick switcher here, so the patch component installs nothing; its own suite covers it.
+    castTo<InternalPluginsHolder>(app).internalPlugins = { getPluginById: (): null => null };
     settings = new PluginSettings();
     settings.isTitlesModuleEnabled = true;
 
