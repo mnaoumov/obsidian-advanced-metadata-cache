@@ -9,13 +9,13 @@ import type {
   TFile
 } from 'obsidian';
 
+import { configureCommunityPlugin } from '@mnaoumov/obsidian-lib/community-plugins';
+import { watchPluginApi } from '@mnaoumov/obsidian-lib/plugin/plugin-api';
 import {
   Component,
   MarkdownView,
   Notice
 } from 'obsidian';
-import { configureCommunityPlugin } from '@mnaoumov/obsidian-lib/community-plugins';
-import { watchPluginApi } from '@mnaoumov/obsidian-lib/plugin/plugin-api';
 
 const PLUGIN_ID = 'advanced-metadata-cache';
 const CENTRAL_TOPIC_PATH = 'Topics/Central topic.md';
@@ -42,45 +42,65 @@ const SUGGESTION_POLL_IN_MILLISECONDS = 100;
  * `api.d.ts` ships for consumers, with the backlinks dictionary narrowed to what is counted here.
  */
 interface AdvancedMetadataCacheApi {
-  getBacklinksForFile(pathOrFile: string): BacklinksDict | null;
-  getBacklinksForFileOriginal(file: TFile): BacklinksDict;
-  getBacklinksForFileSafe(pathOrFile: string): Promise<BacklinksDict | null>;
-  getCodeBlockReferencesSafe(pathOrFile: string): Promise<CodeBlockReference[] | null>;
-  getDatedValuesSafe(query: DatedValuesQuery): Promise<DatedValue[] | null>;
-  getHtmlDiagnosticsSafe(pathOrFile: string): Promise<HtmlDiagnostic[] | null>;
-  getHeadingTimes(pathOrFile: string): HeadingTimes[];
-  getLinkSuggestions(): LinkSuggestion[] | null;
-  getLinkSuggestionsOriginal(): LinkSuggestion[];
-  getLinkSuggestionsSafe(): Promise<LinkSuggestion[] | null>;
-  getLinkTextsSafe(pathOrFile: string): Promise<LinkText[] | null>;
-  getNonDateValuesSafe(): Promise<DatedValue[] | null>;
-  getPathsByNameSafe(name: string): Promise<null | string[]>;
-  getPathsByPropertyValueSafe(propertyName: string, value: string): Promise<null | string[]>;
-  getPathsWithPropertySafe(propertyName: string): Promise<null | string[]>;
-  getPathsWithTagSafe(tag: string, options?: { readonly shouldIncludeNestedTags?: boolean; readonly source?: 'body' | 'frontmatter' }): Promise<null | string[]>;
-  getPathsLinkingToHostSafe(host: string, options?: { readonly shouldIncludeSubdomains?: boolean }): Promise<null | string[]>;
-  getPathsLinkingToUrlSafe(url: string): Promise<null | string[]>;
-  getSimilarHostsSafe(host: string, maxDistance?: number): Promise<null | SimilarHost[]>;
-  getTitlePropertyNames(): string[];
-  getUnresolvedBacklinksSafe(linkPath: string): Promise<BacklinksDict | null>;
-  getTitles(pathOrFile: string): string[];
-  getUnlinkedMentions(pathOrFile: string): Promise<null | UnlinkedMention[]>;
-  registerPropertyName(propertyName: string): void;
+  readonly getBacklinksForFile: (pathOrFile: string) => BacklinksDict | null;
+  readonly getBacklinksForFileOriginal: (file: TFile) => BacklinksDict;
+  readonly getBacklinksForFileSafe: (pathOrFile: string) => Promise<BacklinksDict | null>;
+  readonly getBlockMetadataSafe: (pathOrFile: string) => Promise<BlockMetadata[] | null>;
+  readonly getBlockMetadataWithPropertySafe: (propertyName: string, value?: string) => Promise<BlockMetadataMatch[] | null>;
+  readonly getCodeBlockReferencesSafe: (pathOrFile: string) => Promise<CodeBlockReference[] | null>;
+  readonly getDatedValuesSafe: (query: DatedValuesQuery) => Promise<DatedValue[] | null>;
+  readonly getHeadingTimes: (pathOrFile: string) => HeadingTimes[];
+  readonly getHtmlDiagnosticsSafe: (pathOrFile: string) => Promise<HtmlDiagnostic[] | null>;
+  readonly getLinkSuggestions: () => LinkSuggestion[] | null;
+  readonly getLinkSuggestionsOriginal: () => LinkSuggestion[];
+  readonly getLinkSuggestionsSafe: () => Promise<LinkSuggestion[] | null>;
+  readonly getLinkTextsSafe: (pathOrFile: string) => Promise<LinkText[] | null>;
+  readonly getNonDateValuesSafe: () => Promise<DatedValue[] | null>;
+  readonly getPathsByNameSafe: (name: string) => Promise<null | string[]>;
+  readonly getPathsByPropertyValueSafe: (propertyName: string, value: string) => Promise<null | string[]>;
+  readonly getPathsLinkingToHostSafe: (host: string, options?: HostQueryOptions) => Promise<null | string[]>;
+  readonly getPathsLinkingToUrlSafe: (url: string) => Promise<null | string[]>;
+  readonly getPathsWithPropertySafe: (propertyName: string) => Promise<null | string[]>;
+  readonly getPathsWithTagSafe: (tag: string, options?: TagQueryOptions) => Promise<null | string[]>;
+  readonly getSimilarHostsSafe: (host: string, maxDistance?: number) => Promise<null | SimilarHost[]>;
+  readonly getTitlePropertyNames: () => string[];
+  readonly getTitles: (pathOrFile: string) => string[];
+  readonly getUnlinkedMentions: (pathOrFile: string) => Promise<null | UnlinkedMention[]>;
+  readonly getUnresolvedBacklinksSafe: (linkPath: string) => Promise<BacklinksDict | null>;
+  readonly registerPropertyName: (propertyName: string) => void;
 }
 
 interface BacklinksDict {
-  count(): number;
-  keys(): string[];
+  readonly count: () => number;
+  readonly keys: () => string[];
 }
 
-interface HtmlDiagnostic {
-  readonly kind: string;
-  readonly range: HtmlRange;
+/**
+ * One metadata fence, as the plugin API lists it. The same shape `BlockMetadata` in the root `api.d.ts` ships,
+ * narrowed to what the buttons read.
+ */
+interface BlockMetadata {
+  readonly error: null | string;
+  readonly properties: null | Readonly<Record<string, unknown>>;
+  readonly target: BlockMetadataTarget | null;
 }
 
-interface HtmlRange {
+/**
+ * A metadata fence and its note. The same shape `BlockMetadataMatch` in the root `api.d.ts` ships.
+ */
+interface BlockMetadataMatch {
+  readonly blockMetadata: BlockMetadata;
+  readonly path: string;
+}
+
+/**
+ * The section a metadata fence describes. The same shape `BlockMetadataTarget` in the root `api.d.ts` ships,
+ * narrowed to what the buttons read.
+ */
+interface BlockMetadataTarget {
+  readonly heading: null | string;
   readonly position: Pos;
-  readonly tagName: null | string;
+  readonly type: string;
 }
 
 /**
@@ -90,7 +110,14 @@ interface HtmlRange {
 interface CodeBlockReference {
   readonly isEmbed: boolean;
   readonly language: string;
-  readonly reference: { readonly link: string };
+  readonly reference: CodeBlockReferenceLink;
+}
+
+/**
+ * The reference of a {@link CodeBlockReference}, narrowed to its link text.
+ */
+interface CodeBlockReferenceLink {
+  readonly link: string;
 }
 
 /**
@@ -106,37 +133,33 @@ interface DatedValue {
  * A range of dates, as the plugin API takes it. The same shape `DatedValuesQuery` in the root `api.d.ts` ships.
  */
 interface DatedValuesQuery {
-  readonly timeBasis?: 'utc' | 'wallClock';
-  readonly missingTimeZone?: 'default' | 'fail' | 'skip' | 'utc' | SpecificTimeZone;
   readonly from?: string;
   readonly isRecurring?: boolean;
+  readonly missingTimeZone?: 'default' | 'fail' | 'skip' | 'utc' | SpecificTimeZone;
   readonly propertyNames?: readonly string[];
+  readonly timeBasis?: 'utc' | 'wallClock';
   readonly to?: string;
 }
 
-interface SpecificTimeZone {
-  readonly zone: string;
-}
-
 interface DemoSettingsPatch {
-  codeBlockLinkLanguages?: string[];
-  isBacklinksModuleEnabled?: boolean;
-  isCodeBlockLinksModuleEnabled?: boolean;
-  isExternalLinksModuleEnabled?: boolean;
-  isHeadingsModuleEnabled?: boolean;
-  isHtmlModuleEnabled?: boolean;
-  isLinkTextsModuleEnabled?: boolean;
-  isNamesModuleEnabled?: boolean;
-  isNonMarkdownModuleEnabled?: boolean;
-  markdownFileExtensions?: string[];
-  isPropertiesModuleEnabled?: boolean;
-  isTitlesModuleEnabled?: boolean;
-  isUnlinkedMentionsModuleEnabled?: boolean;
-  shouldAutomaticallyRefreshBacklinkPanels?: boolean;
-  shouldOfferTitlesInLinkSuggestions?: boolean;
-  shouldShowProgressBarOnLoad?: boolean;
-  titleNamePatterns?: string[][];
-  titlePropertyNames?: string[];
+  readonly codeBlockLinkLanguages?: string[];
+  readonly isBacklinksModuleEnabled?: boolean;
+  readonly isCodeBlockLinksModuleEnabled?: boolean;
+  readonly isExternalLinksModuleEnabled?: boolean;
+  readonly isHeadingsModuleEnabled?: boolean;
+  readonly isHtmlModuleEnabled?: boolean;
+  readonly isLinkTextsModuleEnabled?: boolean;
+  readonly isNamesModuleEnabled?: boolean;
+  readonly isNonMarkdownModuleEnabled?: boolean;
+  readonly isPropertiesModuleEnabled?: boolean;
+  readonly isTitlesModuleEnabled?: boolean;
+  readonly isUnlinkedMentionsModuleEnabled?: boolean;
+  readonly markdownFileExtensions?: string[];
+  readonly shouldAutomaticallyRefreshBacklinkPanels?: boolean;
+  readonly shouldOfferTitlesInLinkSuggestions?: boolean;
+  readonly shouldShowProgressBarOnLoad?: boolean;
+  readonly titleNamePatterns?: string[][];
+  readonly titlePropertyNames?: string[];
 }
 
 /**
@@ -153,6 +176,23 @@ interface HeadingTimes {
 }
 
 /**
+ * The options of `getPathsLinkingToHostSafe`. The same shape the root `api.d.ts` ships.
+ */
+interface HostQueryOptions {
+  readonly shouldIncludeSubdomains?: boolean;
+}
+
+interface HtmlDiagnostic {
+  readonly kind: string;
+  readonly range: HtmlRange;
+}
+
+interface HtmlRange {
+  readonly position: Pos;
+  readonly tagName: null | string;
+}
+
+/**
  * One display text of a file, as the plugin API reports it. The same shape `LinkText` in the root `api.d.ts` ships.
  */
 interface LinkText {
@@ -162,12 +202,43 @@ interface LinkText {
 }
 
 /**
+ * What the `Block metadata` button asks about: a note to read, and a property and value to look for across the vault.
+ */
+interface ShowBlockMetadataOptions {
+  readonly path: string;
+  readonly propertyName: string;
+  readonly value: string;
+}
+
+/**
+ * What the `Code block links` button asks about: the languages to count, the note holding the blocks, and the note
+ * they link to.
+ */
+interface ShowCodeBlockLinksOptions {
+  readonly languages: string[];
+  readonly sourcePath: string;
+  readonly targetPath: string;
+}
+
+/**
  * One host near another, as the plugin API reports it. The same shape `SimilarHost` in the root `api.d.ts` ships.
  */
 interface SimilarHost {
   readonly distance: number;
   readonly host: string;
   readonly noteCount: number;
+}
+
+interface SpecificTimeZone {
+  readonly zone: string;
+}
+
+/**
+ * The options of `getPathsWithTagSafe`. The same shape the root `api.d.ts` ships.
+ */
+interface TagQueryOptions {
+  readonly shouldIncludeNestedTags?: boolean;
+  readonly source?: 'body' | 'frontmatter';
 }
 
 /**
@@ -188,22 +259,27 @@ interface UnlinkedMentionRange {
 }
 
 /**
- * Opens the note everything links to and reveals the core Backlinks pane beside it.
+ * Appends a new heading to a note, then reports the note's heading times, so the new one shows up as
+ * created just now.
  *
- * The existing buttons query the cache through the API; this puts the UI that the same cache feeds on
- * screen, which is what the settings below are actually about.
+ * Manual equivalent: type a new `## ` heading at the end of the note.
  *
- * Manual equivalent: open `Topics/Central topic.md`, then run **Backlinks: Show backlinks**.
+ * @param app - The Obsidian app.
+ * @param path - The vault-relative path of the note.
  */
-export async function showCentralTopicBacklinks(app: App): Promise<void> {
-  const note = app.vault.getFileByPath(CENTRAL_TOPIC_PATH);
-  if (!note) {
-    new Notice(`${CENTRAL_TOPIC_PATH} is missing from this vault.`);
-    return;
-  }
+export async function addHeadingTo(app: App, path: string): Promise<void> {
+  const heading = `Entry ${new Date().toLocaleTimeString()}`;
+  await editAndShowHeadingTimes(app, path, (content) => `${content.trimEnd()}\n\n## ${heading}\nAdded by the demo button.\n`, heading);
+}
 
-  await app.workspace.getLeaf(false).openFile(note);
-  app.commands.executeCommandById('backlink:open-backlinks');
+/**
+ * Applies a settings patch, live, through the plugin's own settings component.
+ *
+ * Manual equivalent: change the same option in **Settings -> Community plugins -> `Advanced Metadata Cache`**.
+ */
+export async function changeSettings(app: App, patch: DemoSettingsPatch): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: patch });
+  new Notice('Applied.');
 }
 
 /**
@@ -229,11 +305,23 @@ export async function compareBacklinks(app: App): Promise<void> {
     return;
   }
 
-  new Notice([
-    `fast:     ${fast.count().toString()}`,
-    `safe:     ${safe.count().toString()}`,
-    `original: ${api.getBacklinksForFileOriginal(note).count().toString()}`
-  ].join('\n'));
+  const originalCount = api.getBacklinksForFileOriginal(note).count().toString();
+  new Notice(`fast:     ${fast.count().toString()}\nsafe:     ${safe.count().toString()}\noriginal: ${originalCount}`);
+}
+
+/**
+ * Adds a line under one heading of a note, then reports the note's heading times, so that heading shows
+ * up as modified just now and the others do not.
+ *
+ * Manual equivalent: type anything under that heading.
+ *
+ * @param app - The Obsidian app.
+ * @param path - The vault-relative path of the note.
+ * @param heading - The heading text to edit under.
+ */
+export async function editUnderHeading(app: App, path: string, heading: string): Promise<void> {
+  const line = `Edited at ${new Date().toLocaleTimeString()}.`;
+  await editAndShowHeadingTimes(app, path, (content) => content.replace(`## ${heading}\n`, () => `## ${heading}\n${line}\n`), heading);
 }
 
 /**
@@ -263,119 +351,10 @@ export async function listUnresolvedBacklinks(app: App): Promise<void> {
  * This is the command that matters when `shouldAutomaticallyRefreshBacklinkPanels` is off — which is
  * the default, so it is the behavior most readers actually have.
  *
- * Manual equivalent: **Advanced Metadata Cache: Refresh backlink panels** in the Command Palette.
+ * Manual equivalent: **`Advanced Metadata Cache`: Refresh backlink panels** in the Command Palette.
  */
 export function refreshBacklinkPanels(app: App): void {
   app.commands.executeCommandById(`${PLUGIN_ID}:refresh-backlink-panels`);
-}
-
-/**
- * Applies a settings patch, live, through the plugin's own settings component.
- *
- * Manual equivalent: change the same option in **Settings -> Community plugins -> `Advanced Metadata Cache`**.
- */
-export async function changeSettings(app: App, patch: DemoSettingsPatch): Promise<void> {
-  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: patch });
-  new Notice('Applied.');
-}
-
-/** Shows the real core metadata of the bundled screenplay, after enabling its extension. */
-export async function showNonMarkdownMetadata(app: App): Promise<void> {
-  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isNonMarkdownModuleEnabled: true, markdownFileExtensions: ['fountain'] } });
-  const path = 'Materials/14 Non-Markdown/Scene.fountain';
-  for (let attempt = 0; attempt < HEADING_TIMES_WAIT_ATTEMPTS; attempt++) {
-    const cache = app.metadataCache.getCache(path);
-    if (cache?.headings?.length) {
-      new Notice(`Scene.fountain\nHeading: ${cache.headings[0].heading}\nstage: ${cache.frontmatter?.stage}\nLinks: ${(cache.links ?? []).map((link) => link.link).join(', ')}`);
-      return;
-    }
-    await sleep(HEADING_TIMES_POLL_IN_MILLISECONDS);
-  }
-  throw new Error('Scene.fountain did not receive metadata.');
-}
-
-/**
- * Switches the Names module on, waits for its index, and reports what the vault calls a given name.
- *
- * The module is off by default — every module added after the one this plugin was created for is —
- * so the button that calls this turns it on for you rather than leaving you to find the toggle.
- *
- * Manual equivalent: turn **Names module** on in **Settings -> Community plugins -> Advanced
- * Metadata Cache**, then call `getPathsByName(name)` on the API from your own plugin.
- *
- * @param app - The Obsidian app.
- * @param name - The name to look up.
- * @param patch - Any other settings to apply first, so one button can show a name appearing or
- *   disappearing as a module is switched.
- */
-export async function showNamesFor(app: App, name: string, patch: DemoSettingsPatch = {}): Promise<void> {
-  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { ...patch, isNamesModuleEnabled: true } });
-
-  const api = await getApi(app);
-  // The safe variant waits for the index to be built, which the module starts only once it loads.
-  const paths = await api.getPathsByNameSafe(name);
-  const indexed = api.getLinkSuggestions();
-
-  if (!paths || !indexed) {
-    new Notice('The Names module did not finish loading.');
-    return;
-  }
-
-  new Notice([
-    `"${name}" names ${paths.length.toString()} note(s):`,
-    ...paths,
-    '',
-    `indexed link targets: ${indexed.length.toString()}`,
-    `built-in link targets: ${api.getLinkSuggestionsOriginal().length.toString()}`
-  ].join('\n'));
-}
-
-/**
- * Switches the Names module on, opens the autocomplete playground and types `[[Lit` at its end, so the
- * `[[` autocomplete opens on the list the index answered with.
- *
- * The text goes in as a typed input rather than a plain edit, because Obsidian opens the autocomplete
- * only for what the reader typed. The button then checks the popover it opened, and throws when the
- * popover does not offer the expected alias.
- *
- * Manual equivalent: turn **Names module** on in **Settings -> Community plugins -> `Advanced Metadata
- * Cache`**, open any note and type `[[Lit`.
- *
- * @param app - The Obsidian app.
- */
-export async function typeLinkInPlayground(app: App): Promise<void> {
-  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isNamesModuleEnabled: true } });
-
-  const api = await getApi(app);
-  // The safe variant waits for the index to be built, so the popover is answered from it.
-  const indexed = await api.getLinkSuggestionsSafe();
-
-  if (!indexed?.some((suggestion) => suggestion.alias === EXPECTED_ALIAS && suggestion.file?.path === RESEARCH_NOTE_PATH)) {
-    throw new Error(`The name index does not offer "${EXPECTED_ALIAS}" for ${RESEARCH_NOTE_PATH}.`);
-  }
-
-  const editor = await openPlaygroundEditor(app);
-  const end = editor.cm.state.doc.length;
-  const typed = `\n${TYPED_LINK_START}`;
-  editor.cm.dispatch({
-    changes: { from: end, insert: typed },
-    selection: { anchor: end + typed.length },
-    userEvent: 'input.type'
-  });
-
-  for (let attempt = 0; attempt < SUGGESTION_WAIT_ATTEMPTS; attempt++) {
-    const offered = Array.from(activeDocument.querySelectorAll('.suggestion-container .suggestion-item'))
-      .some((item) => item.textContent.includes(EXPECTED_ALIAS));
-
-    if (offered) {
-      new Notice(`The [[ autocomplete offers "${EXPECTED_ALIAS}", answered from the name index.`);
-      return;
-    }
-
-    await sleep(SUGGESTION_POLL_IN_MILLISECONDS);
-  }
-
-  throw new Error(`The [[ autocomplete did not offer "${EXPECTED_ALIAS}".`);
 }
 
 /**
@@ -396,26 +375,6 @@ export async function resetPlayground(app: App): Promise<void> {
   app.workspace.editorSuggest.close();
   await app.vault.process(file, () => PLAYGROUND_CONTENT);
   new Notice('The playground is back as it shipped.');
-}
-
-async function openPlaygroundEditor(app: App): Promise<Editor> {
-  const file = app.vault.getFileByPath(PLAYGROUND_PATH);
-
-  if (!file) {
-    throw new Error(`${PLAYGROUND_PATH} is missing from this vault.`);
-  }
-
-  await app.vault.process(file, () => PLAYGROUND_CONTENT);
-  const leaf = app.workspace.getLeaf(false);
-  await leaf.openFile(file, { state: { mode: 'source' } });
-
-  if (!(leaf.view instanceof MarkdownView)) {
-    throw new Error(`${PLAYGROUND_PATH} did not open in an editor.`);
-  }
-
-  const editor = leaf.view.editor;
-  editor.focus();
-  return editor;
 }
 
 /**
@@ -457,51 +416,47 @@ export async function showAutocompleteOfferFor(app: App, title: string, shouldOf
   const builtInCount = api.getLinkSuggestionsOriginal().length;
   const offeredIndex = indexed.findIndex((suggestion) => suggestion.alias === title);
 
-  new Notice([
-    `"Offer titles in the [[ autocomplete" is ${shouldOfferTitlesInLinkSuggestions ? 'ON' : 'OFF'}.`,
-    `"${title}" is ${offeredIndex === -1 ? 'NOT offered' : `offered at position ${(offeredIndex + 1).toString()}`}.`,
-    '',
-    `indexed link targets: ${indexed.length.toString()}`,
-    `built-in link targets: ${builtInCount.toString()}`
-  ].join('\n'));
+  const offeredState = offeredIndex === -1 ? 'NOT offered' : `offered at position ${(offeredIndex + 1).toString()}`;
+  const settingState = shouldOfferTitlesInLinkSuggestions ? 'ON' : 'OFF';
+  new Notice(
+    `"Offer titles in the [[ autocomplete" is ${settingState}.\n"${title}" is ${offeredState}.\n\n`
+      + `indexed link targets: ${indexed.length.toString()}\nbuilt-in link targets: ${builtInCount.toString()}`
+  );
 }
 
 /**
- * Switches the Titles module on and reports what one note's own frontmatter says it is called.
+ * Reports a note's metadata fences, each with the heading or block it describes, then which fences in the vault name a
+ * property with a value, as the `Block metadata` module answers through the API.
  *
- * This is the forward half of the module, reached through the published plugin API rather than
- * through a patched Obsidian method - there is no built-in method for "what is this note called",
- * which is exactly why it is published.
- *
- * Manual equivalent: turn **Titles module** on in **Settings -> Community plugins -> Advanced
- * Metadata Cache**, then take the API through `watchPluginApi` from your own plugin.
+ * Manual equivalent: read the `advanced-metadata-cache` code blocks in the note in Source mode; there is no built-in
+ * lookup across the vault.
  *
  * @param app - The Obsidian app.
- * @param path - The vault-relative path of the note to read.
+ * @param params - The note to read, and the property and value to look for across the vault.
  */
-export async function showTitlesFor(app: App, path: string): Promise<void> {
-  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isTitlesModuleEnabled: true } });
+export async function showBlockMetadata(app: App, params: ShowBlockMetadataOptions): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isBlockMetadataModuleEnabled: true } });
 
   const component = new Component();
   component.load();
 
   try {
-    const apiRef = watchPluginApi<AdvancedMetadataCacheApi>({
-      apiVersionRange: '^1',
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.16',
       app,
       component,
       pluginId: PLUGIN_ID
-    });
+    }).whenAvailable();
 
-    const api = await apiRef.whenAvailable();
-    const propertyNames = api.getTitlePropertyNames();
-    const titles = api.getTitles(path);
-
+    const blockMetadataList = await api.getBlockMetadataSafe(params.path) ?? [];
+    const matches = await api.getBlockMetadataWithPropertySafe(params.propertyName, params.value) ?? [];
     new Notice([
-      `"${path}" is titled:`,
-      ...titles.length > 0 ? titles : ['(nothing)'],
-      '',
-      `read from: ${propertyNames.join(', ')}`
+      `Metadata in ${params.path}:`,
+      ...blockMetadataList.length === 0
+        ? ['none']
+        : blockMetadataList.map((blockMetadata) => `  ${describeTarget(blockMetadata)}: ${blockMetadata.properties ? JSON.stringify(blockMetadata.properties) : `error: ${String(blockMetadata.error)}`}`),
+      `Blocks with ${params.propertyName}: ${params.value}:`,
+      ...matches.length === 0 ? ['none'] : matches.map((match) => `  ${match.path}, ${describeTarget(match.blockMetadata)}`)
     ].join('\n'));
   } finally {
     component.unload();
@@ -509,138 +464,59 @@ export async function showTitlesFor(app: App, path: string): Promise<void> {
 }
 
 /**
- * Takes the plugin API from the registry, waiting for the plugin to publish it.
+ * Opens the note everything links to and reveals the core Backlinks pane beside it.
  *
- * @param app - The Obsidian app.
- * @returns The API, at contract `1.3.0` or later, which is where the backlinks and names calls arrived.
+ * The existing buttons query the cache through the API; this puts the UI that the same cache feeds on
+ * screen, which is what the settings below are actually about.
+ *
+ * Manual equivalent: open `Topics/Central topic.md`, then run **Backlinks: Show backlinks**.
  */
-async function getApi(app: App): Promise<AdvancedMetadataCacheApi> {
-  const component = new Component();
-  component.load();
-
-  try {
-    return await watchPluginApi<AdvancedMetadataCacheApi>({
-      apiVersionRange: '^1.3',
-      app,
-      component,
-      pluginId: PLUGIN_ID
-    }).whenAvailable();
-  } finally {
-    component.unload();
-  }
-}
-
-/**
- * Switches the Headings module on, opens a note so it is tracked, and reports when each of its headings
- * was created, last modified and last seen.
- *
- * Manual equivalent: turn **Headings module** on in **Settings -> Community plugins -> Advanced Metadata
- * Cache**, open the note, then call `getHeadingTimes(path)` on the API from your own plugin.
- *
- * @param app - The Obsidian app.
- * @param path - The vault-relative path of the note.
- */
-export async function showHeadingTimesFor(app: App, path: string): Promise<void> {
-  const api = await openTrackedNote(app, path);
-
-  if (!api) {
+export async function showCentralTopicBacklinks(app: App): Promise<void> {
+  const note = app.vault.getFileByPath(CENTRAL_TOPIC_PATH);
+  if (!note) {
+    new Notice(`${CENTRAL_TOPIC_PATH} is missing from this vault.`);
     return;
   }
 
-  new Notice([
-    `"${path}":`,
-    ...api.getHeadingTimes(path).map((heading) =>
-      `${'#'.repeat(heading.level)} ${heading.heading}: created ${formatTime(heading.created, 'before tracking')}, modified ${
-        formatTime(heading.modified, 'not since')
-      }, seen ${formatTime(heading.seen, 'not yet')}`
-    )
-  ].join('\n'));
+  await app.workspace.getLeaf(false).openFile(note);
+  app.commands.executeCommandById('backlink:open-backlinks');
 }
 
 /**
- * Appends a new heading to a note, then reports the note's heading times, so the new one shows up as
- * created just now.
+ * Lists the code block languages to count, then reports which notes link to a note and which of those links sit
+ * inside a code block.
  *
- * Manual equivalent: type a new `## ` heading at the end of the note.
- *
- * @param app - The Obsidian app.
- * @param path - The vault-relative path of the note.
- */
-export async function addHeadingTo(app: App, path: string): Promise<void> {
-  const heading = `Entry ${new Date().toLocaleTimeString()}`;
-  await editAndShowHeadingTimes(app, path, (content) => `${content.trimEnd()}\n\n## ${heading}\nAdded by the demo button.\n`, heading);
-}
-
-/**
- * Adds a line under one heading of a note, then reports the note's heading times, so that heading shows
- * up as modified just now and the others do not.
- *
- * Manual equivalent: type anything under that heading.
+ * Manual equivalent: list the languages under **Code block languages** in **Settings -> Community plugins ->
+ * `Advanced Metadata Cache`**, then open the core **Backlinks** pane on the note.
  *
  * @param app - The Obsidian app.
- * @param path - The vault-relative path of the note.
- * @param heading - The heading text to edit under.
+ * @param params - The note to ask about, the note holding the blocks, and the languages to count.
  */
-export async function editUnderHeading(app: App, path: string, heading: string): Promise<void> {
-  const line = `Edited at ${new Date().toLocaleTimeString()}.`;
-  await editAndShowHeadingTimes(app, path, (content) => content.replace(`## ${heading}\n`, `## ${heading}\n${line}\n`), heading);
-}
-
-async function editAndShowHeadingTimes(app: App, path: string, edit: (content: string) => string, heading: string): Promise<void> {
-  const api = await openTrackedNote(app, path);
-  const file = app.vault.getFileByPath(path);
-
-  if (!api || !file) {
-    return;
-  }
-
-  const startTime = Date.now();
-  await app.vault.process(file, edit);
-
-  for (let attempt = 0; attempt < HEADING_TIMES_WAIT_ATTEMPTS; attempt++) {
-    const times = api.getHeadingTimes(path).find((candidate) => candidate.heading === heading);
-
-    if ((times?.modified ?? 0) >= startTime) {
-      break;
-    }
-
-    await sleep(HEADING_TIMES_POLL_IN_MILLISECONDS);
-  }
-
-  await showHeadingTimesFor(app, path);
-}
-
-/**
- * Registers a property, then reports which notes carry it and which of them hold one value of it.
- *
- * Manual equivalent: none - Obsidian has no index of notes by property value, which is what this module
- * is for. The closest is searching for `[status:reading]`, which reads every note.
- *
- * @param app - The Obsidian app.
- * @param propertyName - The property to register and ask about.
- * @param value - The value to look for.
- */
-export async function showPathsByPropertyValue(app: App, propertyName: string, value: string): Promise<void> {
-  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isPropertiesModuleEnabled: true } });
+export async function showCodeBlockLinks(app: App, params: ShowCodeBlockLinksOptions): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { codeBlockLinkLanguages: params.languages, isCodeBlockLinksModuleEnabled: true } });
 
   const component = new Component();
   component.load();
 
   try {
     const api = await watchPluginApi<AdvancedMetadataCacheApi>({
-      apiVersionRange: '^1.4',
+      apiVersionRange: '^1.10',
       app,
       component,
       pluginId: PLUGIN_ID
     }).whenAvailable();
 
-    api.registerPropertyName(propertyName);
-    const pathsWithProperty = await api.getPathsWithPropertySafe(propertyName) ?? [];
-    const pathsWithValue = await api.getPathsByPropertyValueSafe(propertyName, value) ?? [];
+    const references = await api.getCodeBlockReferencesSafe(params.sourcePath) ?? [];
+    // The source is announced again once its blocks are parsed; give Obsidian a moment to resolve it.
+    await sleep(CODE_BLOCK_LINKS_SETTLE_IN_MILLISECONDS);
+    const targetFile = app.vault.getFileByPath(params.targetPath);
+    const backlinkPaths = targetFile ? app.metadataCache.getBacklinksForFile(targetFile).keys() : [];
 
     new Notice([
-      `Notes carrying "${propertyName}": ${formatPaths(pathsWithProperty)}`,
-      `Notes where "${propertyName}" holds "${value}": ${formatPaths(pathsWithValue)}`
+      `Languages counted: ${params.languages.length === 0 ? 'none' : params.languages.join(', ')}`,
+      `Notes linking to ${params.targetPath}: ${backlinkPaths.length === 0 ? 'none' : backlinkPaths.join(', ')}`,
+      `Links inside code blocks of ${params.sourcePath}:`,
+      ...references.length === 0 ? ['none'] : references.map(({ isEmbed, language, reference }) => `  ${isEmbed ? '![[' : '[['}${reference.link}]] in a ${language} block`)
     ].join('\n'));
   } finally {
     component.unload();
@@ -681,6 +557,169 @@ export async function showDatedValues(app: App, query: DatedValuesQuery): Promis
 }
 
 /**
+ * Reports which notes link to a site, with and without its subdomains, which link to its first-listed page, and which
+ * hosts look like a typo of it, as the `External links` module answers through the API.
+ *
+ * Manual equivalent: search the vault for the host, which also finds it in plain text and inside code.
+ *
+ * @param app - The Obsidian app.
+ * @param host - The site's host.
+ */
+export async function showExternalLinksTo(app: App, host: string): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isExternalLinksModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.13',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    const pageUrl = `https://${host}/mnaoumov/obsidian-advanced-metadata-cache`;
+    const similarHosts = await api.getSimilarHostsSafe(host) ?? [];
+    const answers: [string, null | string[]][] = [
+      [`linking to ${host}`, await api.getPathsLinkingToHostSafe(host)],
+      ['subdomains included', await api.getPathsLinkingToHostSafe(host, { shouldIncludeSubdomains: true })],
+      [`linking to ${pageUrl}`, await api.getPathsLinkingToUrlSafe(pageUrl)]
+    ];
+    const lines = answers.map(([label, paths]) => `${label}: ${paths?.length ? paths.join(', ') : 'none'}`);
+    lines.push(`hosts that look like a typo of it: ${similarHosts.length > 0 ? similarHosts.map((similarHost) => `${similarHost.host} (${String(similarHost.noteCount)} note(s))`).join(', ') : 'none'}`);
+
+    new Notice([`External links to ${host}:`, ...lines].join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+ * Switches the Headings module on, opens a note so it is tracked, and reports when each of its headings
+ * was created, last modified and last seen.
+ *
+ * Manual equivalent: turn **Headings module** on in **Settings -> Community plugins -> Advanced Metadata
+ * Cache**, open the note, then call `getHeadingTimes(path)` on the API from your own plugin.
+ *
+ * @param app - The Obsidian app.
+ * @param path - The vault-relative path of the note.
+ */
+export async function showHeadingTimesFor(app: App, path: string): Promise<void> {
+  const api = await openTrackedNote(app, path);
+
+  if (!api) {
+    return;
+  }
+
+  new Notice([
+    `"${path}":`,
+    ...api.getHeadingTimes(path).map((heading) =>
+      `${'#'.repeat(heading.level)} ${heading.heading}: created ${formatTime(heading.created, 'before tracking')}, modified ${
+        formatTime(heading.modified, 'not since')
+      }, seen ${formatTime(heading.seen, 'not yet')}`
+    )
+  ].join('\n'));
+}
+
+/**
+ * Shows shared HTML diagnostics for the prepared example.
+ * @param app - The Obsidian app.
+ */
+export async function showHtmlDiagnostics(app: App): Promise<void> {
+  const path = 'Materials/15 HTML/Indexed example.md';
+  if (!app.vault.getFileByPath(path)) {
+    await app.vault.create(path, await app.vault.adapter.read('Materials/15 HTML/Example.txt'));
+  }
+  await changeSettings(app, { isHtmlModuleEnabled: true });
+  const component = new Component();
+  component.load();
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.15', app, component, pluginId: PLUGIN_ID
+    }).whenAvailable();
+    const diagnostics = await api.getHtmlDiagnosticsSafe(path);
+    if (diagnostics === null) {
+      new Notice('HTML index is waiting for metadata. Try the button again.');
+      return;
+    }
+    new Notice(diagnostics.length === 0 ? 'No HTML findings.' : diagnostics.map((diagnostic) =>
+      `${diagnostic.kind}: ${diagnostic.range.tagName ?? 'block'} at line ${String(diagnostic.range.position.start.line + 1)}`
+    ).join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+ * Reports the display texts that links pointing at a file use instead of its name, with how many links use each and
+ * from which notes, as the `Link texts` module answers through the API.
+ *
+ * Manual equivalent: search the vault for every link to the file and read what each one shows.
+ *
+ * @param app - The Obsidian app.
+ * @param path - The vault-relative path of the note or attachment.
+ */
+export async function showLinkTextsOf(app: App, path: string): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isLinkTextsModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.9',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    const linkTexts = await api.getLinkTextsSafe(path) ?? [];
+    const lines = linkTexts.map((linkText) => `${linkText.text}: ${String(linkText.count)} link(s) from ${linkText.sourcePaths.join(', ')}`);
+
+    new Notice([`Link texts of ${path}:`, ...lines.length === 0 ? ['none'] : lines].join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+ * Switches the Names module on, waits for its index, and reports what the vault calls a given name.
+ *
+ * The module is off by default — every module added after the one this plugin was created for is —
+ * so the button that calls this turns it on for you rather than leaving you to find the toggle.
+ *
+ * Manual equivalent: turn **Names module** on in **Settings -> Community plugins -> Advanced
+ * Metadata Cache**, then call `getPathsByName(name)` on the API from your own plugin.
+ *
+ * @param app - The Obsidian app.
+ * @param name - The name to look up.
+ * @param patch - Any other settings to apply first, so one button can show a name appearing or
+ *   disappearing as a module is switched.
+ */
+export async function showNamesFor(app: App, name: string, patch: DemoSettingsPatch = {}): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { ...patch, isNamesModuleEnabled: true } });
+
+  const api = await getApi(app);
+  // The safe variant waits for the index to be built, which the module starts only once it loads.
+  const paths = await api.getPathsByNameSafe(name);
+  const indexed = api.getLinkSuggestions();
+
+  if (!paths || !indexed) {
+    new Notice('The Names module did not finish loading.');
+    return;
+  }
+
+  new Notice([
+    `"${name}" names ${paths.length.toString()} note(s):`,
+    ...paths,
+    '',
+    `indexed link targets: ${indexed.length.toString()}`,
+    `built-in link targets: ${api.getLinkSuggestionsOriginal().length.toString()}`
+  ].join('\n'));
+}
+
+/**
  * Reports the values of the date properties that are not dates, which no range includes.
  *
  * Manual equivalent: none - Obsidian does not check a value against a property's name, and its Properties
@@ -706,6 +745,140 @@ export async function showNonDateValues(app: App): Promise<void> {
     const lines = nonDateValues.map((datedValue) => `"${datedValue.value}"  ${datedValue.propertyName}  ${datedValue.path}`);
 
     new Notice(['Values of date properties that are not dates:', ...lines.length === 0 ? ['none'] : lines].join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+Shows the real core metadata of the bundled screenplay, after enabling its extension.
+*/
+export async function showNonMarkdownMetadata(app: App): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isNonMarkdownModuleEnabled: true, markdownFileExtensions: ['fountain'] } });
+  const path = 'Materials/14 Non-Markdown/Scene.fountain';
+  for (let attempt = 0; attempt < HEADING_TIMES_WAIT_ATTEMPTS; attempt++) {
+    const cache = app.metadataCache.getCache(path);
+    const firstHeading = cache?.headings?.[0];
+    if (cache && firstHeading) {
+      new Notice(`Scene.fountain\nHeading: ${firstHeading.heading}\nstage: ${String(cache.frontmatter?.['stage'])}\nLinks: ${(cache.links ?? []).map((link) => link.link).join(', ')}`);
+      return;
+    }
+    await sleep(HEADING_TIMES_POLL_IN_MILLISECONDS);
+  }
+  throw new Error('Scene.fountain did not receive metadata.');
+}
+
+/**
+ * Reports which notes carry a tag, in the body, in the `tags` property, and as the exact tag without its nested
+ * tags, as the `Tags` module answers through the API.
+ *
+ * Manual equivalent: search the vault for `tag:#<tag>`, which answers the first line only.
+ *
+ * @param app - The Obsidian app.
+ * @param tag - The tag, with or without its `#`.
+ */
+export async function showNotesWithTag(app: App, tag: string): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isTagsModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.11',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    const answers: [string, null | string[]][] = [
+      ['anywhere, nested tags included', await api.getPathsWithTagSafe(tag)],
+      ['in the body', await api.getPathsWithTagSafe(tag, { source: 'body' })],
+      ['in the tags property', await api.getPathsWithTagSafe(tag, { source: 'frontmatter' })],
+      ['the exact tag only', await api.getPathsWithTagSafe(tag, { shouldIncludeNestedTags: false })]
+    ];
+    const lines = answers.map(([label, paths]) => `${label}: ${paths?.length ? paths.join(', ') : 'none'}`);
+
+    new Notice([`Notes tagged ${tag}:`, ...lines].join('\n'));
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+ * Registers a property, then reports which notes carry it and which of them hold one value of it.
+ *
+ * Manual equivalent: none - Obsidian has no index of notes by property value, which is what this module
+ * is for. The closest is searching for `[status:reading]`, which reads every note.
+ *
+ * @param app - The Obsidian app.
+ * @param propertyName - The property to register and ask about.
+ * @param value - The value to look for.
+ */
+export async function showPathsByPropertyValue(app: App, propertyName: string, value: string): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isPropertiesModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.4',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+
+    api.registerPropertyName(propertyName);
+    const pathsWithProperty = await api.getPathsWithPropertySafe(propertyName) ?? [];
+    const pathsWithValue = await api.getPathsByPropertyValueSafe(propertyName, value) ?? [];
+
+    new Notice(
+      `Notes carrying "${propertyName}": ${formatPaths(pathsWithProperty)}\n`
+        + `Notes where "${propertyName}" holds "${value}": ${formatPaths(pathsWithValue)}`
+    );
+  } finally {
+    component.unload();
+  }
+}
+
+/**
+ * Switches the Titles module on and reports what one note's own frontmatter says it is called.
+ *
+ * This is the forward half of the module, reached through the published plugin API rather than
+ * through a patched Obsidian method - there is no built-in method for "what is this note called",
+ * which is exactly why it is published.
+ *
+ * Manual equivalent: turn **Titles module** on in **Settings -> Community plugins -> Advanced
+ * Metadata Cache**, then take the API through `watchPluginApi` from your own plugin.
+ *
+ * @param app - The Obsidian app.
+ * @param path - The vault-relative path of the note to read.
+ */
+export async function showTitlesFor(app: App, path: string): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isTitlesModuleEnabled: true } });
+
+  const component = new Component();
+  component.load();
+
+  try {
+    const apiRef = watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    });
+
+    const api = await apiRef.whenAvailable();
+    const propertyNames = api.getTitlePropertyNames();
+    const titles = api.getTitles(path);
+
+    new Notice([
+      `"${path}" is titled:`,
+      ...titles.length > 0 ? titles : ['(nothing)'],
+      '',
+      `read from: ${propertyNames.join(', ')}`
+    ].join('\n'));
   } finally {
     component.unload();
   }
@@ -775,6 +948,86 @@ export async function showUnlinkedMentionsPane(app: App, path: string): Promise<
   await (backlinkLeaf.view as BacklinkView).backlink.setUnlinkedCollapsed(false, true);
 }
 
+/**
+ * Switches the Names module on, opens the autocomplete playground and types `[[Lit` at its end, so the
+ * `[[` autocomplete opens on the list the index answered with.
+ *
+ * The text goes in as a typed input rather than a plain edit, because Obsidian opens the autocomplete
+ * only for what the reader typed. The button then checks the popover it opened, and throws when the
+ * popover does not offer the expected alias.
+ *
+ * Manual equivalent: turn **Names module** on in **Settings -> Community plugins -> `Advanced Metadata
+ * Cache`**, open any note and type `[[Lit`.
+ *
+ * @param app - The Obsidian app.
+ */
+export async function typeLinkInPlayground(app: App): Promise<void> {
+  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isNamesModuleEnabled: true } });
+
+  const api = await getApi(app);
+  // The safe variant waits for the index to be built, so the popover is answered from it.
+  const indexed = await api.getLinkSuggestionsSafe();
+
+  if (!indexed?.some((suggestion) => suggestion.alias === EXPECTED_ALIAS && suggestion.file?.path === RESEARCH_NOTE_PATH)) {
+    throw new Error(`The name index does not offer "${EXPECTED_ALIAS}" for ${RESEARCH_NOTE_PATH}.`);
+  }
+
+  const editor = await openPlaygroundEditor(app);
+  const end = editor.cm.state.doc.length;
+  const typed = `\n${TYPED_LINK_START}`;
+  editor.cm.dispatch({
+    changes: { from: end, insert: typed },
+    selection: { anchor: end + typed.length },
+    userEvent: 'input.type'
+  });
+
+  for (let attempt = 0; attempt < SUGGESTION_WAIT_ATTEMPTS; attempt++) {
+    const isOffered = [...activeDocument.body.querySelectorAll(':scope .suggestion-container .suggestion-item')]
+      .some((item) => item.textContent.includes(EXPECTED_ALIAS));
+
+    if (isOffered) {
+      new Notice(`The [[ autocomplete offers "${EXPECTED_ALIAS}", answered from the name index.`);
+      return;
+    }
+
+    await sleep(SUGGESTION_POLL_IN_MILLISECONDS);
+  }
+
+  throw new Error(`The [[ autocomplete did not offer "${EXPECTED_ALIAS}".`);
+}
+
+function describeTarget(blockMetadata: BlockMetadata): string {
+  const target = blockMetadata.target;
+  if (!target) {
+    return 'no block';
+  }
+  return target.heading === null ? `the ${target.type} on line ${String(target.position.start.line + 1)}` : `heading "${target.heading}"`;
+}
+
+async function editAndShowHeadingTimes(app: App, path: string, edit: (content: string) => string, heading: string): Promise<void> {
+  const api = await openTrackedNote(app, path);
+  const file = app.vault.getFileByPath(path);
+
+  if (!api || !file) {
+    return;
+  }
+
+  const startTime = Date.now();
+  await app.vault.process(file, edit);
+
+  for (let attempt = 0; attempt < HEADING_TIMES_WAIT_ATTEMPTS; attempt++) {
+    const times = api.getHeadingTimes(path).find((candidate) => candidate.heading === heading);
+
+    if ((times?.modified ?? 0) >= startTime) {
+      break;
+    }
+
+    await sleep(HEADING_TIMES_POLL_IN_MILLISECONDS);
+  }
+
+  await showHeadingTimesFor(app, path);
+}
+
 function formatPaths(paths: readonly string[]): string {
   return paths.length === 0 ? 'none' : [...paths].sort().join(', ');
 }
@@ -783,6 +1036,47 @@ function formatTime(time: null | number, fallback: string): string {
   return time === null ? fallback : new Date(time).toLocaleTimeString();
 }
 
+/**
+ * Takes the plugin API from the registry, waiting for the plugin to publish it.
+ *
+ * @param app - The Obsidian app.
+ * @returns The API, at contract `1.3.0` or later, which is where the backlinks and names calls arrived.
+ */
+async function getApi(app: App): Promise<AdvancedMetadataCacheApi> {
+  const component = new Component();
+  component.load();
+
+  try {
+    return await watchPluginApi<AdvancedMetadataCacheApi>({
+      apiVersionRange: '^1.3',
+      app,
+      component,
+      pluginId: PLUGIN_ID
+    }).whenAvailable();
+  } finally {
+    component.unload();
+  }
+}
+
+async function openPlaygroundEditor(app: App): Promise<Editor> {
+  const file = app.vault.getFileByPath(PLAYGROUND_PATH);
+
+  if (!file) {
+    throw new Error(`${PLAYGROUND_PATH} is missing from this vault.`);
+  }
+
+  await app.vault.process(file, () => PLAYGROUND_CONTENT);
+  const leaf = app.workspace.getLeaf(false);
+  await leaf.openFile(file, { state: { mode: 'source' } });
+
+  if (!(leaf.view instanceof MarkdownView)) {
+    throw new TypeError(`${PLAYGROUND_PATH} did not open in an editor.`);
+  }
+
+  const editor = leaf.view.editor;
+  editor.focus();
+  return editor;
+}
 /**
  * Switches the Headings module on and opens the note, which is what starts tracking it.
  *
@@ -813,230 +1107,6 @@ async function openTrackedNote(app: App, path: string): Promise<AdvancedMetadata
 
     await app.workspace.getLeaf(false).openFile(file);
     return api;
-  } finally {
-    component.unload();
-  }
-}
-
-/**
- * Reports the display texts that links pointing at a file use instead of its name, with how many links use each and
- * from which notes, as the `Link texts` module answers through the API.
- *
- * Manual equivalent: search the vault for every link to the file and read what each one shows.
- *
- * @param app - The Obsidian app.
- * @param path - The vault-relative path of the note or attachment.
- */
-export async function showLinkTextsOf(app: App, path: string): Promise<void> {
-  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isLinkTextsModuleEnabled: true } });
-
-  const component = new Component();
-  component.load();
-
-  try {
-    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
-      apiVersionRange: '^1.9',
-      app,
-      component,
-      pluginId: PLUGIN_ID
-    }).whenAvailable();
-
-    const linkTexts = await api.getLinkTextsSafe(path) ?? [];
-    const lines = linkTexts.map((linkText) => `${linkText.text}: ${String(linkText.count)} link(s) from ${linkText.sourcePaths.join(', ')}`);
-
-    new Notice([`Link texts of ${path}:`, ...lines.length === 0 ? ['none'] : lines].join('\n'));
-  } finally {
-    component.unload();
-  }
-}
-
-/**
- * Reports which notes carry a tag, in the body, in the `tags` property, and as the exact tag without its nested
- * tags, as the `Tags` module answers through the API.
- *
- * Manual equivalent: search the vault for `tag:#<tag>`, which answers the first line only.
- *
- * @param app - The Obsidian app.
- * @param tag - The tag, with or without its `#`.
- */
-export async function showNotesWithTag(app: App, tag: string): Promise<void> {
-  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isTagsModuleEnabled: true } });
-
-  const component = new Component();
-  component.load();
-
-  try {
-    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
-      apiVersionRange: '^1.11',
-      app,
-      component,
-      pluginId: PLUGIN_ID
-    }).whenAvailable();
-
-    const answers: [string, null | string[]][] = [
-      ['anywhere, nested tags included', await api.getPathsWithTagSafe(tag)],
-      ['in the body', await api.getPathsWithTagSafe(tag, { source: 'body' })],
-      ['in the tags property', await api.getPathsWithTagSafe(tag, { source: 'frontmatter' })],
-      ['the exact tag only', await api.getPathsWithTagSafe(tag, { shouldIncludeNestedTags: false })]
-    ];
-    const lines = answers.map(([label, paths]) => `${label}: ${paths?.length ? paths.join(', ') : 'none'}`);
-
-    new Notice([`Notes tagged ${tag}:`, ...lines].join('\n'));
-  } finally {
-    component.unload();
-  }
-}
-
-/**
- * Reports which notes link to a site, with and without its subdomains, which link to its first-listed page, and which
- * hosts look like a typo of it, as the `External links` module answers through the API.
- *
- * Manual equivalent: search the vault for the host, which also finds it in plain text and inside code.
- *
- * @param app - The Obsidian app.
- * @param host - The site's host.
- */
-export async function showExternalLinksTo(app: App, host: string): Promise<void> {
-  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isExternalLinksModuleEnabled: true } });
-
-  const component = new Component();
-  component.load();
-
-  try {
-    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
-      apiVersionRange: '^1.13',
-      app,
-      component,
-      pluginId: PLUGIN_ID
-    }).whenAvailable();
-
-    const pageUrl = `https://${host}/mnaoumov/obsidian-advanced-metadata-cache`;
-    const similarHosts = await api.getSimilarHostsSafe(host) ?? [];
-    const answers: [string, null | string[]][] = [
-      [`linking to ${host}`, await api.getPathsLinkingToHostSafe(host)],
-      ['subdomains included', await api.getPathsLinkingToHostSafe(host, { shouldIncludeSubdomains: true })],
-      [`linking to ${pageUrl}`, await api.getPathsLinkingToUrlSafe(pageUrl)]
-    ];
-    const lines = answers.map(([label, paths]) => `${label}: ${paths?.length ? paths.join(', ') : 'none'}`);
-    lines.push(`hosts that look like a typo of it: ${similarHosts.length ? similarHosts.map((similarHost) => `${similarHost.host} (${String(similarHost.noteCount)} note(s))`).join(', ') : 'none'}`);
-
-    new Notice([`External links to ${host}:`, ...lines].join('\n'));
-  } finally {
-    component.unload();
-  }
-}
-
-/**
- * Lists the code block languages to count, then reports which notes link to a note and which of those links sit
- * inside a code block.
- *
- * Manual equivalent: list the languages under **Code block languages** in **Settings -> Community plugins ->
- * `Advanced Metadata Cache`**, then open the core **Backlinks** pane on the note.
- *
- * @param app - The Obsidian app.
- * @param params - The note to ask about, the note holding the blocks, and the languages to count.
- */
-export async function showCodeBlockLinks(app: App, params: { readonly languages: string[]; readonly sourcePath: string; readonly targetPath: string }): Promise<void> {
-  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { codeBlockLinkLanguages: params.languages, isCodeBlockLinksModuleEnabled: true } });
-
-  const component = new Component();
-  component.load();
-
-  try {
-    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
-      apiVersionRange: '^1.10',
-      app,
-      component,
-      pluginId: PLUGIN_ID
-    }).whenAvailable();
-
-    const references = await api.getCodeBlockReferencesSafe(params.sourcePath) ?? [];
-    // The source is announced again once its blocks are parsed; give Obsidian a moment to resolve it.
-    await sleep(CODE_BLOCK_LINKS_SETTLE_IN_MILLISECONDS);
-    const targetFile = app.vault.getFileByPath(params.targetPath);
-    const backlinkPaths = targetFile ? app.metadataCache.getBacklinksForFile(targetFile).keys() : [];
-
-    new Notice([
-      `Languages counted: ${params.languages.length === 0 ? 'none' : params.languages.join(', ')}`,
-      `Notes linking to ${params.targetPath}: ${backlinkPaths.length === 0 ? 'none' : backlinkPaths.join(', ')}`,
-      `Links inside code blocks of ${params.sourcePath}:`,
-      ...references.length === 0 ? ['none'] : references.map(({ isEmbed, language, reference }) => `  ${isEmbed ? '![[' : '[['}${reference.link}]] in a ${language} block`)
-    ].join('\n'));
-  } finally {
-    component.unload();
-  }
-}
-
-/**
- * Reports a note's metadata fences, each with the heading or block it describes, then which fences in the vault name a
- * property with a value, as the `Block metadata` module answers through the API.
- *
- * Manual equivalent: read the `advanced-metadata-cache` code blocks in the note in Source mode; there is no built-in
- * lookup across the vault.
- *
- * @param app - The Obsidian app.
- * @param params - The note to read, and the property and value to look for across the vault.
- */
-export async function showBlockMetadata(app: App, params: { readonly path: string; readonly propertyName: string; readonly value: string }): Promise<void> {
-  await configureCommunityPlugin({ app, pluginId: PLUGIN_ID, settings: { isBlockMetadataModuleEnabled: true } });
-
-  const component = new Component();
-  component.load();
-
-  try {
-    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
-      apiVersionRange: '^1.16',
-      app,
-      component,
-      pluginId: PLUGIN_ID
-    }).whenAvailable();
-
-    const blockMetadataList = await api.getBlockMetadataSafe(params.path) ?? [];
-    const matches = await api.getBlockMetadataWithPropertySafe(params.propertyName, params.value) ?? [];
-    const describeTarget = (blockMetadata: (typeof blockMetadataList)[number]): string => {
-      const target = blockMetadata.target;
-      if (!target) {
-        return 'no block';
-      }
-      return target.heading === null ? `the ${target.type} on line ${String(target.position.start.line + 1)}` : `heading "${target.heading}"`;
-    };
-
-    new Notice([
-      `Metadata in ${params.path}:`,
-      ...blockMetadataList.length === 0
-        ? ['none']
-        : blockMetadataList.map((blockMetadata) => `  ${describeTarget(blockMetadata)}: ${blockMetadata.properties ? JSON.stringify(blockMetadata.properties) : `error: ${String(blockMetadata.error)}`}`),
-      `Blocks with ${params.propertyName}: ${params.value}:`,
-      ...matches.length === 0 ? ['none'] : matches.map((match) => `  ${match.path}, ${describeTarget(match.blockMetadata)}`)
-    ].join('\n'));
-  } finally {
-    component.unload();
-  }
-}
-/**
- * Shows shared HTML diagnostics for the prepared example.
- * @param app - The Obsidian app.
- */
-export async function showHtmlDiagnostics(app: App): Promise<void> {
-  const path = 'Materials/15 HTML/Indexed example.md';
-  if (!app.vault.getFileByPath(path)) {
-    await app.vault.create(path, await app.vault.adapter.read('Materials/15 HTML/Example.txt'));
-  }
-  await changeSettings(app, { isHtmlModuleEnabled: true });
-  const component = new Component();
-  component.load();
-  try {
-    const api = await watchPluginApi<AdvancedMetadataCacheApi>({
-      apiVersionRange: '^1.15', app, component, pluginId: PLUGIN_ID
-    }).whenAvailable();
-    const diagnostics = await api.getHtmlDiagnosticsSafe(path);
-    if (diagnostics === null) {
-      new Notice('HTML index is waiting for metadata. Try the button again.');
-      return;
-    }
-    new Notice(diagnostics.length === 0 ? 'No HTML findings.' : diagnostics.map((diagnostic) =>
-      `${diagnostic.kind}: ${diagnostic.range.tagName} at line ${String(diagnostic.range.position.start.line + 1)}`
-    ).join('\n'));
   } finally {
     component.unload();
   }

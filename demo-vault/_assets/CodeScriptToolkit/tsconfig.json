@@ -1,0 +1,25 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "emitDeclarationOnly": true,
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ES2022"
+    ],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "noEmit": false,
+    "outDir": "../../../dist/demo-vault-setup",
+    "tsBuildInfoFile": "../../../dist/demo-vault-setup/tsconfig.tsbuildinfo",
+    "types": [
+      "@obsidian-typings/obsidian-public-latest"
+    ]
+  },
+  "files": [
+    "./demoSetup.ts",
+    "./startup.ts"
+  ],
+  "include": []
+}
