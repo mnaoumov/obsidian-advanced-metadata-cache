@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2.7.1
+
+- docs: re #4
+- build(demo-vault): type-check the setup scripts
+
 ## 2.7.0
 
 This release has 2 new features and 2 fixes. 4 maintenance commits (tests, build, CI, refactoring, dependencies, docs) are not listed.
