@@ -2,8 +2,11 @@
 
 ## 2.7.1
 
-- docs: re #4
-- build(demo-vault): type-check the setup scripts
+This release changes documentation only; the plugin itself is unchanged. 1 maintenance commit (build) is not listed.
+
+### Documentation
+
+- The README and the demo vault say that the `Open demo vault` command is desktop-only, and point mobile users to the demo vault zip instead (#4).
 
 ## 2.7.0
 
