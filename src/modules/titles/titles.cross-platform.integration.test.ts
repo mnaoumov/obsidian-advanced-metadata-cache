@@ -587,19 +587,19 @@ async function runScenario(): Promise<TitlesResult> {
         }
 
         /**
-         * Asks a real Quick switcher modal, as the core command builds it, for its title and alias matches.
+         * Asks a real Quick switcher modal, as the core command builds it, for its title and alias matches of the note's
+         * heading typed as the query.
          *
-         * @param query - What the user typed.
          * @returns The modal itself and its alias-shaped matches.
          */
-        function querySwitcher(query: string): SwitcherQuery {
+        function querySwitcherByHeading(): SwitcherQuery {
           const switcher = switcherPlugin?.instance;
           if (!switcher) {
             throw new Error('The core Quick switcher has no instance.');
           }
           const modal = new switcher.QuickSwitcherModal(app, switcher.options);
           const entries: SwitcherEntry[] = [];
-          for (const suggestion of modal.getSuggestions(query)) {
+          for (const suggestion of modal.getSuggestions(noteHeading)) {
             if (suggestion.type === 'alias') {
               entries.push({ alias: suggestion.alias, path: suggestion.file.path });
             }
@@ -607,7 +607,7 @@ async function runScenario(): Promise<TitlesResult> {
           return { entries, modal };
         }
 
-        const byHeading = querySwitcher(noteHeading);
+        const byHeading = querySwitcherByHeading();
         let openedPathAfterChoosingTitle: null | string = null;
         const chosen = byHeading.modal.getSuggestions(noteHeading).find((suggestion) => suggestion.type === 'alias');
         if (chosen) {
@@ -635,7 +635,7 @@ async function runScenario(): Promise<TitlesResult> {
           pathsByOwnName: getPathsByName(noteBasename),
           pathsByTitle: getPathsByName(noteTitle),
           propertyNames: api.getTitlePropertyNames(),
-          switcherAfterCoreToggle: querySwitcher(noteHeading).entries,
+          switcherAfterCoreToggle: querySwitcherByHeading().entries,
           switcherByHeading: byHeading.entries,
           titles: api.getTitles(notePath),
           titleSuggestionIndex

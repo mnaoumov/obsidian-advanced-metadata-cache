@@ -52,11 +52,8 @@ export function getFrontmatterParseError(text: string, position: Pos): null | st
     return null;
   } catch (error) {
     /* v8 ignore start -- parseYaml throws only Error instances. */
-    if (!(error instanceof Error)) {
-      return String(error);
-    }
+    return error instanceof Error ? error.message : String(error);
     /* v8 ignore stop */
-    return error.message;
   }
 }
 
