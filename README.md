@@ -68,14 +68,16 @@ Derived caches stay on each device; heading history and registered property name
 
 | Plugin | Features | How `Advanced Metadata Cache` differs |
 | --- | --- | --- |
-| [`Backlink Cache`](https://community.obsidian.md/plugins/backlink-cache) (my plugin) | Retired; points to its successor, which now carries the backlink index | Supersedes `Backlink Cache`: includes its backlink index; adds: names, titles, headings, properties, unlinked mentions |
+| [`Backlink Cache`](https://community.obsidian.md/plugins/backlink-cache) (my plugin) | Retired; points to its successor, which now carries the backlink index | Supersedes `Backlink Cache`: includes its backlink index; adds: names, titles, headings, properties, unlinked mentions, link texts, tags, external links and more |
 | [`Boost Link Suggestions`](https://community.obsidian.md/plugins/boost-link-suggestions) | Alternative wikilink suggester; link-count and manual-boost ordering | Same suggestion goal; keeps core suggester/order; indexed lookup instead of vault walks |
 | [`Datacore`](https://community.obsidian.md/plugins/datacore) | Reactive indexed query engine; JavaScript and JSX views | Different integration: accelerates core calls and their consumers; no query language |
 | [`Dataview`](https://community.obsidian.md/plugins/dataview) | Page/inline-field indexes; query language and JavaScript tables/lists/tasks | Different integration: core calls and startup-loaded property lookups; no query language |
+| [`External Link Autocomplete`](https://community.obsidian.md/plugins/external-link-autocomplete) | Own index of external links; suggests used links while typing; link browser and vault-wide link edit; data for scripts | Different integration: external-link index as a plugin API for other plugins; no suggester or views |
 | [`Front Matter Title`](https://community.obsidian.md/plugins/obsidian-front-matter-title-plugin) | Frontmatter titles in explorer, tabs and graph | Complementary title lookup: finds notes by title; offers titles in autocomplete; no display changes |
+| [`Indexed Search`](https://community.obsidian.md/plugins/indexed-search) (my plugin) | Trigram index behind core Search; same results, faster on large vaults | Same approach for different core lookups: metadata calls, not full-text search |
 | [`Vault Map`](https://community.obsidian.md/plugins/vault-map) | JSON Lines export of frontmatter, links, embeds and backlinks | Alternative index access: in-memory core calls and plugin API; no export file |
 
-Last searched for similar plugins on 2026-10-26.
+Last searched for similar plugins on 2026-11-22.
 
 ## For plugin developers
 
