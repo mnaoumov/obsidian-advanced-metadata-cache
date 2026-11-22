@@ -42,14 +42,25 @@ interface TextRange {
 
 const FENCE_PATTERN = /^ {0,3}(?<fence>`{3,}|~{3,})/;
 const FRONTMATTER_DELIMITER = '---';
-const INLINE_CODE_PATTERN = /(?<!`)(?<ticks>`+)(?!`)[\s\S]*?(?<!`)\k<ticks>(?!`)/g;
+// Every match is a maximal run, because the run is greedy and the scan resumes after it.
+const BACKTICK_RUN_PATTERN = /`+/g;
 const SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:/i;
 /*
  * Ends at whitespace, at a character that closes a markdown construct (`<>[]`), at a quote (a YAML or HTML value), at a
  * backtick and at `|` (a table cell). A `)` is kept here and trimmed below when unbalanced, so a Wikipedia path such as
  * `Foo_(bar)` survives while `[x](https://a.b)` loses its `)`.
+ *
+ * A URL glued to a preceding word character does not count; `matchUrls` checks that itself, because iOS before 16.4 has
+ * no regex lookbehind.
  */
-const URL_PATTERN = /(?<![\p{L}\p{N}_])https?:\/\/[^\s<>[\]"'`|]+/giu;
+const URL_PATTERN = /https?:\/\/[^\s<>[\]"'`|]+/giu;
+/*
+ * Anchored at both ends on purpose: V8 (Node 26) answers `false` for an unanchored `/[\p{L}\p{N}_]$/u` on a lone letter
+ * outside the BMP, while this form reads it as the one code point it is.
+ */
+const WORD_CHARACTER_BEFORE_PATTERN = /^[\s\S]?[\p{L}\p{N}_]$/u;
+// The most code units one code point takes in UTF-16.
+const SURROGATE_PAIR_LENGTH = 2;
 // A swap of two neighboring characters, which counts as one edit, spans this many characters.
 const SWAP_LENGTH = 2;
 const TRAILING_PUNCTUATION = '.,;:!?*_~';
@@ -67,7 +78,7 @@ export function findExternalLinks(content: string): ExternalLink[] {
   const locate = createLocator(content);
   const links: ExternalLink[] = [];
 
-  for (const match of content.matchAll(URL_PATTERN)) {
+  for (const match of matchUrls(content)) {
     const start = match.index;
     if (excludedRanges.some((range) => range.start <= start && start < range.end)) {
       continue;
@@ -178,9 +189,24 @@ export function parseExternalUrl(url: string): null | ParsedExternalUrl {
   return { host, normalizedUrl: `${host}${port}${path}${parsed.search}` };
 }
 
+/*
+ * A code span opens at a backtick run and closes at the next run of exactly the same length; a run with no such closer is
+ * literal text. Scanned by hand, because iOS before 16.4 has no regex lookbehind to require whole runs.
+ */
 function addInlineCodeRanges(ranges: TextRange[], content: string, start: number, end: number): void {
-  for (const match of content.slice(start, end).matchAll(INLINE_CODE_PATTERN)) {
-    ranges.push({ end: start + match.index + match[0].length, start: start + match.index });
+  const runs = [...content.slice(start, end).matchAll(BACKTICK_RUN_PATTERN)];
+  let lastClosedIndex = -1;
+  for (const [openerIndex, opener] of runs.entries()) {
+    if (openerIndex <= lastClosedIndex) {
+      continue;
+    }
+    const closerIndex = runs.findIndex((run, index) => index > openerIndex && run[0].length === opener[0].length);
+    const closer = runs[closerIndex];
+    if (!closer) {
+      continue;
+    }
+    ranges.push({ end: start + closer.index + closer[0].length, start: start + opener.index });
+    lastClosedIndex = closerIndex;
   }
 }
 
@@ -264,6 +290,22 @@ function getFrontmatterEnd(content: string): number {
 
   // An unclosed block is no frontmatter, as Obsidian reads it.
   return 0;
+}
+
+function matchUrls(content: string): RegExpExecArray[] {
+  const matches: RegExpExecArray[] = [];
+  const pattern = new RegExp(URL_PATTERN);
+  for (let match = pattern.exec(content); match; match = pattern.exec(content)) {
+    // The pattern's `u` flag reads a surrogate pair in these code units as the one code point it is.
+    const before = content.slice(Math.max(0, match.index - SURROGATE_PAIR_LENGTH), match.index);
+    if (WORD_CHARACTER_BEFORE_PATTERN.test(before)) {
+      // Resume right after the rejected start, as a lookbehind would, so a URL later inside this match is still found.
+      pattern.lastIndex = match.index + 1;
+      continue;
+    }
+    matches.push(match);
+  }
+  return matches;
 }
 
 // Every read is of an index the caller has already written, which the index signature cannot know.

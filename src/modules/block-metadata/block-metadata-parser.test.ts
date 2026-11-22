@@ -20,7 +20,7 @@ describe('findBlockMetadata', () => {
     const text = '# Tasks\n```advanced-metadata-cache\nstatus: done\ntags: [a, b]\n```\nBody';
     const result = findBlockMetadata({
       cache: {
-        headings: [{ heading: 'Tasks', level: 1, position: pos(0, 0, 0, 7) }],
+        headings: [{ heading: 'Tasks', level: 1, position: pos(0, 0, 7) }],
         sections: [section('heading', 0, 0), section('code', 1, 4), section('paragraph', 5, 5)]
       },
       text
@@ -29,9 +29,9 @@ describe('findBlockMetadata', () => {
     expect(result).toEqual([
       {
         error: null,
-        position: pos(1, 0, 4, 0),
+        position: pos(1, 4, 0),
         properties: { status: 'done', tags: ['a', 'b'] },
-        target: { blockId: null, heading: 'Tasks', level: 1, position: pos(0, 0, 0, 0), type: 'heading' }
+        target: { blockId: null, heading: 'Tasks', level: 1, position: pos(0, 0, 0), type: 'heading' }
       }
     ]);
   });
@@ -43,8 +43,8 @@ describe('findBlockMetadata', () => {
 
     expect(result.map((blockMetadata) => blockMetadata.properties)).toEqual([{ a: 1 }, { b: 2 }]);
     expect(result.map((blockMetadata) => blockMetadata.target)).toEqual([
-      { blockId: 'abc', heading: null, level: null, position: pos(0, 0, 0, 0), type: 'paragraph' },
-      { blockId: 'abc', heading: null, level: null, position: pos(0, 0, 0, 0), type: 'paragraph' }
+      { blockId: 'abc', heading: null, level: null, position: pos(0, 0, 0), type: 'paragraph' },
+      { blockId: 'abc', heading: null, level: null, position: pos(0, 0, 0), type: 'paragraph' }
     ]);
   });
 
@@ -60,7 +60,7 @@ describe('findBlockMetadata', () => {
     const text = '# A\n```advanced-metadata-cache\n```';
     const [blockMetadata] = findBlockMetadata({ cache: { sections: [section('heading', 0, 0), section('code', 1, 2)] }, text });
 
-    expect(blockMetadata?.target).toEqual({ blockId: null, heading: null, level: null, position: pos(0, 0, 0, 0), type: 'heading' });
+    expect(blockMetadata?.target).toEqual({ blockId: null, heading: null, level: null, position: pos(0, 0, 0), type: 'heading' });
     expect(blockMetadata?.properties).toEqual({});
   });
 
@@ -104,14 +104,14 @@ describe('hasCodeSection', () => {
   });
 });
 
-function pos(startLine: number, startCol: number, endLine: number, endCol: number): SectionCache['position'] {
+function pos(startLine: number, endLine: number, endCol: number): SectionCache['position'] {
   // Offsets are not read by the parser; the test gives each location its line as the offset.
   return {
     end: { col: endCol, line: endLine, offset: endLine },
-    start: { col: startCol, line: startLine, offset: startLine }
+    start: { col: 0, line: startLine, offset: startLine }
   };
 }
 
 function section(type: string, startLine: number, endLine: number): SectionCache {
-  return { position: pos(startLine, 0, endLine, 0), type };
+  return { position: pos(startLine, endLine, 0), type };
 }

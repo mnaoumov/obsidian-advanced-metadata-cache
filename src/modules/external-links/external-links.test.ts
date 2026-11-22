@@ -111,6 +111,18 @@ describe('findExternalLinks', () => {
   it('should skip a scheme glued to a word, and a URL with no host', () => {
     expect(findExternalLinks('xhttps://a.com https:// https://) https://b.com')).toHaveLength(1);
   });
+
+  it('should read the code point before a URL whole, and still find a URL inside a rejected one', () => {
+    // `𝐀` is a letter outside the BMP, so it takes two code units; `🙂` is not a word character.
+    expect(findExternalLinks('𝐀https://a.com 🙂https://b.com').map((link) => link.host)).toEqual(['b.com']);
+    expect(findExternalLinks('xhttps://a.com/https://b.com').map((link) => link.host)).toEqual(['b.com']);
+  });
+
+  it('should treat a backtick run with no closer of its length as text', () => {
+    const content = 'Text ``` https://open.com `x` https://kept.com ``a` https://code.com ``';
+
+    expect(findExternalLinks(content).map((link) => link.host)).toEqual(['open.com', 'kept.com']);
+  });
 });
 
 /* eslint-enable unicorn/prefer-https -- End of the http fixtures. */
