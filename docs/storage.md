@@ -6,7 +6,7 @@ External-link records include each link's position and the note's observed modif
 
 HTML records include original source fragments and UTF-16 positions, with the same per-note stat validation. Runtime sanitizer diagnostics stay in memory and are rebuilt for the current Obsidian version. See [HTML range index](./html.md).
 
-**Heading history and registered property names are authoritative state.** Each device keeps them in its own local replica, in IndexedDB. They reach the vault only on a device that turns on **Sync between devices** in the plugin's settings. Then they are written as ordinary Markdown files under the plugin data folder, in its `advanced-metadata-cache` subfolder, for Obsidian Sync or a folder-based sync tool to carry. Each device owns its own journal files, and records are periodically compacted into bounded snapshots. Files stay below the shared store's 1,000,000-byte default limit. Account storage limits still apply.
+**Heading history and registered property names are authoritative state.** Each device keeps them in its own local replica, in IndexedDB. They reach the vault only on a device that turns on **Sync between devices** in the plugin's settings. Then they are written as ordinary Markdown files under the plugin data folder, in its `advanced-metadata-cache` subfolder, for Obsidian Sync or a folder-based sync tool to carry. Each device owns its own journal files. A save extends the device's current journal file rather than creating a new one, so a burst of edits does not add a file per save. About once an hour of continuous editing, records are compacted into bounded snapshots. Files stay below the shared store's 1,000,000-byte default limit. Account storage limits still apply.
 
 ## Sync between devices
 

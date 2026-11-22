@@ -32,7 +32,13 @@ interface PluginIndexStorageConstructorParams {
   readonly pluginId: string;
 }
 
-const COMPACT_AFTER_WRITES = 120;
+/**
+ * How many writes a long-lived writer makes between compactions of its shared store.
+ *
+ * The journal grows one segment in place, so compaction is the only step that still creates and removes files in the
+ * vault. At the 5 s save cadence this is one compaction per hour of continuous editing.
+ */
+export const COMPACT_AFTER_WRITES = 720;
 
 interface LegacyNotes {
   readonly notes: Readonly<Record<string, unknown>>;
