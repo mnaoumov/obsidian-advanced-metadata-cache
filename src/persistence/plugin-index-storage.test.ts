@@ -21,7 +21,10 @@ import {
 
 import type { PluginDataSync } from './plugin-data-sync.ts';
 
-import { PluginIndexStorage } from './plugin-index-storage.ts';
+import {
+  COMPACT_AFTER_WRITES,
+  PluginIndexStorage
+} from './plugin-index-storage.ts';
 
 const storages: PluginIndexStorage[] = [];
 
@@ -276,9 +279,11 @@ describe('PluginIndexStorage', () => {
     write.mockRestore();
     await storage.write(JSON.stringify({ notes: {}, version: 1 }));
     expect(await storage.read()).not.toContain('A.md');
-    for (let index = 0; index < 120; index++) {
+    for (let index = 0; index < COMPACT_AFTER_WRITES - 3; index++) {
       await storage.write(JSON.stringify({ notes: {}, version: 1 }));
     }
+    expect([...files.keys()].some((path) => path.includes('snapshot-'))).toBe(false);
+    await storage.write(JSON.stringify({ notes: {}, version: 1 }));
     expect([...files.keys()].some((path) => path.includes('snapshot-'))).toBe(true);
   });
 
