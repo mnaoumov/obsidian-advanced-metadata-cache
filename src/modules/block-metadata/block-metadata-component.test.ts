@@ -1,9 +1,14 @@
-import type { App as AppOriginal } from 'obsidian';
+import type { MarkdownCodeBlockProcessorRegistrar } from '@mnaoumov/obsidian-lib/markdown-code-block-processor-registrar';
+import type {
+  App as AppOriginal,
+  MarkdownPostProcessorContext
+} from 'obsidian';
 import type { TFile } from 'obsidian-test-mocks/obsidian';
 
 import { setTimeoutAsync } from '@mnaoumov/typescript-lib/async';
 import { noop } from '@mnaoumov/typescript-lib/function';
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
+import { ensureNonNullable } from '@mnaoumov/typescript-lib/type-guards';
 import { waitForAllAsyncOperations } from '@mnaoumov/typescript-test-toolkit/async-operation-tracking';
 import { App } from 'obsidian-test-mocks/obsidian';
 import {
@@ -40,13 +45,31 @@ describe('BlockMetadataComponent', () => {
   let blockMetadataIndex: BlockMetadataIndex;
   let codeBlockLanguages: CodeBlockLanguages;
   let component: BlockMetadataComponent;
+  let markdownCodeBlockProcessorRegistrar: MarkdownCodeBlockProcessorRegistrar;
 
   beforeEach(() => {
     vi.clearAllMocks();
     app = App.createConfigured__();
     blockMetadataIndex = new BlockMetadataIndex();
     codeBlockLanguages = new CodeBlockLanguages();
-    component = new BlockMetadataComponent({ app: castTo<AppOriginal>(app), blockMetadataIndex, codeBlockLanguages });
+    markdownCodeBlockProcessorRegistrar = {
+      registerMarkdownCodeBlockProcessor: vi.fn<MarkdownCodeBlockProcessorRegistrar['registerMarkdownCodeBlockProcessor']>(() => noop)
+    };
+    component = new BlockMetadataComponent({ app: castTo<AppOriginal>(app), blockMetadataIndex, codeBlockLanguages, markdownCodeBlockProcessorRegistrar });
+  });
+
+  it('should register a code block processor owned by itself that renders the panel', async () => {
+    await load();
+
+    const registerMock = vi.mocked(markdownCodeBlockProcessorRegistrar.registerMarkdownCodeBlockProcessor);
+    expect(registerMock).toHaveBeenCalledOnce();
+    const params = ensureNonNullable(registerMock.mock.calls[0])[0];
+    expect(params.language).toBe('advanced-metadata-cache');
+    expect(params.lifetimeOwner).toBe(component);
+
+    const el = createDiv();
+    await params.handler('status: done\n', el, castTo<MarkdownPostProcessorContext>({ sourcePath: 'Alpha.md' }));
+    expect(el.querySelector('.advanced-metadata-cache-block-metadata-summary')?.textContent).toBe('Metadata: status');
   });
 
   it('should build from the notes holding code sections, and tell listeners once it is built', async () => {

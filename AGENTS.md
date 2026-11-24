@@ -449,10 +449,16 @@ outlive the module; `BlockMetadataComponent` builds it (only notes whose cache l
 clears it at both edges, notifying `null`. `changed` hands over the text, so an edit reads nothing; `setPath` notifies
 only when the note's fences really changed. Nothing is persisted. Off by default. While on, the component registers its language with `CodeBlockLanguages`, so a `[[link]]` value is a real link through `code-block-links` (backlinks, graph, rename updates), which is what a heading's `related` and `links` fields need; with `code-block-links` off it is text, as in any code block.
 
-**Nothing renders the fence yet, on purpose.** A code block processor is a core-global registration keyed by language,
-and a second instance registering it again throws on install, update and Hot Reload, which would leave this plugin,
-which other plugins depend on, unloaded. Rendering waits for the library fix for that, and must then be tied to the
-module's lifetime, not the plugin's.
+**The fence renders as a folded, read-only properties panel in Reading view and Live Preview** (`block-metadata-panel.ts`,
+styled in `src/styles/main.scss`); Source mode keeps the YAML, since Obsidian runs no code block processor there. A code
+block processor is a core-global registration keyed by language, and registering a language that is still registered
+throws. So the processor goes through `obsidian-lib`'s `PluginMarkdownCodeBlockProcessorRegistrar` with
+`BlockMetadataComponent` as its `lifetimeOwner`: switching the module off removes it from Obsidian's language map, and
+the fence is a plain code block again. Never register it through the plugin: it would outlive the module, and the next
+switch-on would throw. The panel parses the fence's own `source` with `parseBlockMetadataProperties`, the reader the
+index uses, rather than asking the index, which may not be built when Obsidian renders. A quoted wikilink is an
+`a.internal-link` whose own click handler calls `openLinkText`, because Reading view and Live Preview route link clicks
+differently. `block-metadata-panel.desktop.integration.test.ts` pins all three views and the off/on cycle.
 
 ## The `external-links` module: text extraction through the shared reader
 

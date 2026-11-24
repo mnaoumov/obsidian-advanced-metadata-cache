@@ -4,6 +4,7 @@ import { OpenBugReportCommandHandler } from '@mnaoumov/obsidian-lib/command-hand
 import { OpenDemoVaultCommandHandler } from '@mnaoumov/obsidian-lib/command-handlers/open-demo-vault-command-handler';
 import { PluginSettingsTabComponent } from '@mnaoumov/obsidian-lib/components/plugin-settings-tab-component';
 import { PluginDataHandler } from '@mnaoumov/obsidian-lib/data-handler';
+import { PluginMarkdownCodeBlockProcessorRegistrar } from '@mnaoumov/obsidian-lib/markdown-code-block-processor-registrar';
 import { PluginBase } from '@mnaoumov/obsidian-lib/plugin/plugin';
 import { PluginEventSourceImpl } from '@mnaoumov/obsidian-lib/plugin/plugin-event-source';
 import { invokeAsyncSafely } from '@mnaoumov/typescript-lib/async';
@@ -134,6 +135,8 @@ export class Plugin extends PluginBase {
     // Owned here too: a plugin registers its languages once, for its whole life.
     const codeBlockLanguages = new CodeBlockLanguages();
     const metadataParsers = new MetadataParsers();
+    // Each module that renders a language names itself as the lifetime owner, so its processor goes with it.
+    const markdownCodeBlockProcessorRegistrar = new PluginMarkdownCodeBlockProcessorRegistrar(this);
     const modulesComponent = new ModulesComponent({
       moduleDefinitions: [
         {
@@ -225,7 +228,7 @@ export class Plugin extends PluginBase {
           moduleId: 'non-markdown'
         },
         {
-          createComponent: (): BlockMetadataComponent => new BlockMetadataComponent({ app: this.app, blockMetadataIndex, codeBlockLanguages }),
+          createComponent: (): BlockMetadataComponent => new BlockMetadataComponent({ app: this.app, blockMetadataIndex, codeBlockLanguages, markdownCodeBlockProcessorRegistrar }),
           getIsEnabled: (settings): boolean => settings.isBlockMetadataModuleEnabled,
           moduleId: 'block-metadata'
         }

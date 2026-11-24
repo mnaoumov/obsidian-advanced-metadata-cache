@@ -1,0 +1,54 @@
+// The properties panel a metadata fence renders as in Reading view and Live Preview: one line while folded.
+.advanced-metadata-cache-block-metadata {
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  margin: var(--size-4-1) 0;
+  padding: var(--size-2-1) var(--size-4-2);
+
+  .advanced-metadata-cache-block-metadata-summary {
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &[open] .advanced-metadata-cache-block-metadata-summary {
+    white-space: normal;
+  }
+
+  .advanced-metadata-cache-block-metadata-property {
+    display: flex;
+    gap: var(--size-4-2);
+    padding: var(--size-2-1) 0;
+  }
+
+  .advanced-metadata-cache-block-metadata-key {
+    flex: 0 0 30%;
+    overflow-wrap: anywhere;
+  }
+
+  .advanced-metadata-cache-block-metadata-value {
+    color: var(--text-normal);
+    flex: 1 1 auto;
+    overflow-wrap: anywhere;
+  }
+
+  .advanced-metadata-cache-block-metadata-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--size-2-2);
+  }
+
+  .advanced-metadata-cache-block-metadata-list-item {
+    background-color: var(--background-modifier-hover);
+    border-radius: var(--radius-s);
+    padding: 0 var(--size-2-2);
+  }
+
+  .advanced-metadata-cache-block-metadata-error {
+    color: var(--text-error);
+    padding: var(--size-2-1) 0;
+  }
+}
