@@ -168,7 +168,7 @@ export class PluginIndexStorage implements IndexStorage {
       if (kind === 'headings') {
         const local = await openLocal('heading-observations-v1');
         shared = await this.getPluginDataSync().openShared({ kind: 'last-write-wins', local, storeId: 'heading-observations-v1' });
-        const device = await local.getOrCreate('consumer-device', window.crypto.randomUUID());
+        const device = await local.getOrCreate('consumer-device', activeWindow.crypto.randomUUID());
         if (typeof device !== 'string') {
           throw new TypeError('Invalid heading writer identity');
         }

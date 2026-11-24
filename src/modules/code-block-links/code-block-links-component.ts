@@ -112,7 +112,7 @@ export class CodeBlockLinksComponent extends LayoutReadyComponent {
     }
 
     const cache = this.app.metadataCache.getFileCache(file);
-    return cache ? [...this.injections.get(cache)?.codeBlockReferences ?? []] : [];
+    return cache ? [...(this.injections.get(cache)?.codeBlockReferences ?? [])] : [];
   }
 
   public override onunload(): void {
@@ -218,10 +218,10 @@ export class CodeBlockLinksComponent extends LayoutReadyComponent {
     const embeds = codeBlockReferences.filter((codeBlockReference) => codeBlockReference.isEmbed).map((codeBlockReference) => codeBlockReference.reference);
 
     if (links.length > 0) {
-      cache.links = sortByOffset([...cache.links ?? [], ...links]);
+      cache.links = sortByOffset([...(cache.links ?? []), ...links]);
     }
     if (embeds.length > 0) {
-      cache.embeds = sortByOffset([...cache.embeds ?? [], ...embeds]);
+      cache.embeds = sortByOffset([...(cache.embeds ?? []), ...embeds]);
     }
 
     return injection;

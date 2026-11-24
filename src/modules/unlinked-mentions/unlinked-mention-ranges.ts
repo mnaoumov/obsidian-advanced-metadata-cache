@@ -72,7 +72,7 @@ export function findMentionRanges(params: FindMentionRangesParams): MentionRange
  */
 export function getMentionNames(file: TFile, cache: CachedMetadata | null): string[] {
   // Obsidian's own alias reader, which trims each alias and drops the empty ones.
-  return [file.basename, ...parseFrontMatterAliases(cache?.frontmatter) ?? []];
+  return [file.basename, ...(parseFrontMatterAliases(cache?.frontmatter) ?? [])];
 }
 
 function isHidden(range: MentionRange, cache: CachedMetadata | null): boolean {
@@ -80,7 +80,7 @@ function isHidden(range: MentionRange, cache: CachedMetadata | null): boolean {
     return false;
   }
 
-  const containers: PositionContainer[] = [...cache.links ?? [], ...cache.embeds ?? []];
+  const containers: PositionContainer[] = [...(cache.links ?? []), ...(cache.embeds ?? [])];
   if (cache.frontmatterPosition) {
     containers.push(cache.frontmatterPosition);
   }

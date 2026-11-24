@@ -60,6 +60,6 @@ describe('persisted unlinked mentions', () => {
       version: 1
     });
 
-    expect([...parsePersistedUnlinkedMentions(json)?.notes.keys() ?? []]).toEqual(['Good.md']);
+    expect([...(parsePersistedUnlinkedMentions(json)?.notes.keys() ?? [])]).toEqual(['Good.md']);
   });
 });

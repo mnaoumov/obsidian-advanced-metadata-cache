@@ -18,7 +18,7 @@ import {
 } from 'vitest';
 
 vi.mock('@mnaoumov/obsidian-lib/metadata-cache', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@mnaoumov/obsidian-lib/metadata-cache')>(),
+  ...(await importOriginal<typeof import('@mnaoumov/obsidian-lib/metadata-cache')>()),
   ensureMetadataCacheReady: vi.fn(async () => {
     // Ready at once.
   })

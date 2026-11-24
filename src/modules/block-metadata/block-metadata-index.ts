@@ -52,7 +52,7 @@ export class BlockMetadataIndex {
    * @returns Copies of its fences, in the order they appear in the note; empty for a note with none.
    */
   public getBlockMetadata(path: string): BlockMetadata[] {
-    return cloneJson([...this.byPath.get(path) ?? []]);
+    return cloneJson([...(this.byPath.get(path) ?? [])]);
   }
 
   /**
@@ -64,7 +64,7 @@ export class BlockMetadataIndex {
    * @returns Copies of the matching fences with their notes' paths, by path in code-unit order, then in note order.
    */
   public getBlockMetadataWithProperty(propertyName: string, value?: string): BlockMetadataMatch[] {
-    const paths = [...this.byPropertyName.get(propertyName) ?? []].sort(compareByCodeUnits);
+    const paths = [...(this.byPropertyName.get(propertyName) ?? [])].sort(compareByCodeUnits);
     const matches: BlockMetadataMatch[] = [];
 
     for (const path of paths) {

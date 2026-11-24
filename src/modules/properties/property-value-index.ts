@@ -281,7 +281,7 @@ export class PropertyValueIndex {
    */
   public getPathsByPropertyValue(propertyName: string, value: string): null | string[] {
     const propertyValues = this.getPropertyValues(propertyName);
-    return propertyValues ? [...propertyValues.pathsByValue.get(value) ?? []] : null;
+    return propertyValues ? [...(propertyValues.pathsByValue.get(value) ?? [])] : null;
   }
 
   /**

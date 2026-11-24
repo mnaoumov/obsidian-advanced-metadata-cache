@@ -111,7 +111,7 @@ export class UnlinkedMentionIndex {
    * @returns The keys, empty for a note that mentions none or was never scanned.
    */
   public getMentionKeys(path: string): string[] {
-    return [...this.mentionKeysByPath.get(path) ?? []];
+    return [...(this.mentionKeysByPath.get(path) ?? [])];
   }
 
   /**

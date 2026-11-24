@@ -140,7 +140,7 @@ export class UnlinkedMentionsComponent extends LayoutReadyComponent {
           return new Map();
         }
         this.savedCleanKeys = saved?.cleanKeys ?? null;
-        return new Map([...saved?.notes ?? []].map(([path, note]) => [path, { mtime: note.mtime, record: note.mentionKeys, size: note.size }]));
+        return new Map([...(saved?.notes ?? [])].map(([path, note]) => [path, { mtime: note.mtime, record: note.mentionKeys, size: note.size }]));
       },
       onRemove: (path): void => {
         this.index.removeText(path);

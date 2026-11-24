@@ -101,7 +101,7 @@ export async function findCodeBlockReferences(params: FindCodeBlockReferencesPar
     const innerReferences: CodeBlockReference[] = [
       ...(innerCache.links ?? []).map((reference) => ({ isEmbed: false, language: block.language, reference })),
       ...(innerCache.embeds ?? []).map((reference) => ({ isEmbed: true, language: block.language, reference })),
-      ...await findCodeBlockReferences({ ...params, cache: innerCache, text: innerText })
+      ...(await findCodeBlockReferences({ ...params, cache: innerCache, text: innerText }))
     ];
 
     for (const innerReference of innerReferences) {
