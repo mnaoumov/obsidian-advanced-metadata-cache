@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2.7.2
+
+This release has 1 improvement and 3 documentation changes. 3 maintenance commits (tests, build, CI, refactoring, dependencies) are not listed.
+
+### Improved
+
+- **persistence:** compact shared stores once an hour with the growing journal segment
+
+### Documentation
+
+- **readme:** refresh the See also section
+- use the plugin badge line in the README
+- **changelog:** rewrite the 2.7.1 entry for readers
+
 ## 2.7.1
 
 This release changes documentation only; the plugin itself is unchanged. 1 maintenance commit (build) is not listed.
