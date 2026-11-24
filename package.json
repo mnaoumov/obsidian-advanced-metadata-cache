@@ -56,14 +56,14 @@
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.4",
-    "@mnaoumov/obsidian-dev-toolkit": "^12.2.0",
-    "@mnaoumov/typescript-dev-toolkit": "^8.3.0",
+    "@mnaoumov/obsidian-dev-toolkit": "^13.0.0",
+    "@mnaoumov/typescript-dev-toolkit": "^10.0.0",
     "@mnaoumov/typescript-test-toolkit": "^1.1.0",
     "@obsidian-typings/obsidian-public-latest": "^6.60.0",
     "@total-typescript/ts-reset": "^0.6.1",
     "@tsconfig/strictest": "^2.0.8",
     "@types/node": "^26.6.5",
-    "@vitest/coverage-v8": "^5.0.5",
+    "@vitest/coverage-v8": "^5.1.1",
     "better-typescript-lib": "^2.12.0",
     "czg": "^1.14.0",
     "dedent": "^1.7.2",
@@ -78,6 +78,6 @@
     "obsidian-test-mocks": "^7.2.3",
     "sharp": "^0.35.5",
     "typescript": "6.0.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.1"
   }
 }
