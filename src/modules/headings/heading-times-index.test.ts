@@ -245,7 +245,7 @@ describe('HeadingTimesIndex', () => {
     it('should ignore a note it does not track', () => {
       index.markSeen({ fromLine: 0, path: 'Never.md', time: 7, toLine: 0 });
 
-      expect(index.get('Never.md')).toBeUndefined();
+      expect(index.get('Never.md')).toBeNull();
     });
   });
 });

@@ -183,10 +183,10 @@ function heading(text: string, body = ''): MatchableHeading {
  * Reads a note's headings the way the metadata cache does, through `obsidian-test-mocks`' own parser.
  *
  * @param content - The note's content.
- * @returns The headings.
+ * @returns The headings, empty when it has none.
  */
-function headingCachesOf(content: string): HeadingCache[] | undefined {
+function headingCachesOf(content: string): HeadingCache[] {
   const app = App.createConfigured__();
   const file = app.vault.createSync__('Note.md', content);
-  return app.metadataCache.getFileCache(file)?.headings;
+  return app.metadataCache.getFileCache(file)?.headings ?? [];
 }

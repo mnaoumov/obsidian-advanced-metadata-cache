@@ -217,9 +217,9 @@ async function runScenario(): Promise<BlockMetadataResult> {
         await app.fileManager.trashFile(existingFolder);
       }
 
-      function readLiveRecord(): PluginApiRecord | undefined {
+      function readLiveRecord(): null | PluginApiRecord {
         const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
-        return (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked);
+        return (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked) ?? null;
       }
 
       function getOpenPaths(api: AdvancedMetadataCacheApi): string[] {
@@ -230,7 +230,7 @@ async function runScenario(): Promise<BlockMetadataResult> {
         await waitUntil({
           intervalInMilliseconds: pollMs,
           message: 'the plugin to publish its API to the registry',
-          predicate: () => readLiveRecord() !== undefined,
+          predicate: () => readLiveRecord() !== null,
           timeoutInMilliseconds: apiWaitMs
         });
 

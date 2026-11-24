@@ -145,9 +145,9 @@ async function runStep(params: StepParams): Promise<StepResult> {
        *
        * @returns The record, or nothing while none is published.
        */
-      function readLiveRecord(): PluginApiRecord | undefined {
+      function readLiveRecord(): null | PluginApiRecord {
         const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
-        return (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked);
+        return (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked) ?? null;
       }
 
       /**
@@ -176,7 +176,7 @@ async function runStep(params: StepParams): Promise<StepResult> {
         await waitUntil({
           intervalInMilliseconds: pollMs,
           message: 'the plugin to publish its API to the registry',
-          predicate: () => readLiveRecord() !== undefined,
+          predicate: () => readLiveRecord() !== null,
           timeoutInMilliseconds: apiWaitMs
         });
 

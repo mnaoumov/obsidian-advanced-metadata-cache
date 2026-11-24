@@ -49,8 +49,8 @@ async function runStep(step: Step): Promise<StepResult> {
       STEP: currentStep
     }): Promise<StepResult> {
       const stateKey = 'coreBacklinksReEnableBacklinkComponentPrototypeState';
-      function readState(): BacklinkComponentPrototypeState | undefined {
-        return Reflect.get(window, stateKey) as BacklinkComponentPrototypeState | undefined;
+      function readState(): BacklinkComponentPrototypeState | null {
+        return (Reflect.get(window, stateKey) as BacklinkComponentPrototypeState | undefined) ?? null;
       }
 
       const corePlugin = app.internalPlugins.getPluginById('backlink');

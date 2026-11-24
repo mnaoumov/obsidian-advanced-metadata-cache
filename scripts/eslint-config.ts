@@ -4,8 +4,16 @@ import { defineEslintConfigs } from '@mnaoumov/obsidian-dev-toolkit/linters/esli
 import { defineConfig } from 'eslint/config';
 
 export const configs: Linter.Config[] = defineEslintConfigs({
-  customConfigs() {
+  customConfigs(context) {
     return defineConfig([
+      {
+        files: context.allFiles(),
+        rules: {
+          // "No value" is `null` in this plugin's own code, as in the libraries it builds on. A shape that
+          // Mirrors an Obsidian or other library API keeps `undefined` under a `-- Mirrors <API>` disable.
+          'typescript-dev-toolkit/no-undefined-return-type': 'error'
+        }
+      },
       {
         files: ['src/**/*.integration.test.ts'],
         rules: {
