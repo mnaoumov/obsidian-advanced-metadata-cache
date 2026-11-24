@@ -452,11 +452,11 @@ export async function showBlockMetadata(app: App, params: ShowBlockMetadataOptio
     const matches = await api.getBlockMetadataWithPropertySafe(params.propertyName, params.value) ?? [];
     new Notice([
       `Metadata in ${params.path}:`,
-      ...blockMetadataList.length === 0
+      ...(blockMetadataList.length === 0
         ? ['none']
-        : blockMetadataList.map((blockMetadata) => `  ${describeTarget(blockMetadata)}: ${blockMetadata.properties ? JSON.stringify(blockMetadata.properties) : `error: ${String(blockMetadata.error)}`}`),
+        : blockMetadataList.map((blockMetadata) => `  ${describeTarget(blockMetadata)}: ${blockMetadata.properties ? JSON.stringify(blockMetadata.properties) : `error: ${String(blockMetadata.error)}`}`)),
       `Blocks with ${params.propertyName}: ${params.value}:`,
-      ...matches.length === 0 ? ['none'] : matches.map((match) => `  ${match.path}, ${describeTarget(match.blockMetadata)}`)
+      ...(matches.length === 0 ? ['none'] : matches.map((match) => `  ${match.path}, ${describeTarget(match.blockMetadata)}`))
     ].join('\n'));
   } finally {
     component.unload();
@@ -516,7 +516,7 @@ export async function showCodeBlockLinks(app: App, params: ShowCodeBlockLinksOpt
       `Languages counted: ${params.languages.length === 0 ? 'none' : params.languages.join(', ')}`,
       `Notes linking to ${params.targetPath}: ${backlinkPaths.length === 0 ? 'none' : backlinkPaths.join(', ')}`,
       `Links inside code blocks of ${params.sourcePath}:`,
-      ...references.length === 0 ? ['none'] : references.map(({ isEmbed, language, reference }) => `  ${isEmbed ? '![[' : '[['}${reference.link}]] in a ${language} block`)
+      ...(references.length === 0 ? ['none'] : references.map(({ isEmbed, language, reference }) => `  ${isEmbed ? '![[' : '[['}${reference.link}]] in a ${language} block`))
     ].join('\n'));
   } finally {
     component.unload();
@@ -550,7 +550,7 @@ export async function showDatedValues(app: App, query: DatedValuesQuery): Promis
     const datedValues = await api.getDatedValuesSafe(query) ?? [];
     const lines = datedValues.map((datedValue) => `${datedValue.value}  ${datedValue.propertyName}  ${datedValue.path}`);
 
-    new Notice([`Dated values from ${query.from ?? 'the start'} to ${query.to ?? 'the end'}:`, ...lines.length === 0 ? ['none'] : lines].join('\n'));
+    new Notice([`Dated values from ${query.from ?? 'the start'} to ${query.to ?? 'the end'}:`, ...(lines.length === 0 ? ['none'] : lines)].join('\n'));
   } finally {
     component.unload();
   }
@@ -677,7 +677,7 @@ export async function showLinkTextsOf(app: App, path: string): Promise<void> {
     const linkTexts = await api.getLinkTextsSafe(path) ?? [];
     const lines = linkTexts.map((linkText) => `${linkText.text}: ${String(linkText.count)} link(s) from ${linkText.sourcePaths.join(', ')}`);
 
-    new Notice([`Link texts of ${path}:`, ...lines.length === 0 ? ['none'] : lines].join('\n'));
+    new Notice([`Link texts of ${path}:`, ...(lines.length === 0 ? ['none'] : lines)].join('\n'));
   } finally {
     component.unload();
   }
@@ -744,7 +744,7 @@ export async function showNonDateValues(app: App): Promise<void> {
     const nonDateValues = await api.getNonDateValuesSafe() ?? [];
     const lines = nonDateValues.map((datedValue) => `"${datedValue.value}"  ${datedValue.propertyName}  ${datedValue.path}`);
 
-    new Notice(['Values of date properties that are not dates:', ...lines.length === 0 ? ['none'] : lines].join('\n'));
+    new Notice(['Values of date properties that are not dates:', ...(lines.length === 0 ? ['none'] : lines)].join('\n'));
   } finally {
     component.unload();
   }
@@ -875,7 +875,7 @@ export async function showTitlesFor(app: App, path: string): Promise<void> {
 
     new Notice([
       `"${path}" is titled:`,
-      ...titles.length > 0 ? titles : ['(nothing)'],
+      ...(titles.length > 0 ? titles : ['(nothing)']),
       '',
       `read from: ${propertyNames.join(', ')}`
     ].join('\n'));
@@ -911,7 +911,7 @@ export async function showUnlinkedMentionsOf(app: App, path: string): Promise<vo
     const unlinkedMentions = await api.getUnlinkedMentions(path) ?? [];
     const lines = unlinkedMentions.map((unlinkedMention) => `${unlinkedMention.path}: ${String(unlinkedMention.ranges.length)}`);
 
-    new Notice([`Notes mentioning ${path} without linking to it:`, ...lines.length === 0 ? ['none'] : lines].join('\n'));
+    new Notice([`Notes mentioning ${path} without linking to it:`, ...(lines.length === 0 ? ['none'] : lines)].join('\n'));
   } finally {
     component.unload();
   }

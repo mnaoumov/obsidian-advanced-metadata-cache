@@ -138,7 +138,7 @@ export class NameIndex {
    *   nothing carries it.
    */
   public getPathsByName(name: string): string[] {
-    return [...this.namePaths.get(normalizeLinkName(name)) ?? []];
+    return [...(this.namePaths.get(normalizeLinkName(name)) ?? [])];
   }
 
   /**

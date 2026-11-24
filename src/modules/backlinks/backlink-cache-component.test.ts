@@ -67,7 +67,7 @@ vi.mock('@mnaoumov/obsidian-lib/file-system', async (importOriginal) => {
 });
 
 vi.mock('@mnaoumov/obsidian-lib/link', async (importOriginal) => ({
-  ...await importOriginal<typeof LinkModule>(),
+  ...(await importOriginal<typeof LinkModule>()),
   extractReferenceFile: vi.fn()
 }));
 

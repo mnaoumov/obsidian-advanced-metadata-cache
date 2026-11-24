@@ -76,7 +76,7 @@ export class ExternalLinkIndex {
    * @returns Its links in text order; empty for a note with none, or one not read yet.
    */
   public getLinks(path: string): ExternalLink[] {
-    return [...this.byPath.get(path) ?? []];
+    return [...(this.byPath.get(path) ?? [])];
   }
 
   /**

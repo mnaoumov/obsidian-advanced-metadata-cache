@@ -177,7 +177,7 @@ describe('the link texts module on a real vault', () => {
     console.warn(
       '[link texts build on a real vault]',
       JSON.stringify({
-        bestBuildMs: Math.min(...timings?.buildMs ?? []).toFixed(0),
+        bestBuildMs: Math.min(...(timings?.buildMs ?? [])).toFixed(0),
         buildMs: timings?.buildMs.map((ms) => ms.toFixed(0)),
         fileCount: timings?.fileCount,
         heapDeltaMegabytes: timings?.heapDeltaBytes === null || timings?.heapDeltaBytes === undefined ? null : toMegabytes(timings.heapDeltaBytes),
