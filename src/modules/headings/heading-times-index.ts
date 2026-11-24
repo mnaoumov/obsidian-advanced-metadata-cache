@@ -118,6 +118,10 @@ export class HeadingTimesIndex {
   private readonly pathRevisions = new Map<string, number>();
   private readonly pluginSettingsComponent: PluginSettingsComponent;
   private revision = 0;
+  /**
+   * The revision the last completed save captured: every path changed at or before it is in the storage.
+   */
+  private savedRevision = 0;
   private readonly storage: IndexStorage;
 
   public constructor(params: HeadingTimesIndexConstructorParams) {
@@ -135,6 +139,7 @@ export class HeadingTimesIndex {
     this.revision++;
     this.generation++;
     this.pathRevisions.clear();
+    this.savedRevision = this.revision;
     this.notes.clear();
     this.missingPaths.clear();
     this.isDirtyValue = false;
@@ -353,6 +358,7 @@ export class HeadingTimesIndex {
     const json = JSON.stringify(persisted);
     const revision = this.revision;
     await this.storage.write(json);
+    this.savedRevision = Math.max(this.savedRevision, revision);
     if (revision === this.revision) {
       this.isDirtyValue = false;
     }
@@ -364,13 +370,12 @@ export class HeadingTimesIndex {
 
    */
   public async synchronize(): Promise<void> {
-    const generation = this.generation;
-    if (this.isDirtyValue) {
-      await this.save();
-    }
-    if (generation !== this.generation) {
-      return;
-    }
+    /*
+     * Never saves first. This device's own journal write is a vault change that requests a synchronize, so a
+     * save here wrote every edit about 1 s after the previous write instead of on the component's 5 s
+     * debounce. A path changed since the last save is this device's unsaved word instead: the shared state
+     * cannot know it yet, so it is neither adopted, resurrected nor retired from what was read.
+     */
     const revision = this.revision;
     const json = await this.storage.read();
     if (json === null || revision !== this.revision) {
@@ -382,13 +387,19 @@ export class HeadingTimesIndex {
     }
     for (const [path, observed] of Object.entries(persisted.notes)) {
       const current = this.notes.get(path);
-      this.notes.set(path, current ? mergeHeadingNotes(current, observed) : observed);
+      if (current) {
+        this.notes.set(path, mergeHeadingNotes(current, observed));
+      } else if (this.isSaved(path)) {
+        this.notes.set(path, observed);
+      } else {
+        continue;
+      }
       if (!this.app.vault.getFileByPath(path)) {
         this.markMissing(path);
       }
     }
     for (const path of this.notes.keys()) {
-      if (!Object.hasOwn(persisted.notes, path)) {
+      if (!Object.hasOwn(persisted.notes, path) && this.isSaved(path)) {
         this.notes.delete(path);
       }
     }
@@ -411,6 +422,16 @@ export class HeadingTimesIndex {
   private getPathsUnder(folderPath: string): string[] {
     const prefix = `${folderPath}/`;
     return this.getPaths().filter((path) => path.startsWith(prefix));
+  }
+
+  /**
+   * Whether the storage already holds this device's latest word on a path.
+   *
+   * @param path - The note's vault-relative path.
+   * @returns `false` when the path was recorded, renamed or deleted after the last completed save began.
+   */
+  private isSaved(path: string): boolean {
+    return (this.pathRevisions.get(path) ?? 0) <= this.savedRevision;
   }
 
   private set(path: string, note: NoteHeadingTimes): void {

@@ -29,18 +29,31 @@ function headingIndex(storage: IndexStorage): HeadingTimesIndex {
 }
 
 describe('index persistence integration', () => {
-  it('should not reopen or repopulate heading persistence after unloading during a save', async () => {
-    const read = vi.fn<IndexStorage['read']>().mockResolvedValue(JSON.stringify({ notes: { 'A.md': NOTE }, version: 1 }));
+  it('should not repopulate heading persistence after unloading during a synchronize', async () => {
+    const read = vi.fn<IndexStorage['read']>();
     const write = vi.fn<IndexStorage['write']>();
     const index = headingIndex({ read, write });
     index.trackEmpty('A.md', 1);
-    write.mockImplementation(() => {
+    read.mockImplementation(() => {
       index.clear();
-      return noopAsync();
+      return Promise.resolve(JSON.stringify({ notes: { 'A.md': NOTE }, version: 1 }));
     });
     await index.synchronize();
-    expect(read).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
     expect(index.getPaths()).toEqual([]);
+  });
+
+  it('should never save from a synchronize, keeping unsaved local paths until the debounced save', async () => {
+    const write = vi.fn(noopAsync);
+    const storage = { read: (): Promise<null | string> => Promise.resolve(JSON.stringify({ notes: { 'Deleted.md': NOTE }, version: 1 })), write };
+    const index = headingIndex(storage);
+    index.trackEmpty('Unsaved.md', 1);
+    index.trackEmpty('Deleted.md', 1);
+    index.delete('Deleted.md');
+    await index.synchronize();
+    expect(write).not.toHaveBeenCalled();
+    expect(index.isDirty).toBe(true);
+    expect(index.getPaths()).toEqual(['Unsaved.md']);
   });
 
   it('should discard property loads and synchronization completed after unload', async () => {
@@ -62,6 +75,7 @@ describe('index persistence integration', () => {
     const index = headingIndex(storage);
     index.record({ mtime: 1, path: 'A.md', snapshots: [SNAPSHOT], time: 1 });
     index.trackEmpty('Retired.md', 1);
+    await index.save();
     await index.synchronize();
     expect(write).toHaveBeenCalledOnce();
     expect(index.getPaths()).toEqual(['A.md', 'B.md']);

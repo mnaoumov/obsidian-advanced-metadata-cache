@@ -9,6 +9,7 @@
  * save. It runs in its own `evalInObsidian` call, because a save can wait out the 5 s debounce and the
  * transport caps how long one command may hold `Runtime.evaluate` open.
  */
+import { sleep } from '@mnaoumov/typescript-lib/async';
 import { evalInObsidian } from 'obsidian-integration-testing';
 import { getTemporaryVault } from 'obsidian-integration-testing/vitest-global-setup-plugin';
 import {
@@ -23,12 +24,39 @@ import type { PluginDataSync } from '../../persistence/plugin-data-sync.ts';
 
 import { applyPluginSettings } from '../../../scripts/helpers/names-module.ts';
 
+interface BurstResult {
+  readonly edits: number;
+  readonly error: null | string;
+  readonly saves: number;
+}
+
+interface BurstStartResult {
+  readonly error: null | string;
+}
+
+/**
+ * The burst's counters, kept on the window between the two `evalInObsidian` calls.
+ */
+interface BurstState {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The interval counts edits as it makes them.
+  edits: number;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The first failed edit is kept.
+  error: null | string;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Set once the interval has started.
+  intervalId: number;
+  readonly restore: () => void;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The wrapped save counts itself.
+  saves: number;
+}
+
 interface HeadingApiPersistence {
   readonly headingTimesIndex: HeadingIndexState;
 }
 
 interface HeadingIndexState {
   readonly isDirty: boolean;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The burst wraps the save to count it.
+  save: () => Promise<void>;
 }
 
 /**
@@ -65,6 +93,10 @@ const STORE_ID = 'heading-observations-v1';
 const SAVE_WAIT_IN_MS = 12_000;
 const POLL_IN_MS = 200;
 const SCENARIO_TIMEOUT_IN_MS = 180_000;
+const SAVE_DEBOUNCE_IN_MS = 5000;
+const BURST_IN_MS = 15_000;
+const BURST_EDIT_INTERVAL_IN_MS = 500;
+const BURST_STATE_KEY = '__amcHeadingSaveBurst';
 
 describe('Headings module with sync between devices on', () => {
   let wasSyncEnabled = false;
@@ -100,6 +132,18 @@ describe('Headings module with sync between devices on', () => {
     for (const save of rest) {
       expect(save.logFiles).toEqual(first?.logFiles);
     }
+  }, SCENARIO_TIMEOUT_IN_MS);
+
+  it('saves on the 5 s debounce during continuous edits, not after every synchronize its own journal write requests', async () => {
+    const startResult = await startEditBurst();
+    expect(startResult.error).toBeNull();
+    await sleep({ milliseconds: BURST_IN_MS });
+    const burst = await stopEditBurst();
+    expect(burst.error).toBeNull();
+    // Each journal write this device makes still requests a synchronize; that synchronize must not save.
+    expect(burst.edits).toBeGreaterThan(BURST_IN_MS / BURST_EDIT_INTERVAL_IN_MS / 2);
+    expect(burst.saves).toBeGreaterThan(0);
+    expect(burst.saves).toBeLessThanOrEqual(Math.ceil(BURST_IN_MS / SAVE_DEBOUNCE_IN_MS) + 1);
   }, SCENARIO_TIMEOUT_IN_MS);
 });
 
@@ -230,6 +274,76 @@ async function setSyncEnabled(isEnabled: boolean): Promise<SyncSwitchResult> {
       return { error: null, wasSyncEnabled: wasEnabled };
     },
     input: { IS_ENABLED: isEnabled },
+    vaultPath: getTemporaryVault().path
+  });
+}
+
+/**
+ * Starts editing the note every {@link BURST_EDIT_INTERVAL_IN_MS} inside Obsidian and counts the heading index's saves.
+ *
+ * @returns What went wrong, or `null`.
+ */
+async function startEditBurst(): Promise<BurstStartResult> {
+  return evalInObsidian({
+    callback({ app, BURST_EDIT_INTERVAL_IN_MS: intervalMs, BURST_STATE_KEY: stateKey, NOTE_PATH: notePath }) {
+      const plugin = app.plugins.getPlugin('advanced-metadata-cache') as null | SyncPlugin;
+
+      if (!plugin) {
+        return { error: 'Plugin not loaded' };
+      }
+
+      const index = plugin.pluginApi.headingTimesIndex;
+      const originalSave = index.save;
+      const state: BurstState = {
+        edits: 0,
+        error: null,
+        intervalId: 0,
+        restore: (): void => {
+          index.save = originalSave;
+        },
+        saves: 0
+      };
+      index.save = async (): Promise<void> => {
+        state.saves++;
+        await originalSave.call(index);
+      };
+      state.intervalId = window.setInterval(() => {
+        const file = app.vault.getFileByPath(notePath);
+        state.edits++;
+        const content = `# Burst\nedit ${String(state.edits)}\n`;
+        const edit: Promise<unknown> = file ? app.vault.modify(file, content) : app.vault.create(notePath, content);
+        edit.catch((error: unknown) => {
+          state.error ??= String(error);
+        });
+      }, intervalMs);
+      Reflect.set(window, stateKey, state);
+      return { error: null };
+    },
+    input: { BURST_EDIT_INTERVAL_IN_MS, BURST_STATE_KEY, NOTE_PATH },
+    vaultPath: getTemporaryVault().path
+  });
+}
+
+/**
+ * Stops the burst {@link startEditBurst} began and restores the index's own `save`.
+ *
+ * @returns How many edits were made and how many saves the index ran meanwhile.
+ */
+async function stopEditBurst(): Promise<BurstResult> {
+  return evalInObsidian({
+    callback({ BURST_STATE_KEY: stateKey }) {
+      const state = Reflect.get(window, stateKey) as BurstState | undefined;
+
+      if (!state) {
+        return { edits: 0, error: 'The burst was not started', saves: 0 };
+      }
+
+      window.clearInterval(state.intervalId);
+      state.restore();
+      Reflect.deleteProperty(window, stateKey);
+      return { edits: state.edits, error: state.error, saves: state.saves };
+    },
+    input: { BURST_STATE_KEY },
     vaultPath: getTemporaryVault().path
   });
 }
