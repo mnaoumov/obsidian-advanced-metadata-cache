@@ -56,8 +56,8 @@ async function runStep(step: Step): Promise<StepResult> {
       STEP: currentStep
     }): Promise<StepResult> {
       const stateKey = 'closedBacklinksPaneBacklinkComponentPrototypeState';
-      function readState(): BacklinkComponentPrototypeState | undefined {
-        return Reflect.get(window, stateKey) as BacklinkComponentPrototypeState | undefined;
+      function readState(): BacklinkComponentPrototypeState | null {
+        return (Reflect.get(window, stateKey) as BacklinkComponentPrototypeState | undefined) ?? null;
       }
 
       const corePlugin = app.internalPlugins.getPluginById('backlink');
@@ -66,8 +66,8 @@ async function runStep(step: Step): Promise<StepResult> {
       }
       const backlinkPluginInstance = corePlugin.instance;
 
-      function getNoteLeaf(): undefined | WorkspaceLeaf {
-        return app.workspace.getLeavesOfType('markdown').find((leaf) => (leaf.view as MarkdownView).file?.path === notePath);
+      function getNoteLeaf(): null | WorkspaceLeaf {
+        return app.workspace.getLeavesOfType('markdown').find((leaf) => (leaf.view as MarkdownView).file?.path === notePath) ?? null;
       }
 
       /*

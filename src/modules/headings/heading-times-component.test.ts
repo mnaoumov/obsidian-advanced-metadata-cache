@@ -412,7 +412,7 @@ describe('HeadingTimesComponent', () => {
     vi.useRealTimers();
     await waitForAllAsyncOperations();
     expect(synchronize).toHaveBeenCalledOnce();
-    expect(index.get(journal.path)).toBeUndefined();
+    expect(index.get(journal.path)).toBeNull();
     const callback = intervals.mock.calls.find(([, delay]) => delay === 30_000)?.[0];
     castTo<() => void>(callback)();
     window.dispatchEvent(new Event('focus'));
@@ -449,7 +449,7 @@ describe('HeadingTimesComponent', () => {
     });
     app.workspace.trigger('file-open', castTo<TFileOriginal>(file));
     await waitForAllAsyncOperations();
-    expect(index.get(file.path)).toBeUndefined();
+    expect(index.get(file.path)).toBeNull();
     component.unload();
   });
   function createNote(path: string, content = ''): TFile {

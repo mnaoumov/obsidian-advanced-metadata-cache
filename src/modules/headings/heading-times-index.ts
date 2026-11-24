@@ -179,10 +179,10 @@ export class HeadingTimesIndex {
    * Reads one note's tracked state.
    *
    * @param path - The note's vault-relative path.
-   * @returns Its state, or `undefined` when it is not tracked.
+   * @returns Its state, or `null` when it is not tracked.
    */
-  public get(path: string): NoteHeadingTimes | undefined {
-    return this.notes.get(path);
+  public get(path: string): NoteHeadingTimes | null {
+    return this.notes.get(path) ?? null;
   }
 
   /**

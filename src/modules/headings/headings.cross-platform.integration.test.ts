@@ -203,9 +203,9 @@ async function runScenario(): Promise<HeadingsResult> {
         }
       }
 
-      function readLiveRecord(): PluginApiRecord | undefined {
+      function readLiveRecord(): null | PluginApiRecord {
         const records = (window as PluginApiRegistryHolder).__obsidianLib?.pluginApiRegistry?.value?.records;
-        return (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked);
+        return (records?.['advanced-metadata-cache'] ?? []).find((record) => !record.isRevoked) ?? null;
       }
 
       async function waitForHeadings(api: AdvancedMetadataCacheApi, path: string, headings: readonly string[]): Promise<HeadingTimes[]> {
@@ -223,7 +223,7 @@ async function runScenario(): Promise<HeadingsResult> {
         await waitUntil({
           intervalInMilliseconds: pollMs,
           message: 'the plugin to publish its API to the registry',
-          predicate: () => readLiveRecord() !== undefined,
+          predicate: () => readLiveRecord() !== null,
           timeoutInMilliseconds: apiWaitMs
         });
 
