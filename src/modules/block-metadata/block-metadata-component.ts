@@ -1,3 +1,4 @@
+import type { MarkdownCodeBlockProcessorRegistrar } from '@mnaoumov/obsidian-lib/markdown-code-block-processor-registrar';
 import type {
   App,
   CachedMetadata,
@@ -17,6 +18,7 @@ import type { CodeBlockLanguages } from '../code-block-links/code-block-language
 import type { BlockMetadataIndex } from './block-metadata-index.ts';
 
 import { isPluginDataPath } from '../../persistence/storage-paths.ts';
+import { renderBlockMetadataPanel } from './block-metadata-panel.ts';
 import {
   BLOCK_METADATA_LANGUAGE,
   findBlockMetadata,
@@ -27,6 +29,7 @@ interface BlockMetadataComponentConstructorParams {
   readonly app: App;
   readonly blockMetadataIndex: BlockMetadataIndex;
   readonly codeBlockLanguages: CodeBlockLanguages;
+  readonly markdownCodeBlockProcessorRegistrar: MarkdownCodeBlockProcessorRegistrar;
 }
 
 /**
@@ -40,6 +43,11 @@ interface BlockMetadataComponentConstructorParams {
  * While it is on, it registers its language with `Code block links`, so a `[[link]]` written as a property value is a
  * link like any other: in backlinks, the graph and rename updates, as it is in frontmatter. That module does the work,
  * and does nothing while it is switched off.
+ *
+ * While it is on, it also renders each fence in Reading view and Live Preview as a folded properties panel. The code
+ * block processor is registered with this component as its lifetime owner, so switching the module off removes it
+ * and switching it on again registers it afresh; a processor owned by the plugin would outlive the module, and the
+ * next registration of the language would throw.
  */
 export class BlockMetadataComponent extends LayoutReadyComponent {
   /**
@@ -53,6 +61,7 @@ export class BlockMetadataComponent extends LayoutReadyComponent {
   private readonly builtPromise: Promise<void>;
   private readonly codeBlockLanguages: CodeBlockLanguages;
   private isBuiltValue = false;
+  private readonly markdownCodeBlockProcessorRegistrar: MarkdownCodeBlockProcessorRegistrar;
   private resolveBuiltPromise: () => void = noop;
 
   public constructor(params: BlockMetadataComponentConstructorParams) {
@@ -60,6 +69,7 @@ export class BlockMetadataComponent extends LayoutReadyComponent {
 
     this.blockMetadataIndex = params.blockMetadataIndex;
     this.codeBlockLanguages = params.codeBlockLanguages;
+    this.markdownCodeBlockProcessorRegistrar = params.markdownCodeBlockProcessorRegistrar;
     this.builtPromise = new Promise<void>((resolve) => {
       this.resolveBuiltPromise = resolve;
     });
@@ -68,6 +78,13 @@ export class BlockMetadataComponent extends LayoutReadyComponent {
   public override onload(): void {
     super.onload();
     this.register(this.codeBlockLanguages.register(BLOCK_METADATA_LANGUAGE));
+    this.markdownCodeBlockProcessorRegistrar.registerMarkdownCodeBlockProcessor({
+      handler: (source, el, context): void => {
+        renderBlockMetadataPanel({ app: this.app, el, source, sourcePath: context.sourcePath });
+      },
+      language: BLOCK_METADATA_LANGUAGE,
+      lifetimeOwner: this
+    });
   }
 
   public override onunload(): void {

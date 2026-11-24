@@ -30,7 +30,7 @@ The button switches the module on if it is off. Change `open` to `done` in one o
 
 Other plugins read the blocks through the API: one note's blocks, every block naming a property and value across the vault, and a notice whenever they change. A value is matched the way a frontmatter value is: `status: open` matches `open`, and `channel: [forum, discord]` matches `forum`. A block whose YAML does not parse is still listed, with the parser's message. A link written as a value, quoted as in frontmatter (`related: "[[Release plan]]"`), is a real link: it shows in backlinks and the graph, and a rename updates it, as long as the **Code block links** module is on, which it is by default.
 
-For now the block shows as a code block in every view. A compact properties panel in Reading view and Live Preview is planned.
+While the module is on, Reading view and Live Preview show the block as a compact panel, folded to one line that names its properties. Click that line to unfold the properties; a quoted link opens like any other link. Source mode shows the YAML, and that is where you edit it. With the module off, the block is an ordinary code block again.
 
 ## What it costs
 

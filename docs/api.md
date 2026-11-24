@@ -302,7 +302,7 @@ due: 2026-12-01
 
 `getBlockMetadataWithProperty(propertyName, value)` finds the blocks across the vault that name a property, by path in code-unit order, then in note order. The name is matched exactly. A value is matched against a scalar's string form or against each scalar member of a list, as the Properties module matches frontmatter; leave it out to match any value. `onBlockMetadataChanged(callback)` calls back with the paths whose blocks changed, or `null` after a build or a clear; subscribe once on load.
 
-The index is built at startup from the notes whose cache lists a code section, and follows each note Obsidian parses again, renames and deletes after that. Nothing is kept on disk. The `Safe` variants wait for the build. All answer **`null` while the Block metadata module is off**, which it is by default. The block is shown as a code block in every view for now. Ask for the range `^1.16`. [16 Block metadata](<../demo-vault/16 Block metadata.md>) shows it.
+The index is built at startup from the notes whose cache lists a code section, and follows each note Obsidian parses again, renames and deletes after that. Nothing is kept on disk. The `Safe` variants wait for the build. All answer **`null` while the Block metadata module is off**, which it is by default. While the module is on, the plugin renders each block in Reading view and Live Preview as a folded, read-only properties panel; that rendering is not part of the API, and a consumer reads the properties through the members above. Ask for the range `^1.16`. [16 Block metadata](<../demo-vault/16 Block metadata.md>) shows it.
 
 ## External links
 

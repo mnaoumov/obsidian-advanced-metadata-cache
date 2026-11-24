@@ -50,7 +50,10 @@ export interface FindBlockMetadataParams {
  */
 export const NOT_A_MAPPING_ERROR = 'The metadata is not a mapping of property names to values.';
 
-interface ParsedProperties {
+/**
+ * A fence's content, read as properties: either a mapping, or the error that kept it from being one.
+ */
+export interface ParsedBlockMetadataProperties {
   readonly error: null | string;
   readonly properties: null | Readonly<Record<string, unknown>>;
 }
@@ -99,7 +102,7 @@ export function findBlockMetadata(params: FindBlockMetadataParams): BlockMetadat
     }
 
     blockMetadataList.push({
-      ...parseProperties(contentLines.join('\n')),
+      ...parseBlockMetadataProperties(contentLines.join('\n')),
       position: cloneJson(section.position),
       target: findTarget(params.cache, sections, sectionIndex, metadataStartLines)
     });
@@ -116,6 +119,35 @@ export function findBlockMetadata(params: FindBlockMetadataParams): BlockMetadat
  */
 export function hasCodeSection(cache: CachedMetadata): boolean {
   return hasCodeSectionIn(cache.sections ?? []);
+}
+
+/**
+ * Reads a fence's content the way {@link findBlockMetadata} does: an empty fence is an empty mapping, a list or a
+ * scalar is an error, and a date YAML reads as a `Date` comes back as a string, as in frontmatter.
+ *
+ * @param yaml - The fence's content, without its fence lines or indentation.
+ * @returns The properties, or the error.
+ */
+export function parseBlockMetadataProperties(yaml: string): ParsedBlockMetadataProperties {
+  let value: unknown;
+  try {
+    value = parseYaml(yaml);
+  } catch (error) {
+    /* v8 ignore next -- parseYaml throws only Error instances. */
+    return { error: error instanceof Error ? error.message : String(error), properties: null };
+  }
+
+  // An empty fence is an empty mapping, as an empty frontmatter is.
+  if (value === null || value === undefined) {
+    return { error: null, properties: {} };
+  }
+
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return { error: NOT_A_MAPPING_ERROR, properties: null };
+  }
+
+  // Through JSON, so a date YAML read as a `Date` is a string, as in frontmatter.
+  return { error: null, properties: cloneJson(value as Record<string, unknown>) };
 }
 
 function findTarget(cache: CachedMetadata, sections: readonly SectionCache[], sectionIndex: number, metadataStartLines: ReadonlySet<number>): BlockMetadataTarget | null {
@@ -145,26 +177,4 @@ function findTarget(cache: CachedMetadata, sections: readonly SectionCache[], se
 
 function hasCodeSectionIn(sections: readonly SectionCache[]): boolean {
   return sections.some((section) => section.type === 'code');
-}
-
-function parseProperties(yaml: string): ParsedProperties {
-  let value: unknown;
-  try {
-    value = parseYaml(yaml);
-  } catch (error) {
-    /* v8 ignore next -- parseYaml throws only Error instances. */
-    return { error: error instanceof Error ? error.message : String(error), properties: null };
-  }
-
-  // An empty fence is an empty mapping, as an empty frontmatter is.
-  if (value === null || value === undefined) {
-    return { error: null, properties: {} };
-  }
-
-  if (typeof value !== 'object' || Array.isArray(value)) {
-    return { error: NOT_A_MAPPING_ERROR, properties: null };
-  }
-
-  // Through JSON, so a date YAML read as a `Date` is a string, as in frontmatter.
-  return { error: null, properties: cloneJson(value as Record<string, unknown>) };
 }
